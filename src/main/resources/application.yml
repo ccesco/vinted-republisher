@@ -1,0 +1,25 @@
+# Configuration commune à tous les environnements : aucune valeur propre au poste de dev.
+# Les variables sans valeur par défaut sont obligatoires : l'application refuse de démarrer sans elles.
+spring:
+  application:
+    name: vinted-republisher
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USER}
+    password: ${DB_PASSWORD}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  liquibase:
+    change-log: classpath:db/changelog/db.changelog-master.yaml
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# Dossier des images sauvegardées (hors git, à sauvegarder avec la base)
+app:
+  data-dir: ${APP_DATA_DIR}

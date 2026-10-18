@@ -1,0 +1,11 @@
+# Profil "local" : poste de développement uniquement.
+# Lit .env (même fichier que Docker Compose) ; le dossier de travail doit être la racine du projet.
+spring:
+  config:
+    import: optional:file:.env[.properties]
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${DB_NAME:appdb}
+    username: ${DB_USER:appuser}
+
+app:
+  data-dir: ${APP_DATA_DIR:./data}

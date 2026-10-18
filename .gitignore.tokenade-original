@@ -1,0 +1,10 @@
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Secrets et données locales
+.env
+data/
+auth/

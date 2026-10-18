@@ -1,0 +1,16 @@
+target/
+.idea/
+*.iml
+.vscode/
+.DS_Store
+
+# Secrets et données locales
+.env
+data/
+auth/
+
+# tokenade — per-project cache / scaffold flag / dedup refs
+.tokenade/
+
+# tokenade — legacy per-project embedding model cache (now global)
+.fastembed_cache/
