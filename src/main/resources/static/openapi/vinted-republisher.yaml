@@ -1,0 +1,84 @@
+openapi: 3.0.3
+info:
+  title: Vinted Republisher
+  description: >
+    API de l'IHM de Vinted Republisher (contract first : ce fichier est écrit avant le code,
+    les interfaces des contrôleurs en sont générées).
+  version: 0.1.0
+servers:
+  - url: /
+tags:
+  - name: vinted-session
+    description: Session Vinted (US-03)
+paths:
+  /api/vinted-session:
+    get:
+      tags: [vinted-session]
+      operationId: showVintedSession
+      summary: État de la session Vinted
+      description: Lit l'état mémorisé, sans accéder à Vinted.
+      responses:
+        '200':
+          description: Aperçu de la session
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOverview'
+  /api/vinted-session/check:
+    post:
+      tags: [vinted-session]
+      operationId: checkVintedSession
+      summary: Vérifier la session
+      description: >
+        Lance en arrière-plan la vérification (ouverture de la page des paramètres du profil).
+        Ignorée si une action navigateur est déjà en cours.
+      responses:
+        '202':
+          description: >
+            Vérification lancée (ou ignorée) ; aperçu de la session juste après la demande, avec l'action
+            en cours. Suivre la suite avec GET /api/vinted-session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOverview'
+  /api/vinted-session/login:
+    post:
+      tags: [vinted-session]
+      operationId: logInToVinted
+      summary: Se connecter à Vinted
+      description: >
+        Lance en arrière-plan la connexion manuelle : un onglet Chrome s'ouvre, le membre se connecte
+        lui-même (5 minutes au plus). Ignorée si une action navigateur est déjà en cours.
+      responses:
+        '202':
+          description: >
+            Connexion lancée (ou ignorée) ; aperçu de la session juste après la demande, avec l'action
+            en cours. Suivre la suite avec GET /api/vinted-session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionOverview'
+components:
+  schemas:
+    SessionOverview:
+      type: object
+      description: Aperçu de session ; un champ absent signifie « aucun ».
+      properties:
+        status:
+          $ref: '#/components/schemas/SessionStatus'
+        currentAction:
+          $ref: '#/components/schemas/BrowserAction'
+        problem:
+          $ref: '#/components/schemas/SessionProblem'
+    SessionStatus:
+      type: string
+      description: État de session ; absent tant qu'aucune vérification n'a eu lieu (« non vérifié »).
+      enum: [CONNECTED, DISCONNECTED]
+    BrowserAction:
+      type: string
+      description: Action navigateur en cours.
+      enum: [CHECKING, LOGGING_IN]
+    SessionProblem:
+      type: string
+      description: Raison pour laquelle la dernière action navigateur n'a pas abouti.
+      enum: [MANUAL_LOGIN_NOT_COMPLETED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE]

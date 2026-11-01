@@ -20,16 +20,17 @@
     <properties>
         <java.version>25</java.version>
         <archunit.version>1.5.0</archunit.version>
+        <playwright.version>1.63.0</playwright.version>
+        <openapi-generator.version>7.25.0</openapi-generator.version>
+        <springdoc.version>3.1.1</springdoc.version>
+        <!-- Tests qui démarrent le vrai Chrome : exclus par défaut, inclus avec -Pbrowser -->
+        <excluded.test.groups>browser</excluded.test.groups>
     </properties>
 
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webmvc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-thymeleaf</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -48,6 +49,16 @@
             <artifactId>spring-boot-starter-liquibase</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springdoc</groupId>
+            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
+            <version>${springdoc.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
+        </dependency>
+        <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
@@ -56,6 +67,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-webmvc-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
@@ -83,6 +99,45 @@
 
     <build>
         <plugins>
+            <!-- Contract first : interfaces et DTO de l'API générés depuis le contrat OpenAPI -->
+            <plugin>
+                <groupId>org.openapitools</groupId>
+                <artifactId>openapi-generator-maven-plugin</artifactId>
+                <version>${openapi-generator.version}</version>
+                <executions>
+                    <execution>
+                        <id>vinted-republisher-api</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/src/main/resources/static/openapi/vinted-republisher.yaml</inputSpec>
+                            <generatorName>spring</generatorName>
+                            <apiPackage>fr.vinted.republisher.adapter.in.web.api</apiPackage>
+                            <modelPackage>fr.vinted.republisher.adapter.in.web.api.model</modelPackage>
+                            <modelNameSuffix>Dto</modelNameSuffix>
+                            <generateSupportingFiles>false</generateSupportingFiles>
+                            <configOptions>
+                                <interfaceOnly>true</interfaceOnly>
+                                <hideGenerationTimestamp>true</hideGenerationTimestamp>
+                                <skipDefaultInterface>true</skipDefaultInterface>
+                                <useSpringBoot3>true</useSpringBoot3>
+                                <useTags>true</useTags>
+                                <openApiNullable>false</openApiNullable>
+                                <annotationLibrary>none</annotationLibrary>
+                                <documentationProvider>none</documentationProvider>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <excludedGroups>${excluded.test.groups}</excludedGroups>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
@@ -95,4 +150,14 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <profile>
+            <!-- mvn test -Pbrowser : tous les tests, Chrome compris (CHROME_PATH si Chrome n'est pas au chemin Windows par défaut) -->
+            <id>browser</id>
+            <properties>
+                <excluded.test.groups/>
+            </properties>
+        </profile>
+    </profiles>
 </project>

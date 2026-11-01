@@ -9,3 +9,7 @@ spring:
 
 app:
   data-dir: ${APP_DATA_DIR:./data}
+
+chrome:
+  path: ${CHROME_PATH:C:/Program Files/Google/Chrome/Application/chrome.exe}
+  debug-port: ${CHROME_DEBUG_PORT:9222}

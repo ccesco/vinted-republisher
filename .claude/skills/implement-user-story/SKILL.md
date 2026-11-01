@@ -11,8 +11,9 @@ Mandatory workflow for any production code. It chains the project's three skills
 Talk to the user in French. Specs, the glossary's definitions and commit messages are in French; code is in English.
 
 ## 1. Check the spec
-- Open `specs/US-XX-*.md`. If its status is not `validée`, **stop** and ask the user the open questions.
-- The spec must contain a "Tests d'acceptation" section: one Gherkin scenario per acceptance criterion and per error case, each with the name of its automated test (or "manuel"). If some are missing, propose them and wait for validation.
+- Open `specs/US-XX-*.md`. If its status is not `validée`, **stop** and run the `grill-spec` skill with the user. Write no code until the spec is `validée`.
+- The spec must contain a "Tests d'acceptation" section: one Gherkin scenario per acceptance criterion and per error case, each with the name of its automated test (or "manuel"). If some are missing, grill the user on them (`grill-spec`).
+- During implementation, any new ambiguity goes back through `grill-spec`: ask, record the decision in the spec, then continue.
 
 ## 2. Model (skill `ddd`)
 - List the spec's business terms and check them against `docs/glossary.md` (ubiquitous language, code terms in English).
@@ -27,9 +28,11 @@ Talk to the user in French. Specs, the glossary's definitions and commit message
 ## 4. Clean up (skill `craftsmanship`)
 - Go through the `craftsmanship` review checklist.
 - `mvn test` must be green, ArchUnit tests included. No disabled or ignored test.
+- Request an independent review (skill `peer-review`) and handle its findings.
+- Any unexpected failure along the way goes through skill `systematic-debugging`.
 
 ## 5. Close
-- All acceptance tests are green; manual scenarios have been verified with the user.
+- All acceptance tests are green (`mvn test -Pbrowser`, evidence per skill `verification-before-completion`); manual scenarios have been verified with the user.
 - Tick the fulfilled acceptance criteria in the spec and set its status to `implémentée`.
 - Update `docs/glossary.md` if new terms appeared.
 - Spec, glossary, tests and code go in the **same commit**, message formatted as described in `craftsmanship`.

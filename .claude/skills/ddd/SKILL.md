@@ -22,7 +22,7 @@ fr.vinted.republisher
 ├── domain        pure business model: aggregates, entities, value objects, events, outbound ports (interfaces)
 ├── application   use cases (inbound ports), orchestrate the domain through outbound ports
 └── adapter
-    ├── in        web (controllers, Thymeleaf), schedulers
+    ├── in        web : REST controllers implementing the interfaces generated from the OpenAPI contract (contract first), static pages; schedulers
     └── out       JPA persistence, Playwright browser, image storage
 ```
 
