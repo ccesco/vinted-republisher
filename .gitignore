@@ -2,6 +2,8 @@ target/
 .idea/
 *.iml
 .vscode/
+# Lancement du serveur de dev dans l'app Claude : chemins propres au poste
+.claude/launch.json
 .DS_Store
 
 # Secrets et données locales
