@@ -32,6 +32,8 @@ Show the user the progression (red test → green) for significant steps.
 - Class name: `<TestedClass>Test`. Method names **in English**, using glossary terms, describing a business behaviour:
   `backed_up_listing_can_be_deleted()`, not `testDelete()`.
 - One behaviour per test. Assert on the observable outcome, not on the implementation.
+- Assert a precise value (`isEqualTo(...)`, exception type and message), never just "not null" or "true".
+- Cover error paths and boundaries as well as the happy path: empty wardrobe, missing field, price at 0, Vinted unreachable, action already in progress.
 - `@DisplayName` optional; `@Nested` to group by context.
 - Test data through readable builders or factory methods (`aBackedUpListing()`), no copy-paste.
 
@@ -56,10 +58,10 @@ class ListingTest {
     @Test
     void cannot_be_deleted_without_a_validated_backup() {
         // Given
-        var listing = ListingFixtures.aScannedListing();
+        Listing listing = ListingFixtures.aScannedListing();
 
         // When
-        var attempt = catchThrowable(listing::markDeleted);
+        Throwable attempt = catchThrowable(listing::markDeleted);
 
         // Then
         assertThat(attempt)
@@ -72,3 +74,7 @@ class ListingTest {
 - Writing the code first, then tests "for coverage".
 - `@Disabled`, commented-out tests, empty assertions.
 - Tests that depend on execution order or on the real clock.
+- Re-running a flaky test until it passes: find the cause (skill `systematic-debugging`).
+- Real data from the user's wardrobe in tests: use fixtures.
+
+Adapted in part from Jeffallan/claude-skills (MIT), skill `test-master`.

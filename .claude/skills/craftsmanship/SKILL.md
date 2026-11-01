@@ -18,6 +18,7 @@ Working code, readable, easy to change, delivered in small safe steps.
 ## Java code
 - Short methods (~10 lines), one level of abstraction, few parameters.
 - Names **in English**, intention-revealing, from the ubiquitous language (glossary, see skill `ddd`). No abbreviations, no French/English mix.
+- No `var`: always declare the explicit type of local variables (production and test code).
 - Immutability by default: `record`, `final` fields, unmodifiable collections.
 - Never return `null`: `Optional` for a legitimate absence, a domain exception for an error.
 - Explicit domain exceptions (`BackupNotValidated`); never an empty `catch` or a generic `RuntimeException`.

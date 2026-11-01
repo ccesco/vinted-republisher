@@ -3,6 +3,9 @@
 spring:
   application:
     name: vinted-republisher
+  jackson:
+    # Contrat d'API : un champ absent signifie « aucun », jamais null
+    default-property-inclusion: non_null
   datasource:
     url: ${DB_URL}
     username: ${DB_USER}
@@ -23,3 +26,20 @@ management:
 # Dossier des images sauvegardées (hors git, à sauvegarder avec la base)
 app:
   data-dir: ${APP_DATA_DIR}
+
+# Site Vinted (US-03) : la page des paramètres du profil s'affiche pour un membre connecté
+# et redirige un visiteur vers la connexion (le dressing, public, ne permet pas de le savoir).
+vinted:
+  profile-settings-url: https://www.vinted.fr/settings/profile
+
+# Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
+chrome:
+  path: ${CHROME_PATH}
+  debug-port: ${CHROME_DEBUG_PORT}
+
+# Swagger UI sert le contrat écrit à la main (contract first), pas un contrat déduit du code.
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    url: /openapi/vinted-republisher.yaml

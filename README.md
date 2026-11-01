@@ -19,13 +19,15 @@ Pour chaque annonce : récupérer les images, la description, toutes les informa
 | Images | l'image originale est toujours conservée, jamais modifiée |
 | Recadrage | rectangulaire, proposé par une IA, l'original est conservé |
 | Interface | dashboard web : une vue de toutes les annonces, un bouton de lancement automatique, un bouton pour relancer chaque annonce, et un visuel par sous-agent (navigateur ou onglet) |
+| API | contract first : contrat OpenAPI écrit avant le code, interfaces générées par openapi-generator, Swagger UI (springdoc) ; l'IHM (HTML statique + JS) n'appelle que l'API |
 | Premier test | avec un agent Claude complet, sans code, avant de développer |
 | Méthode | spec-driven development (SDD), TDD avec tests d'acceptation, DDD, Software Craftsmanship |
 | Tests d'architecture | ArchUnit (`archunit-junit6`) |
 
 ## Ce que contient le dépôt
 
-- `pom.xml` : Spring Boot 4.1, Java 25, JPA, PostgreSQL, Liquibase, Thymeleaf, validation, actuator, Testcontainers, ArchUnit.
+- `pom.xml` : Spring Boot 4.1, Java 25, JPA, PostgreSQL, Liquibase, validation, actuator, Playwright, springdoc (Swagger UI), openapi-generator, Testcontainers, ArchUnit.
+- `src/main/resources/static/openapi/vinted-republisher.yaml` : contrat OpenAPI de l'API (contract first), dont sont générées les interfaces des contrôleurs.
 - `docker-compose.yml` : PostgreSQL 17, port exposé en local uniquement.
 - `src/main/resources/application.yml` : configuration commune (production), sans valeur par défaut.
 - `src/main/resources/application-local.yml` et `.env.example` : profil `local` du poste de dev, qui lit `.env`.
@@ -46,13 +48,17 @@ Prérequis : JDK 25, Maven, Docker.
 cp .env.example .env          # puis modifier DB_PASSWORD
 docker compose up -d          # PostgreSQL avec volume persistant
 mvn spring-boot:run           # profil local actif par défaut, lit .env
+mvn test                      # tests sans navigateur
+mvn test -Pbrowser            # tous les tests, Chrome compris (CHROME_PATH hors Windows)
 ```
 
 Dans IntelliJ, renseigner `local` dans *Active profiles* de la configuration de lancement.
 
 `.env` contient des secrets et n'est pas versionné ; `.env.example` en est le modèle. Il n'est lu que dans le profil `local`.
 
-En production (profil `local` inactif), les variables viennent du système et sont toutes obligatoires : `DB_URL` (ex. `jdbc:postgresql://hote:5432/appdb`), `DB_USER`, `DB_PASSWORD`, `APP_DATA_DIR`.
+En production (profil `local` inactif), les variables viennent du système et sont toutes obligatoires : `DB_URL` (ex. `jdbc:postgresql://hote:5432/appdb`), `DB_USER`, `DB_PASSWORD`, `APP_DATA_DIR`, `CHROME_PATH`, `CHROME_DEBUG_PORT`.
+
+Session Vinted : page `http://localhost:8080/vinted-session.html` (contrat d'API et Swagger UI sur `http://localhost:8080/swagger-ui.html`). L'outil démarre lui-même un Chrome normal (Chrome doit être installé) avec un profil dédié `APP_DATA_DIR/browser-profile` et le pilote par son port de débogage local ; ce Chrome reste ouvert entre deux actions. **Attention** : tant qu'il est ouvert, n'importe quel programme de votre machine peut le piloter par ce port, donc agir sur votre compte Vinted connecté ; fermez-le quand vous n'utilisez pas l'outil. Avec « Se connecter », vous vous connectez vous-même à Vinted dans ce Chrome ; la session est considérée ouverte quand la page `https://www.vinted.fr/settings/profile` s'affiche sans redirection vers la connexion.
 
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
@@ -61,6 +67,8 @@ En production (profil `local` inactif), les variables viennent du système et so
 | `DB_PASSWORD` | mot de passe PostgreSQL | obligatoire |
 | `APP_DATA_DIR` | dossier des données locales (images) | `./data` |
 | `DB_URL` | URL JDBC, production uniquement | construite à partir de `localhost:5432` et `DB_NAME` |
+| `CHROME_PATH` | chemin de `chrome.exe` | `C:/Program Files/Google/Chrome/Application/chrome.exe` |
+| `CHROME_DEBUG_PORT` | port de débogage de Chrome (127.0.0.1 uniquement) | `9222` |
 
 ## User stories (proposition de découpage)
 

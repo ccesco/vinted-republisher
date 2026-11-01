@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Session Vinted</title>
+</head>
+<body>
+<h1>Session Vinted</h1>
+<p>État : <strong id="session-status"></strong></p>
+<p id="session-problem" role="alert" hidden></p>
+<p id="session-actions" hidden>
+    <button id="log-in" type="button">Se connecter</button>
+    <button id="check" type="button">Vérifier</button>
+</p>
+<script>
+    // Codes du contrat OpenAPI (SessionOverview) -> libellés affichés.
+    const STATUS_LABELS = {CONNECTED: 'connecté', DISCONNECTED: 'non connecté'};
+    const ACTION_LABELS = {CHECKING: 'vérification en cours', LOGGING_IN: 'connexion en cours'};
+    const PROBLEM_MESSAGES = {
+        MANUAL_LOGIN_NOT_COMPLETED: "La connexion n'a pas abouti : délai de 5 minutes dépassé, onglet ou Chrome fermé.",
+        BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible (réseau ou blocage anti-robot) : réessayez plus tard.'
+    };
+    const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
+    const POLL_INTERVAL_MS = 2000;
+
+    const statusLabel = document.getElementById('session-status');
+    const problemMessage = document.getElementById('session-problem');
+    const actions = document.getElementById('session-actions');
+    const logInButton = document.getElementById('log-in');
+
+    // Application arrêtée ou en erreur : on réessaie jusqu'à ce qu'elle réponde.
+    async function refresh() {
+        try {
+            const response = await fetch('/api/vinted-session');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            follow(await response.json());
+        } catch (unreachable) {
+            problemMessage.textContent = APPLICATION_DOWN_MESSAGE;
+            problemMessage.hidden = false;
+            setTimeout(refresh, POLL_INTERVAL_MS);
+        }
+    }
+
+    function show(overview) {
+        statusLabel.textContent = ACTION_LABELS[overview.currentAction]
+            ?? STATUS_LABELS[overview.status]
+            ?? 'non vérifié';
+        problemMessage.textContent = PROBLEM_MESSAGES[overview.problem] ?? '';
+        problemMessage.hidden = !overview.problem;
+        actions.hidden = Boolean(overview.currentAction);
+        logInButton.hidden = overview.status === 'CONNECTED';
+    }
+
+    function follow(overview) {
+        show(overview);
+        if (overview.currentAction) {
+            setTimeout(refresh, POLL_INTERVAL_MS);
+        }
+    }
+
+    // La réponse donne l'action lancée (ou celle déjà en cours) ; en cas d'échec, refresh affiche le problème.
+    async function launch(path) {
+        actions.hidden = true;
+        try {
+            const response = await fetch(path, {method: 'POST'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            follow(await response.json());
+        } catch (failed) {
+            await refresh();
+        }
+    }
+
+    logInButton.addEventListener('click', () => launch('/api/vinted-session/login'));
+    document.getElementById('check').addEventListener('click', () => launch('/api/vinted-session/check'));
+    refresh();
+</script>
+</body>
+</html>
