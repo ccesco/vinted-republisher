@@ -1,5 +1,5 @@
 # US-03 – Connexion à Vinted
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-01, US-02
 
@@ -33,15 +33,15 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml` (Op
 L'API renvoie des codes, pas de libellés : les libellés français sont dans la page.
 
 ## Critères d'acceptation
-- [ ] L'outil ne lit, ne saisit et ne stocke jamais l'identifiant ni le mot de passe Vinted.
-- [ ] La page affiche « non connecté » et le bouton « Se connecter » quand Vinted redirige la page des paramètres du profil vers la connexion.
-- [ ] Après une connexion manuelle réussie, la page affiche « connecté ».
-- [ ] La session est conservée après un redémarrage de l'application.
-- [ ] Une session expirée côté Vinted est détectée et affichée « non connecté » à la vérification suivante.
-- [ ] Si l'utilisateur ne se connecte pas dans le délai imparti (ou ferme l'onglet ou Chrome), la session reste « non connecté » et un message l'explique.
-- [ ] Le profil navigateur est stocké dans `APP_DATA_DIR/browser-profile`, jamais versionné.
-- [ ] Chrome est démarré comme un navigateur normal, sans marque d'automatisation ni mode invisible, et n'est jamais ouvert sans action de l'utilisateur.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] L'outil ne lit, ne saisit et ne stocke jamais l'identifiant ni le mot de passe Vinted.
+- [x] La page affiche « non connecté » et le bouton « Se connecter » quand Vinted redirige la page des paramètres du profil vers la connexion.
+- [x] Après une connexion manuelle réussie, la page affiche « connecté ».
+- [x] La session est conservée après un redémarrage de l'application.
+- [x] Une session expirée côté Vinted est détectée et affichée « non connecté » à la vérification suivante.
+- [x] Si l'utilisateur ne se connecte pas dans le délai imparti (ou ferme l'onglet ou Chrome), la session reste « non connecté » et un message l'explique.
+- [x] Le profil navigateur est stocké dans `APP_DATA_DIR/browser-profile`, jamais versionné.
+- [x] Chrome est démarré comme un navigateur normal, sans marque d'automatisation ni mode invisible, et n'est jamais ouvert sans action de l'utilisateur.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 
@@ -167,6 +167,7 @@ Alors la page affiche toujours "connecté"
 Test : manuel (vrai compte Vinted, captcha et vérification non automatisables).
 Historique : un premier essai avec un Chrome lancé par Playwright (profil persistant, vérification invisible au démarrage) a été bloqué par l'anti-robot de Vinted (« Ta session a été bloquée », blocage temporaire de l'adresse IP) ; d'où le pilotage d'un Chrome normal.
 Deuxième essai : la session était détectée « non connecté » alors que le membre était connecté, car la détection reposait sur l'en-tête du dressing (public) ; remplacée par la page des paramètres du profil.
+Troisième essai (2026-11-01, API contract first) : « Vérifier » affiche « connecté », puis encore « connecté » après redémarrage de l'application, Chrome étant réutilisé. Validé.
 
 ## Cas limites et erreurs
 - Délai de connexion dépassé : l'onglet est fermé, la session reste fermée, message explicite.
@@ -200,7 +201,7 @@ Deuxième essai : la session était détectée « non connecté » alors que le 
 - Délai de connexion manuelle : 5 minutes.
 - Profil navigateur dans `APP_DATA_DIR/browser-profile`.
 - Rien n'est stocké en base pour cette US.
-- Contract first (contrainte projet ajoutée en cours d'US) : API REST décrite d'abord dans `vinted-republisher.yaml` ; `openapi-generator-maven-plugin` (validé) génère les interfaces Spring et les DTO (`interfaceOnly`, sans dépendance supplémentaire : `openApiNullable` et annotations Swagger désactivés) ; Swagger UI via `springdoc-openapi-starter-webmvc-ui` (validé), qui sert le contrat statique (pas de contrat généré depuis le code).
+- Contract first (contrainte projet ajoutée en cours d'US) : API REST décrite d'abord dans `vinted-republisher.yaml` ; `openapi-generator-maven-plugin` (validé) génère les interfaces Spring et les DTO (`interfaceOnly`, sans dépendance supplémentaire : `openApiNullable` et annotations Swagger désactivés) ; Swagger UI via `springdoc-openapi-starter-webmvc-ui` (validé), qui affiche le contrat statique (`springdoc.swagger-ui.url`) et non le contrat déduit du code ; springdoc n'activant Swagger UI qu'avec `/v3/api-docs`, celui-ci reste exposé mais inutilisé.
 - Page web minimale : HTML statique + JS (`static/vinted-session.html`), libellés français dans la page, qui relit l'état toutes les 2 secondes pendant une action. Le starter Thymeleaf est retiré du `pom.xml` (plus aucun écran ne l'utilise).
 - Vérification et connexion en arrière-plan ; états d'affichage « vérification en cours » et « connexion en cours ».
 - API : réponses 202 pour les actions, même si la demande est ignorée parce qu'une action est en cours. Le 202 porte l'aperçu de la session juste après la demande (action lancée, ou action déjà en cours si la demande est ignorée) : la page l'affiche sans relire l'état. Vérification et connexion lancées sur l'exécuteur de tâches de Spring Boot (`applicationTaskExecutor`).

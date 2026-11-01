@@ -37,9 +37,8 @@ chrome:
   path: ${CHROME_PATH}
   debug-port: ${CHROME_DEBUG_PORT}
 
-# Swagger UI sert le contrat écrit à la main (contract first), pas un contrat déduit du code.
+# Swagger UI affiche le contrat écrit à la main (contract first), pas le contrat déduit du code.
+# springdoc n'active Swagger UI que si /v3/api-docs est actif : il reste exposé mais inutilisé.
 springdoc:
-  api-docs:
-    enabled: false
   swagger-ui:
     url: /openapi/vinted-republisher.yaml
