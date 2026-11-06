@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Dressing</title>
+</head>
+<body>
+<h1>Dressing</h1>
+<p id="wardrobe-summary"></p>
+<p id="scan-progress" hidden>Scan en cours…</p>
+<p id="wardrobe-problem" role="alert" hidden></p>
+<p><button id="scan" type="button" hidden>Scanner</button></p>
+<ul id="listings"></ul>
+<script>
+    // Codes du contrat OpenAPI (ScanProblem) -> libellés affichés.
+    const PROBLEM_MESSAGES = {
+        BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible (réseau ou blocage anti-robot) : réessayez plus tard.',
+        WARDROBE_UNREADABLE: 'Le dressing est illisible (total incohérent ou page changée) : inventaire inchangé, voir les logs.',
+        SCAN_FAILED: 'Le scan a échoué : inventaire inchangé, voir les logs.'
+    };
+    const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
+    const POLL_INTERVAL_MS = 2000;
+
+    const summary = document.getElementById('wardrobe-summary');
+    const progress = document.getElementById('scan-progress');
+    const problemMessage = document.getElementById('wardrobe-problem');
+    const scanButton = document.getElementById('scan');
+    const listings = document.getElementById('listings');
+
+    // Application arrêtée ou en erreur : on réessaie jusqu'à ce qu'elle réponde.
+    async function refresh() {
+        try {
+            const response = await fetch('/api/wardrobe');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            follow(await response.json());
+        } catch (unreachable) {
+            problemMessage.textContent = APPLICATION_DOWN_MESSAGE;
+            problemMessage.hidden = false;
+            setTimeout(refresh, POLL_INTERVAL_MS);
+        }
+    }
+
+    function summaryOf(overview) {
+        if (!overview.lastScanAt) {
+            return "Aucun scan réussi pour l'instant.";
+        }
+        const count = overview.listings.length;
+        const date = new Date(overview.lastScanAt).toLocaleString('fr-FR');
+        return `${count} annonce${count > 1 ? 's' : ''}, dernier scan le ${date}.`;
+    }
+
+    // Titres et liens viennent de Vinted : jamais d'innerHTML.
+    function rowOf(listing) {
+        const link = document.createElement('a');
+        link.href = listing.url;
+        link.rel = 'noopener noreferrer';
+        link.textContent = listing.title;
+        const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
+            .format(listing.price.amount);
+        const row = document.createElement('li');
+        row.append(link, ' – ' + price);
+        return row;
+    }
+
+    function show(overview) {
+        summary.textContent = summaryOf(overview);
+        progress.hidden = !overview.scanInProgress;
+        scanButton.hidden = overview.scanInProgress;
+        problemMessage.textContent = PROBLEM_MESSAGES[overview.problem] ?? '';
+        problemMessage.hidden = !overview.problem;
+        listings.replaceChildren(...overview.listings.map(rowOf));
+    }
+
+    function follow(overview) {
+        show(overview);
+        if (overview.scanInProgress) {
+            setTimeout(refresh, POLL_INTERVAL_MS);
+        }
+    }
+
+    // La réponse donne le scan lancé ; en cas d'échec, refresh affiche le problème.
+    async function scan() {
+        scanButton.hidden = true;
+        try {
+            const response = await fetch('/api/wardrobe/scan', {method: 'POST'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            follow(await response.json());
+        } catch (failed) {
+            await refresh();
+        }
+    }
+
+    scanButton.addEventListener('click', scan);
+    refresh();
+</script>
+</body>
+</html>

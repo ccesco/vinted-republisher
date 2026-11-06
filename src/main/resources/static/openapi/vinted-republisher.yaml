@@ -10,6 +10,8 @@ servers:
 tags:
   - name: vinted-session
     description: Session Vinted (US-03)
+  - name: wardrobe
+    description: Dressing (US-04)
 paths:
   /api/vinted-session:
     get:
@@ -33,6 +35,8 @@ paths:
         Lance en arrière-plan la vérification (ouverture de la page des paramètres du profil).
         Ignorée si une action navigateur est déjà en cours.
       responses:
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
         '202':
           description: >
             Vérification lancée (ou ignorée) ; aperçu de la session juste après la demande, avec l'action
@@ -50,6 +54,8 @@ paths:
         Lance en arrière-plan la connexion manuelle : un onglet Chrome s'ouvre, le membre se connecte
         lui-même (5 minutes au plus). Ignorée si une action navigateur est déjà en cours.
       responses:
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
         '202':
           description: >
             Connexion lancée (ou ignorée) ; aperçu de la session juste après la demande, avec l'action
@@ -58,8 +64,101 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SessionOverview'
+  /api/wardrobe:
+    get:
+      tags: [wardrobe]
+      operationId: showWardrobe
+      summary: Inventaire du dressing
+      description: Lit l'inventaire conservé et l'état du scan, sans accéder à Vinted.
+      responses:
+        '200':
+          description: Aperçu du dressing
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WardrobeOverview'
+  /api/wardrobe/scan:
+    post:
+      tags: [wardrobe]
+      operationId: scanWardrobe
+      summary: Scanner le dressing
+      description: >
+        Lance en arrière-plan la lecture du dressing, sans rien modifier sur Vinted.
+        Ignorée si une action navigateur est déjà en cours.
+      responses:
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '202':
+          description: >
+            Scan lancé (ou ignoré) ; aperçu du dressing juste après la demande.
+            Suivre la suite avec GET /api/wardrobe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WardrobeOverview'
 components:
   schemas:
+    WardrobeOverview:
+      type: object
+      description: Aperçu du dressing ; un champ absent signifie « aucun ».
+      required: [scanInProgress, listings]
+      properties:
+        scanInProgress:
+          type: boolean
+          description: Vrai tant qu'un scan est en cours.
+        lastScanAt:
+          type: string
+          format: date-time
+          description: Date du dernier scan réussi ; absente si aucun scan n'a réussi.
+        problem:
+          $ref: '#/components/schemas/ScanProblem'
+        listings:
+          type: array
+          description: Annonces présentes dans le dernier scan réussi, les plus récentes d'abord.
+          items:
+            $ref: '#/components/schemas/Listing'
+      example:
+        scanInProgress: false
+        lastScanAt: '2026-11-06T10:15:30Z'
+        listings:
+          - vintedId: 90000000001
+            title: Pull rayé
+            price:
+              amount: 1.5
+              currency: EUR
+            url: https://www.vinted.fr/items/90000000001-pull-raye
+    Listing:
+      type: object
+      description: Annonce active du dressing.
+      required: [vintedId, title, price, url]
+      properties:
+        vintedId:
+          type: integer
+          format: int64
+          description: Identifiant de l'annonce sur Vinted.
+        title:
+          type: string
+        price:
+          $ref: '#/components/schemas/Price'
+        url:
+          type: string
+          format: uri
+          description: Adresse de l'annonce sur Vinted.
+    Price:
+      type: object
+      description: Prix affiché sur Vinted, hors frais.
+      required: [amount, currency]
+      properties:
+        amount:
+          type: number
+          minimum: 0
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+    ScanProblem:
+      type: string
+      description: Raison pour laquelle le dernier scan n'a pas abouti.
+      enum: [BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, WARDROBE_UNREADABLE, SCAN_FAILED]
     SessionOverview:
       type: object
       description: Aperçu de session ; un champ absent signifie « aucun ».
@@ -77,7 +176,7 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN]
+      enum: [CHECKING, LOGGING_IN, SCANNING]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.

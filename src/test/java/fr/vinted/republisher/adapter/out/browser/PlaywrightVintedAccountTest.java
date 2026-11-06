@@ -229,7 +229,7 @@ class PlaywrightVintedAccountTest {
         @Test
         void is_reported_when_vinted_does_not_answer() {
             PlaywrightVintedAccount account = new PlaywrightVintedAccount(new VintedSiteProperties(URI.create("http://127.0.0.1:1" + MEMBER)),
-                    new Chrome(INSTALLED_CHROME, profileDirectory, debugPort));
+                    new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort)));
 
             Throwable attempt = catchThrowable(account::checkSession);
 
@@ -261,7 +261,7 @@ class PlaywrightVintedAccountTest {
 
     private PlaywrightVintedAccount accountWithoutChrome() {
         return new PlaywrightVintedAccount(new VintedSiteProperties(fakeVintedUrl(MEMBER)),
-                new Chrome(profileDirectory.resolve("no-chrome.exe"), profileDirectory, debugPort));
+                new ChromeTabs(new Chrome(profileDirectory.resolve("no-chrome.exe"), profileDirectory, debugPort)));
     }
 
     /** As the member would, from outside the tool. */
@@ -276,7 +276,7 @@ class PlaywrightVintedAccountTest {
 
     private PlaywrightVintedAccount accountWith(String profileSettingsPath) {
         return new PlaywrightVintedAccount(new VintedSiteProperties(fakeVintedUrl(profileSettingsPath)),
-                new Chrome(INSTALLED_CHROME, profileDirectory, debugPort));
+                new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort)));
     }
 
     private URI fakeVintedUrl(String path) {

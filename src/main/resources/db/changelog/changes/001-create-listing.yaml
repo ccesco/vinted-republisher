@@ -1,0 +1,45 @@
+# US-04 : inventaire du dressing, alimenté par le scan.
+databaseChangeLog:
+  - changeSet:
+      id: 001-create-listing
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing
+            columns:
+              - column:
+                  name: vinted_id
+                  type: bigint
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: url
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: title
+                  type: text
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price_amount
+                  type: numeric(10,2)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: price_currency
+                  type: char(3)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: present
+                  type: boolean
+                  constraints:
+                    nullable: false
+              - column:
+                  name: last_seen_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false

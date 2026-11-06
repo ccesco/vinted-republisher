@@ -108,6 +108,27 @@ class VintedSessionTest {
         }
 
         @Test
+        void can_end_without_changing_what_is_known_of_the_session() {
+            session.start(CHECKING);
+            session.complete(CONNECTED);
+            session.start(BrowserAction.SCANNING);
+
+            session.finish();
+
+            assertThat(session.overview()).isEqualTo(SessionOverview.idle(CONNECTED));
+        }
+
+        @Test
+        void scan_keeps_the_problem_of_the_session() {
+            session.start(CHECKING);
+            session.fail(BROWSER_UNAVAILABLE);
+
+            session.start(BrowserAction.SCANNING);
+
+            assertThat(session.overview().problem()).contains(BROWSER_UNAVAILABLE);
+        }
+
+        @Test
         void cannot_be_reported_when_no_action_is_in_progress() {
             Throwable attempt = catchThrowable(() -> session.fail(BROWSER_UNAVAILABLE));
 

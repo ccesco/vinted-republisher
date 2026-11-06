@@ -1,11 +1,13 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.adapter.in.web.api.model.BrowserActionDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ScanProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionStatusDto;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionProblem;
 import fr.vinted.republisher.domain.session.SessionStatus;
+import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -28,6 +30,11 @@ class ContractEnumsTest {
     @Test
     void contract_knows_every_session_problem() {
         assertThat(names(SessionProblemDto.values())).containsExactlyInAnyOrder(names(SessionProblem.values()));
+    }
+
+    @Test
+    void contract_knows_every_scan_problem() {
+        assertThat(names(ScanProblemDto.values())).containsExactlyInAnyOrder(names(ScanProblem.values()));
     }
 
     private static String[] names(Enum<?>[] values) {

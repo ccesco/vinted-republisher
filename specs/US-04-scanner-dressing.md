@@ -31,18 +31,21 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 
 `SessionOverview.currentAction` gagne la valeur `SCANNING`, affichée « scan en cours » sur la page de la session.
 
+Toute demande `POST` venue d'un autre site que l'application reçoit `403`, sans rien lancer (`SameOriginFilter`).
+
 ## Critères d'acceptation
-- [ ] Le scan n'envoie que des requêtes de lecture à Vinted et ne modifie rien sur le compte.
-- [ ] Toutes les annonces actives du dressing sont enregistrées avec identifiant Vinted, URL, titre et prix.
-- [ ] Les annonces réservées, fermées, masquées, brouillons ou en cours de traitement ne sont pas retenues.
-- [ ] Un nouveau scan met à jour les annonces connues, sans créer de doublon.
-- [ ] Une annonce qui n'est plus retenue reste en base, marquée absente.
-- [ ] Un scan en échec ou incomplet ne change rien en base.
-- [ ] Toute réponse HTTP ≥ 400 de Vinted arrête le scan, sans nouvelle tentative automatique.
-- [ ] La pause entre deux défilements est comprise entre 3 et 6 secondes.
-- [ ] Une seule action navigateur a lieu à la fois.
-- [ ] Le dernier inventaire reste consultable après un redémarrage de l'application.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] Le scan n'envoie que des requêtes de lecture à Vinted et ne modifie rien sur le compte.
+- [x] Toutes les annonces actives du dressing sont enregistrées avec identifiant Vinted, URL, titre et prix.
+- [x] Les annonces réservées, fermées, masquées, brouillons ou en cours de traitement ne sont pas retenues.
+- [x] Un nouveau scan met à jour les annonces connues, sans créer de doublon.
+- [x] Une annonce qui n'est plus retenue reste en base, marquée absente.
+- [x] Un scan en échec ou incomplet ne change rien en base.
+- [x] Toute réponse HTTP ≥ 400 sur la page du dressing ou sur une tranche d'annonces arrête le scan, sans nouvelle tentative automatique.
+- [x] La pause entre deux défilements est comprise entre 3 et 6 secondes.
+- [x] Une seule action navigateur a lieu à la fois.
+- [x] Le dernier inventaire reste consultable après un redémarrage de l'application.
+- [x] Un autre site ouvert dans le navigateur ne peut pas lancer de scan, et l'application n'écoute que sur 127.0.0.1.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 
@@ -163,6 +166,15 @@ Et le scan est lancé en arrière-plan
 ```
 Test : `WardrobeApiControllerTest` (`@WebMvcTest`)
 
+### AT-04-15 – Demande venue d'un autre site
+```gherkin
+Étant donné un autre site ouvert dans mon navigateur
+Quand il demande un scan à l'application
+Alors la demande est refusée
+Et aucun scan n'est lancé
+```
+Test : `WardrobeApiControllerTest.scan_requested_by_another_site_is_refused()`
+
 ### AT-04-14 – Scan réel
 ```gherkin
 Étant donné l'application lancée avec le profil local et ma validation explicite
@@ -170,11 +182,13 @@ Quand je lance un scan de mon vrai dressing
 Alors le scan réussit
 Et le nombre et le contenu des annonces correspondent à mon dressing
 ```
-Test : manuel (vrai compte Vinted, non automatisable). Ce test vérifie aussi trois points inconnus à ce jour : la requête de la première tranche passe sans en-tête particulier ; le total de l'en-tête vu depuis le Chrome connecté correspond aux annonces renvoyées, y compris masquées ; le sens de `is_processing`. Tout écart se traite par une mise à jour de cette spec.
+Test : manuel (vrai compte Vinted, non automatisable). Ce test vérifie aussi les points inconnus à ce jour : la requête de la première tranche passe sans en-tête particulier ; le total de l'en-tête vu depuis le Chrome connecté correspond aux annonces renvoyées, y compris masquées ; aucun autre élément de la page ne ressemble à ce total ; le sens de `is_processing` ; le JSON expose-t-il un total, contrôle plus sûr que le texte de l'en-tête. Tout écart se traite par une mise à jour de cette spec.
 
 ## Cas limites et erreurs
-- Réponse JSON de format inattendu : problème « dressing illisible », base inchangée.
-- En-tête sans total lisible : problème « dressing illisible », base inchangée.
+- Réponse JSON de format inattendu, ou tranche redirigée ailleurs : problème « dressing illisible », base inchangée.
+- Erreur HTTP sur une autre ressource de la page (publicité, traceur) : ignorée, elle ne dit rien du dressing.
+- Toutes les annonces lues sont non actives : le scan réussit, tout l'inventaire passe absent, et la date du dernier scan affichée reste l'ancienne (limite acceptée, cas très improbable).
+- En-tête sans total lisible, ou plusieurs totaux différents sur la page : problème « dressing illisible », base inchangée.
 - Dressing réellement vide : traité comme illisible (zéro annonce lue se confond avec une page changée, et marquerait tout l'inventaire absent).
 - Annonce publiée ou retirée pendant le scan : le total ne correspond plus, le scan échoue et l'utilisateur le relance.
 - Même annonce reçue deux fois : comptée une fois.
@@ -204,6 +218,8 @@ Test : manuel (vrai compte Vinted, non automatisable). Ce test vérifie aussi tr
 - Rythme : pause aléatoire de 3 à 6 secondes entre deux défilements, un seul onglet, un seul scan à la fois. Toute réponse HTTP ≥ 400 arrête le scan, sans nouvelle tentative automatique. Valeurs en configuration (`vinted.scan.min-pause`, `vinted.scan.max-pause`, `vinted.scan.stall-timeout` à 30 secondes). US-27 généralisera ces limites.
 - Date du dernier scan réussi : la plus grande valeur de `last_seen_at`, sans table de scan (YAGNI). Le problème et l'état du scan restent en mémoire, comme l'état de session d'US-03.
 - Page `wardrobe.html` avec liste simple, pour contrôler le résultat sans outil de base de données.
+- Sécurité décidée sur revue : `server.address: 127.0.0.1` dans `application.yml`, et refus des `POST` dont l'`Origin` diffère de l'application, sur toute l'API, car celle-ci n'a pas d'authentification et pilote un Chrome connecté au compte.
+- Décisions prises à l'implémentation : l'arrêt sur HTTP ≥ 400 vise la page du dressing et les tranches d'annonces, pas les ressources tierces de la page ; le lien d'une annonce doit être en `http` ou `https` (il finit dans une page) ; l'onglet du scan passe au premier plan, Chrome ne chargeant pas la suite dans un onglet en arrière-plan ; un scan n'efface pas le problème de session, car il ne dit rien de la session ; la raison d'un échec est écrite dans les logs.
 - Aucune nouvelle dépendance.
 
 ## Questions ouvertes
@@ -215,7 +231,8 @@ Ajouts au glossaire :
 - `Price` (prix, value object) : montant décimal et devise.
 - `ListingStatusFlags` : indicateurs lus sur Vinted, qui disent si une annonce est active ; jamais stockés.
 - `WardrobeScan` (scan du dressing) : lecture complète du dressing par le Chrome piloté.
-- `WardrobeSnapshot` : résultat brut d'une lecture, total affiché et annonces lues ; dit si le scan est complet.
+- `WardrobeSnapshot` : résultat brut d'une lecture, total affiché et annonces lues ; dit si le scan est complet et produit l'inventaire à jour.
+- `ScannedListing` (annonce lue), `InvalidListing`, `ScanPace` (rythme du scan), `WardrobeOverview` (aperçu du dressing).
 - `ScanProblem` (`BROWSER_UNAVAILABLE`, `VINTED_UNREACHABLE`, `WARDROBE_UNREADABLE`, `SCAN_FAILED`).
 - `BrowserAction` gagne `SCANNING`.
 - Ports sortants : `WardrobeReader` (`read`), `ListingRepository`. Cas d'usage : `ScanWardrobe`, `ShowWardrobe`.
@@ -225,6 +242,6 @@ Table `listing` : `vinted_id` (`bigint`, clé primaire), `url` (`text`), `title`
 ## Tests unitaires et d'intégration attendus
 - `domain` : `WardrobeSnapshotTest` (complet, total incohérent, zéro annonce, doublons), `ListingStatusFlagsTest` (actif ou non, chaque indicateur), `ListingTest` (mise à jour, absence, réapparition), `PriceTest`.
 - `application` : `ScanWardrobeTest` avec faux `WardrobeReader` et faux `ListingRepository` (scan réussi, chaque problème, action déjà en cours, verrou libéré après erreur), `ShowWardrobeTest`.
-- `adapter/out/browser` : `PlaywrightWardrobeReaderTest` contre des pages locales avec le vrai Chrome (lecture complète, erreur HTTP, tranche jamais reçue, JSON inattendu, en-tête illisible, onglet fermé).
+- `adapter/out/browser` : `WardrobeItemsTest` (JSON d'une tranche, sans navigateur) et `PlaywrightWardrobeReaderTest` contre des pages locales avec le vrai Chrome (lecture complète, pauses, erreur HTTP, tranche redirigée, tranche jamais reçue, JSON inattendu, en-tête illisible, ressources tierces en erreur, onglet fermé).
 - `adapter/out/persistence` : test Testcontainers du repository (création, mise à jour, marquage absent, date du dernier scan, annulation de la transaction).
 - `adapter/in/web` : `WardrobeApiControllerTest`, `ContractEnumsTest` étendu, `WardrobePageTest`.

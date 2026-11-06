@@ -1,3 +1,4 @@
 # Changelog Liquibase principal.
-# Aucun changeset pour l'instant : le schéma reste à définir.
-databaseChangeLog: []
+databaseChangeLog:
+  - include:
+      file: db/changelog/changes/001-create-listing.yaml
