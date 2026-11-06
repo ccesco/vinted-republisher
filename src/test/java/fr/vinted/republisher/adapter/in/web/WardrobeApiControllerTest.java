@@ -7,7 +7,7 @@ import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
-import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import org.junit.jupiter.api.Test;
@@ -46,7 +46,7 @@ class WardrobeApiControllerTest {
     private VintedSession session;
 
     @Autowired
-    private WardrobeScan wardrobeScan;
+    private LastScanProblem lastProblem;
 
     @Autowired
     private InMemoryListingRepository listings;
@@ -80,7 +80,7 @@ class WardrobeApiControllerTest {
 
     @Test
     void shows_the_problem_of_the_last_scan() {
-        wardrobeScan.fail(ScanProblem.VINTED_UNREACHABLE);
+        lastProblem.report(ScanProblem.VINTED_UNREACHABLE);
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .bodyJson().isStrictlyEqualTo(
@@ -169,8 +169,8 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
-        WardrobeScan wardrobeScan() {
-            return new WardrobeScan();
+        LastScanProblem lastProblem() {
+            return new LastScanProblem();
         }
 
         @Bean
@@ -189,14 +189,14 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
-        ShowWardrobe showWardrobe(VintedSession session, WardrobeScan wardrobeScan, InMemoryListingRepository listings) {
-            return new ShowWardrobe(session, wardrobeScan, listings);
+        ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryListingRepository listings) {
+            return new ShowWardrobe(session, lastProblem, listings);
         }
 
         @Bean
-        ScanWardrobe scanWardrobe(VintedSession session, WardrobeScan wardrobeScan, FakeWardrobeReader reader,
+        ScanWardrobe scanWardrobe(VintedSession session, LastScanProblem lastProblem, FakeWardrobeReader reader,
                                   InMemoryListingRepository listings, Background background) {
-            return new ScanWardrobe(session, wardrobeScan, reader, listings,
+            return new ScanWardrobe(session, lastProblem, reader, listings,
                     new ScanPace(Duration.ZERO, Duration.ZERO, new Random(42)),
                     Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background);
         }

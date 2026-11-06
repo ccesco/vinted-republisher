@@ -5,7 +5,7 @@ import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
-import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 
 import java.time.Instant;
 import java.util.Comparator;
@@ -19,12 +19,12 @@ public class ShowWardrobe {
             Comparator.comparingLong((Listing listing) -> listing.id().value()).reversed();
 
     private final VintedSession session;
-    private final WardrobeScan wardrobeScan;
+    private final LastScanProblem lastProblem;
     private final ListingRepository listings;
 
-    public ShowWardrobe(VintedSession session, WardrobeScan wardrobeScan, ListingRepository listings) {
+    public ShowWardrobe(VintedSession session, LastScanProblem lastProblem, ListingRepository listings) {
         this.session = session;
-        this.wardrobeScan = wardrobeScan;
+        this.lastProblem = lastProblem;
         this.listings = listings;
     }
 
@@ -35,7 +35,7 @@ public class ShowWardrobe {
         return new WardrobeOverview(
                 scanInProgress,
                 lastScanAt(inventory),
-                wardrobeScan.problem(),
+                lastProblem.current(),
                 inventory.stream().filter(Listing::present).sorted(MOST_RECENT_FIRST).toList());
     }
 

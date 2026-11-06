@@ -6,7 +6,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
-import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import org.junit.jupiter.api.Test;
 
@@ -22,9 +22,9 @@ class ShowWardrobeTest {
     private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:00:00Z");
 
     private final VintedSession session = new VintedSession();
-    private final WardrobeScan wardrobeScan = new WardrobeScan();
+    private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
-    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, wardrobeScan, listings);
+    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings);
 
     @Test
     void nothing_is_known_before_the_first_scan() {
@@ -63,7 +63,7 @@ class ShowWardrobeTest {
             }
         };
 
-        assertThat(new ShowWardrobe(session, wardrobeScan, endingTheScan).show().scanInProgress()).isTrue();
+        assertThat(new ShowWardrobe(session, lastProblem, endingTheScan).show().scanInProgress()).isTrue();
     }
 
     @Test
@@ -75,7 +75,7 @@ class ShowWardrobeTest {
 
     @Test
     void shows_the_problem_of_the_last_scan() {
-        wardrobeScan.fail(ScanProblem.WARDROBE_UNREADABLE);
+        lastProblem.report(ScanProblem.WARDROBE_UNREADABLE);
 
         assertThat(showWardrobe.show().problem()).contains(ScanProblem.WARDROBE_UNREADABLE);
     }

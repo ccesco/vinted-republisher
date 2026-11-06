@@ -11,7 +11,7 @@ import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
-import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.FakeVintedAccount;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -39,12 +39,12 @@ class ScanWardrobeAcceptanceTest {
     private static final Executor RIGHT_AWAY = Runnable::run;
 
     private final VintedSession session = new VintedSession();
-    private final WardrobeScan wardrobeScan = new WardrobeScan();
+    private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
-    private final ScanWardrobe scanWardrobe = new ScanWardrobe(session, wardrobeScan, reader, listings,
+    private final ScanWardrobe scanWardrobe = new ScanWardrobe(session, lastProblem, reader, listings,
             new ScanPace(MINIMUM_PAUSE, MAXIMUM_PAUSE, new Random(42)), Clock.fixed(NOW, ZoneOffset.UTC), RIGHT_AWAY);
-    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, wardrobeScan, listings);
+    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings);
 
     @Test
     void scan_records_every_active_listing() {
