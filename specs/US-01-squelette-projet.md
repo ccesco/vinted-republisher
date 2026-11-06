@@ -1,6 +1,6 @@
 # US-01 – Squelette du projet et structure des packages
 
-**Statut** : brouillon (partiellement réalisé, à vérifier)
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : aucune
 
@@ -16,10 +16,10 @@ En tant que développeur, je veux un projet Spring Boot structuré en couches, a
 - Les packages `domain`, `application`, `adapter/in`, `adapter/out` existent sous `fr.vinted.republisher`.
 
 ## Critères d'acceptation
-- [ ] `mvn test` s'exécute sans erreur avec un JDK 25.
-- [ ] `mvn spring-boot:run` démarre l'application quand la base est disponible (voir US-02).
-- [ ] Les quatre packages existent.
-- [ ] Le dépôt ne contient aucun code métier.
+- [x] `mvn test` s'exécute sans erreur avec un JDK 25.
+- [x] `mvn spring-boot:run` démarre l'application quand la base est disponible (voir US-02).
+- [x] Les quatre packages existent.
+- [x] Le squelette (cette US) n'introduit aucun code métier ; le métier arrive avec les US suivantes (US-03 et après).
 
 ## Tests d'acceptation
 
@@ -37,7 +37,7 @@ Test : le build Maven lui-même (vérifié à chaque exécution).
 Quand l'application démarre
 Alors le contexte Spring se charge sans erreur
 ```
-Test : `ApplicationStartupAcceptanceTest.application_starts_when_database_is_available()` (`@SpringBootTest` + Testcontainers, sous réserve de la question ouverte de US-02).
+Test : `ApplicationStartupAcceptanceTest.application_starts_when_database_is_available()` (`@SpringBootTest` + Testcontainers, `@Tag("docker")`, voir les décisions d'US-02).
 
 ### AT-01-03 – La structure hexagonale est en place
 ```gherkin
@@ -58,15 +58,15 @@ Test : `HexagonalArchitectureTest` et `CodingRulesTest` (ArchUnit), exécutés p
 
 ### AT-01-04 – Aucun code métier
 ```gherkin
-Étant donné le dépôt à la fin de l'US
-Quand je relis les sources
+Étant donné le commit du squelette (b0d2683)
+Quand je relis ses sources
 Alors aucune classe métier n'existe en dehors de la classe main
 ```
-Test : manuel (revue).
+Test : manuel (revue du commit b0d2683).
 
 ## État actuel du dépôt
-Fait : `pom.xml`, classe `VintedRepublisherApplication`, packages vides (fichiers `.gitkeep`).
-Non vérifié : la compilation et le démarrage après le passage de Flyway à Liquibase.
+Fait : `pom.xml`, classe `VintedRepublisherApplication`, packages (peuplés par US-03).
+Vérifié (2026-11-06) : `mvn test "-Pbrowser,docker"` vert (91 tests, ArchUnit compris) ; `mvn spring-boot:run` démarre avec la base Docker (Liquibase exécuté, `/actuator/health` à UP) ; violation de `domain` refusée par ArchUnit (AT-01-05) ; le commit b0d2683 ne contient que la classe main (AT-01-04).
 
 ## Hors périmètre
 - Les ports, les cas d'usage et les adapters : ils seront décrits dans les specs des US qui les utilisent (à partir de US-04).
@@ -74,11 +74,12 @@ Non vérifié : la compilation et le démarrage après le passage de Flyway à L
 
 ## Décisions
 - ArchUnit (`archunit-junit6`, compatible JUnit 6 de Spring Boot 4.1) vérifie l'architecture hexagonale et des règles de code dès cette US.
+- Packages `adapter.in` / `adapter.out` (et non `inbound` / `outbound`) : nommage en place, vérifié par ArchUnit et utilisé par US-03.
+- Sous-packages des adapters créés au fil des US, par technologie : `adapter.in.web`, `adapter.out.browser`, `adapter.config` (US-03).
+- Thymeleaf retiré du `pom.xml` (US-03 : pages statiques, contract first). Validation (`@Validated` des propriétés) et actuator (`/actuator/health`) conservés.
 
 ## Questions ouvertes
-- Nommage des packages : `adapter.in` / `adapter.out`, ou `inbound` / `outbound` ?
-- Sous-packages des adapters par technologie (`web`, `persistence`, …) : maintenant ou au fil des US ?
-- Dépendances du `pom.xml` : garder tout ce qui y figure aujourd'hui (Thymeleaf, validation, actuator, Testcontainers…) ou ne garder que le strict nécessaire ?
+- Aucune.
 
 ## Tests unitaires et d'intégration attendus
 - Aucun en dehors des tests d'acceptation : l'US ne contient pas de code métier.

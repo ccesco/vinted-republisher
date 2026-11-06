@@ -34,8 +34,10 @@ Java 25, Spring Boot 4.1 (Maven), PostgreSQL 17 dans Docker, Liquibase, architec
 ## Commandes
 ```bash
 docker compose up -d          # PostgreSQL
-mvn test                      # sans les tests qui démarrent Chrome (@Tag("browser"))
-mvn test -Pbrowser            # tous les tests, Chrome compris (avant de rendre la main)
+mvn test                      # indépendant du système : ni Chrome (@Tag("browser")) ni Docker (@Tag("docker"))
+mvn test -Pdocker             # ajoute les tests sur PostgreSQL (Testcontainers)
+mvn test -Pbrowser            # ajoute les tests Chrome
+mvn test "-Pbrowser,docker"   # tous les tests (avant de rendre la main)
 mvn spring-boot:run           # profil local (lit .env) actif par défaut
 ```
 
