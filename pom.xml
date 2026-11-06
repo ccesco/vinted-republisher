@@ -24,7 +24,8 @@
         <openapi-generator.version>7.25.0</openapi-generator.version>
         <springdoc.version>3.1.1</springdoc.version>
         <!-- Tests qui démarrent le vrai Chrome : exclus par défaut, inclus avec -Pbrowser -->
-        <excluded.test.groups>browser</excluded.test.groups>
+        <excluded.browser.tests>browser</excluded.browser.tests>
+        <excluded.docker.tests>docker</excluded.docker.tests>
     </properties>
 
     <dependencies>
@@ -135,7 +136,7 @@
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
-                    <excludedGroups>${excluded.test.groups}</excludedGroups>
+                    <excludedGroups>${excluded.browser.tests},${excluded.docker.tests}</excludedGroups>
                 </configuration>
             </plugin>
             <plugin>
@@ -153,10 +154,17 @@
 
     <profiles>
         <profile>
-            <!-- mvn test -Pbrowser : tous les tests, Chrome compris (CHROME_PATH si Chrome n'est pas au chemin Windows par défaut) -->
+            <!-- mvn test -Pbrowser : ajoute les tests Chrome (CHROME_PATH si Chrome n'est pas au chemin Windows par défaut) -->
             <id>browser</id>
             <properties>
-                <excluded.test.groups/>
+                <excluded.browser.tests>nothing</excluded.browser.tests>
+            </properties>
+        </profile>
+        <profile>
+            <!-- mvn test -Pdocker : ajoute les tests sur PostgreSQL (Testcontainers), Docker doit tourner -->
+            <id>docker</id>
+            <properties>
+                <excluded.docker.tests>nothing</excluded.docker.tests>
             </properties>
         </profile>
     </profiles>
