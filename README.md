@@ -31,7 +31,7 @@ Pour chaque annonce : récupérer les images, la description, toutes les informa
 - `docker-compose.yml` : PostgreSQL 17, port exposé en local uniquement.
 - `src/main/resources/application.yml` : configuration commune (production), sans valeur par défaut.
 - `src/main/resources/application-local.yml` et `.env.example` : profil `local` du poste de dev, qui lit `.env`.
-- `src/main/resources/db/changelog/db.changelog-master.yaml` : changelog Liquibase vide, le schéma reste à définir.
+- `src/main/resources/db/changelog/db.changelog-master.yaml` : changelog Liquibase, qui inclut les changesets de `changes/`.
 - `src/main/java/fr/vinted/republisher` : classe `main` et packages vides `domain`, `application`, `adapter/in`, `adapter/out`.
 
 - `specs/` : une spec par user story (gabarit `_template.md`), méthode SDD.
@@ -58,9 +58,11 @@ Dans IntelliJ, renseigner `local` dans *Active profiles* de la configuration de 
 
 `.env` contient des secrets et n'est pas versionné ; `.env.example` en est le modèle. Il n'est lu que dans le profil `local`.
 
-En production (profil `local` inactif), les variables viennent du système et sont toutes obligatoires : `DB_URL` (ex. `jdbc:postgresql://hote:5432/appdb`), `DB_USER`, `DB_PASSWORD`, `APP_DATA_DIR`, `CHROME_PATH`, `CHROME_DEBUG_PORT`.
+En production (profil `local` inactif), les variables viennent du système et sont toutes obligatoires : `DB_URL` (ex. `jdbc:postgresql://hote:5432/appdb`), `DB_USER`, `DB_PASSWORD`, `APP_DATA_DIR`, `CHROME_PATH`, `CHROME_DEBUG_PORT`, `VINTED_WARDROBE_URL`.
 
 Session Vinted : page `http://localhost:8080/vinted-session.html` (contrat d'API et Swagger UI sur `http://localhost:8080/swagger-ui.html`). L'outil démarre lui-même un Chrome normal (Chrome doit être installé) avec un profil dédié `APP_DATA_DIR/browser-profile` et le pilote par son port de débogage local ; ce Chrome reste ouvert entre deux actions. **Attention** : tant qu'il est ouvert, n'importe quel programme de votre machine peut le piloter par ce port, donc agir sur votre compte Vinted connecté ; fermez-le quand vous n'utilisez pas l'outil. Avec « Se connecter », vous vous connectez vous-même à Vinted dans ce Chrome ; la session est considérée ouverte quand la page `https://www.vinted.fr/settings/profile` s'affiche sans redirection vers la connexion.
+
+Dressing : page `http://localhost:8080/wardrobe.html`. « Scanner » lit le dressing `VINTED_WARDROBE_URL` dans ce Chrome, sans rien modifier sur Vinted, puis enregistre les annonces actives. L'onglet du scan passe au premier plan : laissez-le visible pendant la lecture, sinon la page ne charge pas la suite des annonces. Un scan qui échoue ne change pas l'inventaire. L'application n'écoute que sur `127.0.0.1` et refuse les demandes venues d'un autre site.
 
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
@@ -71,6 +73,7 @@ Session Vinted : page `http://localhost:8080/vinted-session.html` (contrat d'API
 | `DB_URL` | URL JDBC, production uniquement | construite à partir de `localhost:5432` et `DB_NAME` |
 | `CHROME_PATH` | chemin de `chrome.exe` | `C:/Program Files/Google/Chrome/Application/chrome.exe` |
 | `CHROME_DEBUG_PORT` | port de débogage de Chrome (127.0.0.1 uniquement) | `9222` |
+| `VINTED_WARDROBE_URL` | adresse de votre dressing, `https://www.vinted.fr/member/<id>` | obligatoire |
 
 ## User stories (proposition de découpage)
 

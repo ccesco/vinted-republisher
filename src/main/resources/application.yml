@@ -17,6 +17,10 @@ spring:
   liquibase:
     change-log: classpath:db/changelog/db.changelog-master.yaml
 
+# Outil local, sans authentification, qui pilote un Chrome connecté au compte Vinted.
+server:
+  address: 127.0.0.1
+
 management:
   endpoints:
     web:
@@ -31,6 +35,13 @@ app:
 # et redirige un visiteur vers la connexion (le dressing, public, ne permet pas de le savoir).
 vinted:
   profile-settings-url: https://www.vinted.fr/settings/profile
+  # Dressing du membre (US-04), de la forme https://www.vinted.fr/member/<id>.
+  wardrobe-url: ${VINTED_WARDROBE_URL}
+  # Rythme du scan : pause aléatoire entre deux défilements, arrêt sans nouvelle tranche.
+  scan:
+    min-pause: 3s
+    max-pause: 6s
+    stall-timeout: 30s
 
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:

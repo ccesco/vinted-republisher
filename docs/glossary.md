@@ -26,3 +26,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `WardrobeSnapshot` | Relevé du dressing | Résultat brut d'une lecture : total affiché et annonces lues. |
 | `ScanProblem` | Problème de scan | Raison affichée quand un scan n'a pas abouti : navigateur indisponible, Vinted inaccessible, dressing illisible, échec du scan. |
 | `WardrobeUnreadable` | Dressing illisible | Total illisible ou incohérent, aucune annonce lue, ou réponse de format inattendu. |
+| `ScannedListing` | Annonce lue | Annonce telle que lue sur Vinted lors d'un scan, active ou non. |
+| `InvalidListing` | Annonce invalide | Annonce lue dont une valeur est inacceptable (identifiant, titre, lien, prix). |
+| `ScanPace` | Rythme du scan | Pauses aléatoires entre deux défilements, dans les bornes configurées. |
+| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date du dernier scan réussi, problème éventuel et annonces présentes, tels qu'affichés. |

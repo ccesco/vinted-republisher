@@ -2,6 +2,7 @@ package fr.vinted.republisher.adapter.config;
 
 import fr.vinted.republisher.adapter.out.browser.Chrome;
 import fr.vinted.republisher.adapter.out.browser.ChromeProperties;
+import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightVintedAccount;
 import fr.vinted.republisher.adapter.out.browser.VintedSiteProperties;
 import fr.vinted.republisher.application.session.CheckVintedSession;
@@ -29,10 +30,13 @@ public class VintedSessionConfiguration {
     }
 
     @Bean
-    VintedAccount vintedAccount(VintedSiteProperties site, ChromeProperties chrome,
-                                @Value("${app.data-dir}") Path dataDirectory) {
-        Path profileDirectory = dataDirectory.resolve("browser-profile");
-        return new PlaywrightVintedAccount(site, new Chrome(chrome.path(), profileDirectory, chrome.debugPort()));
+    ChromeTabs chromeTabs(ChromeProperties chrome, @Value("${app.data-dir}") Path dataDirectory) {
+        return new ChromeTabs(new Chrome(chrome.path(), dataDirectory.resolve("browser-profile"), chrome.debugPort()));
+    }
+
+    @Bean
+    VintedAccount vintedAccount(VintedSiteProperties site, ChromeTabs tabs) {
+        return new PlaywrightVintedAccount(site, tabs);
     }
 
     @Bean
