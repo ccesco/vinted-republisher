@@ -8,7 +8,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
-import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.WardrobeSnapshot;
 import fr.vinted.republisher.domain.wardrobe.WardrobeUnreadable;
 import org.slf4j.Logger;
@@ -23,17 +23,17 @@ public class ScanWardrobe {
     private static final Logger LOG = LoggerFactory.getLogger(ScanWardrobe.class);
 
     private final VintedSession session;
-    private final WardrobeScan wardrobeScan;
+    private final LastScanProblem lastProblem;
     private final WardrobeReader reader;
     private final ListingRepository listings;
     private final ScanPace pace;
     private final Clock clock;
     private final Executor background;
 
-    public ScanWardrobe(VintedSession session, WardrobeScan wardrobeScan, WardrobeReader reader,
+    public ScanWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeReader reader,
                         ListingRepository listings, ScanPace pace, Clock clock, Executor background) {
         this.session = session;
-        this.wardrobeScan = wardrobeScan;
+        this.lastProblem = lastProblem;
         this.reader = reader;
         this.listings = listings;
         this.pace = pace;
@@ -46,7 +46,7 @@ public class ScanWardrobe {
         if (!session.start(BrowserAction.SCANNING)) {
             return;
         }
-        wardrobeScan.start();
+        lastProblem.clear();
         background.execute(this::scanUntilDone);
     }
 
@@ -61,7 +61,7 @@ public class ScanWardrobe {
             fail(ScanProblem.WARDROBE_UNREADABLE, unreadable);
         } catch (RuntimeException unexpected) {
             // The scan must end whatever happens; the failure is rethrown for the executor to log it.
-            wardrobeScan.fail(ScanProblem.SCAN_FAILED);
+            lastProblem.report(ScanProblem.SCAN_FAILED);
             throw unexpected;
         } finally {
             session.finish();
@@ -71,7 +71,7 @@ public class ScanWardrobe {
     /** The page only gives the problem: the details are in the logs. */
     private void fail(ScanProblem problem, RuntimeException cause) {
         LOG.warn("Wardrobe scan failed: {}", cause.getMessage());
-        wardrobeScan.fail(problem);
+        lastProblem.report(problem);
     }
 
     private void updateInventory() {

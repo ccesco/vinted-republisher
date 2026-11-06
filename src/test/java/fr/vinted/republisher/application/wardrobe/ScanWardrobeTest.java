@@ -6,7 +6,7 @@ import fr.vinted.republisher.domain.session.SessionStatus;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
-import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import org.junit.jupiter.api.Test;
@@ -33,7 +33,7 @@ class ScanWardrobeTest {
     private static final Instant NOW = Instant.parse("2026-11-06T10:00:00Z");
 
     private final VintedSession session = new VintedSession();
-    private final WardrobeScan wardrobeScan = new WardrobeScan();
+    private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
     private final List<Runnable> background = new ArrayList<>();
@@ -90,7 +90,7 @@ class ScanWardrobeTest {
 
         scanWardrobe(Runnable::run).scan();
 
-        assertThat(wardrobeScan.problem()).isEmpty();
+        assertThat(lastProblem.current()).isEmpty();
     }
 
     @Test
@@ -100,7 +100,7 @@ class ScanWardrobeTest {
         Throwable failure = catchThrowable(() -> scanWardrobe(Runnable::run).scan());
 
         assertThat(failure).isInstanceOf(IllegalStateException.class);
-        assertThat(wardrobeScan.problem()).contains(ScanProblem.SCAN_FAILED);
+        assertThat(lastProblem.current()).contains(ScanProblem.SCAN_FAILED);
         assertThat(session.overview().currentAction()).isEmpty();
     }
 
@@ -111,12 +111,12 @@ class ScanWardrobeTest {
 
         catchThrowable(() -> scanWardrobe(Runnable::run).scan());
 
-        assertThat(wardrobeScan.problem()).contains(ScanProblem.SCAN_FAILED);
+        assertThat(lastProblem.current()).contains(ScanProblem.SCAN_FAILED);
         assertThat(session.overview().currentAction()).isEmpty();
     }
 
     private ScanWardrobe scanWardrobe(Executor executor) {
-        return new ScanWardrobe(session, wardrobeScan, reader, listings,
+        return new ScanWardrobe(session, lastProblem, reader, listings,
                 new ScanPace(Duration.ZERO, Duration.ZERO, new Random(42)), Clock.fixed(NOW, ZoneOffset.UTC), executor);
     }
 }
