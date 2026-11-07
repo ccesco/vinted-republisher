@@ -56,16 +56,23 @@ class WardrobeScanTest {
     void present_listing_not_seen_since_the_start_is_missing() {
         Listing missing = Listing.seen(anActiveListing(1), EARLIER);
 
-        assertThat(scan.missingFrom(List.of(missing))).containsExactly(missing.absent());
+        assertThat(scan.missingFrom(List.of(missing), List.of())).containsExactly(missing.absent());
     }
 
     @Test
-    void listing_seen_since_the_start_is_not_missing() {
-        assertThat(scan.missingFrom(List.of(Listing.seen(anActiveListing(1), LATER)))).isEmpty();
+    void listing_seen_since_the_start_and_still_on_the_wardrobe_is_not_missing() {
+        assertThat(scan.missingFrom(List.of(Listing.seen(anActiveListing(1), LATER)), List.of(aLink(1)))).isEmpty();
+    }
+
+    @Test
+    void listing_read_before_an_interruption_and_gone_since_is_missing() {
+        Listing gone = Listing.seen(anActiveListing(1), LATER);
+
+        assertThat(scan.missingFrom(List.of(gone), List.of(aLink(2)))).containsExactly(gone.absent());
     }
 
     @Test
     void listing_already_absent_is_left_alone() {
-        assertThat(scan.missingFrom(List.of(Listing.seen(anActiveListing(1), EARLIER).absent()))).isEmpty();
+        assertThat(scan.missingFrom(List.of(Listing.seen(anActiveListing(1), EARLIER).absent()), List.of())).isEmpty();
     }
 }

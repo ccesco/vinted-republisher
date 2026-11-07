@@ -34,9 +34,14 @@ public record WardrobeScan(WardrobeScanId id, Instant startedAt, Optional<Instan
         return links.stream().filter(link -> !read.contains(link.id())).toList();
     }
 
-    /** The listings this scan found gone, marked absent. */
-    public List<Listing> missingFrom(List<Listing> inventory) {
-        return inventory.stream().filter(Listing::present).filter(listing -> !hasRead(listing))
+    /**
+     * The listings this scan found gone, marked absent: those it did not read, and those it read before an
+     * interruption that have left the wardrobe since.
+     */
+    public List<Listing> missingFrom(List<Listing> inventory, List<ListingLink> links) {
+        Set<VintedListingId> found = links.stream().map(ListingLink::id).collect(Collectors.toSet());
+        return inventory.stream().filter(Listing::present)
+                .filter(listing -> !hasRead(listing) || !found.contains(listing.id()))
                 .map(Listing::absent).toList();
     }
 

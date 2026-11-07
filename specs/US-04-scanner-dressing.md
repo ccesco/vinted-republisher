@@ -17,7 +17,7 @@ En tant que membre, je veux lancer un scan de mon dressing, afin que l'outil con
 4. **Relevé** : l'outil ouvre `VINTED_WARDROBE_URL` dans un onglet du Chrome piloté, passé au premier plan, et lit le total affiché par l'en-tête. Il défile avec une pause aléatoire, en lisant dans la page les liens des annonces, jusqu'à en avoir autant que le total, ou après 30 secondes sans nouveau lien. Le nombre de liens doit égaler le total, et être non nul ; sinon le scan échoue et rien ne change.
 5. **Lecture** : dans le même onglet, l'outil ouvre une à une les annonces non encore lues par ce scan, avec une pause aléatoire de 10 à 15 secondes entre deux annonces. Il lit le titre, le prix, la devise et la disponibilité dans les données structurées de la page (`Product` en JSON-LD).
 6. Une annonce est active si sa disponibilité est `InStock`. Chaque annonce active est enregistrée aussitôt, créée ou mise à jour, marquée présente, avec `last_seen_at` à l'instant de sa lecture.
-7. **Fin** : quand toutes les annonces ont été lues, l'outil ferme l'onglet, marque absentes les annonces présentes non vues depuis le début du scan, et termine le scan. Aucune ligne n'est supprimée.
+7. **Fin** : quand toutes les annonces ont été lues, l'outil ferme l'onglet, marque absentes les annonces présentes non vues depuis le début du scan ou sorties du dernier relevé, et termine le scan. Aucune ligne n'est supprimée.
 8. **Échec** : le scan s'arrête, reste non terminé, et ce qui a été lu reste en base. Aucune annonce n'est marquée absente.
 
 ## Contrat d'API
@@ -196,6 +196,16 @@ Et le nombre et le contenu des annonces correspondent à mon dressing
 Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter le scan après quelques annonces pour vérifier la reprise. Ce test vérifie aussi : la disponibilité affichée pour une annonce réservée, s'il y en a une ; le total de l'en-tête dans le Chrome connecté, y compris avec des annonces masquées. Tout écart se traite par une mise à jour de cette spec.
 Premier essai (2026-11-06, ancienne lecture par l'API, un seul scan) : `wardrobe.html` fonctionne dans l'application lancée, mais Vinted refuse la requête directe de la première tranche (HTTP 403). Scan arrêté sans nouvelle tentative, base inchangée, cause exacte non établie.
 
+### AT-04-17 – Annonce disparue pendant une interruption
+```gherkin
+Étant donné un scan interrompu après avoir lu 2 annonces sur 3
+Et la deuxième annonce a quitté le dressing depuis
+Quand je lance le scan
+Alors seule la troisième annonce est ouverte
+Et la deuxième annonce est marquée absente
+```
+Test : `ScanWardrobeAcceptanceTest.listing_gone_during_an_interruption_ends_up_absent()`
+
 ## Cas limites et erreurs
 - Page d'annonce sans données `Product`, ou données incomplètes : problème « dressing illisible », le scan s'arrête et reste non terminé.
 - En-tête sans total lisible, ou plusieurs totaux différents sur la page : problème « dressing illisible », rien n'est changé.
@@ -240,9 +250,9 @@ Premier essai (2026-11-06, ancienne lecture par l'API, un seul scan) : `wardrobe
 - `ListingLink` : identifiant et URL d'une annonce relevée sur le dressing.
 - `WardrobeListing` (relevé du dressing) : total affiché et liens ; dit si le relevé est complet. Remplace `WardrobeSnapshot`.
 - `ScannedListing` (annonce lue) : identifiant, URL, titre, prix, active ou non. Remplace `ListingStatusFlags`.
-- `WardrobeScan` (scan du dressing, agrégat) : date de début, date de fin ; dit si une annonce est déjà lue.
+- `WardrobeScan` (scan du dressing, agrégat) : date de début, date de fin ; dit si une annonce est déjà lue et lesquelles ont quitté le dressing.
 - `ScanProblem`, `LastScanProblem` (problème du dernier scan, en mémoire), `ScanPace` et `PauseRange`, `WardrobeOverview`, `WardrobeUnreadable`, `InvalidListing` ; `BrowserAction` gagne `SCANNING`.
-- Ports sortants : `WardrobeReader` (rappelle une `WardrobeVisit` : annonces à ouvrir, annonce lue), `ListingRepository`, `WardrobeScanRepository`. Cas d'usage : `ScanWardrobe`, `ShowWardrobe`.
+- Ports sortants : `WardrobeReader` (rappelle une `WardrobeVisit` : annonces à ouvrir, annonce lue ; rend le relevé), `ListingRepository`, `WardrobeScanRepository`. Cas d'usage : `ScanWardrobe`, `ShowWardrobe`.
 
 ## Tests unitaires et d'intégration attendus
 - `domain` : `ListingLinkTest`, `WardrobeListingTest`, `WardrobeScanTest`, `ScannedListingTest`, `ListingTest`, `PriceTest`, `ScanPaceTest`.

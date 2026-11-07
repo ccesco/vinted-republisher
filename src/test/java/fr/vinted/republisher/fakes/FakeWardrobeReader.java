@@ -82,20 +82,21 @@ public class FakeWardrobeReader implements WardrobeReader {
     }
 
     @Override
-    public void read(ScanPace pace, WardrobeVisit visit) {
+    public WardrobeListing read(ScanPace pace, WardrobeVisit visit) {
         reads++;
         duringTheReading.run();
         failure.ifPresent(reason -> {
             throw reason;
         });
-        List<ListingLink> links = List.copyOf(wardrobe.keySet());
-        Iterator<ListingLink> toOpen = visit.listingsToOpen(new WardrobeListing(displayedTotal, links)).iterator();
+        WardrobeListing found = new WardrobeListing(displayedTotal, List.copyOf(wardrobe.keySet()));
+        Iterator<ListingLink> toOpen = visit.listingsToOpen(found).iterator();
         while (toOpen.hasNext()) {
             visit.record(open(toOpen.next()));
             if (toOpen.hasNext()) {
                 pausesBetweenListings.add(pace.nextPauseBetweenListings());
             }
         }
+        return found;
     }
 
     private ScannedListing open(ListingLink link) {
