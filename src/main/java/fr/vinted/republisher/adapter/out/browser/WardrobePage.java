@@ -2,65 +2,53 @@ package fr.vinted.republisher.adapter.out.browser;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
-import com.microsoft.playwright.PlaywrightException;
-import com.microsoft.playwright.Response;
 import com.microsoft.playwright.TimeoutError;
-import fr.vinted.republisher.domain.session.VintedUnreachable;
-import fr.vinted.republisher.domain.wardrobe.ScannedListing;
+import fr.vinted.republisher.domain.wardrobe.ListingLink;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeUnreadable;
 
 import java.net.URI;
-import java.time.Clock;
 import java.time.Duration;
-import java.time.Instant;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/**
- * The member's public wardrobe. Vinted loads it by slices: the first comes in the page itself, without
- * the status flags, the following ones from its internal API when the member scrolls down.
- */
+/** The member's public wardrobe, which shows more of its listings as the member scrolls down. */
 final class WardrobePage {
 
-    private static final Pattern MEMBER_PATH = Pattern.compile("/member/(\\d+)(-[^/]*)?/?");
     // A whole element reading exactly that: a member's description may mention articles too.
     private static final Pattern DISPLAYED_TOTAL =
             Pattern.compile("^(\\d[\\d\\s\\u00A0]*?)[\\s\\u00A0]+articles?$");
-    private static final String FETCH_FIRST_SLICE = "path => fetch(path, {credentials: 'same-origin'}).then(answer => answer.text()).then(() => null)";
+    // Only the listings of the grid: the rest of the page may suggest others. Seen as "grid-item" on Vinted,
+    // whose markup is not stable: both a test identifier and a class are accepted.
+    private static final String LISTING_LINKS =
+            "[data-testid='grid-item'] a[href*='/items/'], .grid-item a[href*='/items/']";
+    private static final String HREFS = "links => links.map(link => link.href)";
     private static final int WHEEL_STEP_PIXELS = 2500;
     private static final int POINTER_X = 400;
     private static final int POINTER_Y = 400;
-    private static final int SAFETY_MARGIN_MILLIS = 30_000;
 
     private final Page page;
     private final URI url;
-    private final String itemsPath;
-    // Compared as text: other URLs of the page, trackers among them, may not be valid for java.net.URI.
-    private final Pattern sliceUrl;
-    private final Clock clock;
-    private final List<Response> unreadResponses = new ArrayList<>();
+    private final Pattern listingAddress;
 
-    WardrobePage(Page page, URI url, Clock clock) {
+    WardrobePage(Page page, URI url) {
         this.page = page;
         this.url = url;
-        this.itemsPath = itemsPath(url);
-        this.sliceUrl = Pattern.compile("^https?://[^/]+" + Pattern.quote(itemsPath) + "([?#].*)?$");
-        this.clock = clock;
+        // Same site, the page of a listing and none below it, in a form java.net.URI takes: the tool opens these.
+        this.listingAddress = Pattern.compile("^(" + Pattern.quote(url.getScheme() + "://" + url.getAuthority())
+                + "/items/([1-9]\\d{0,17})(?:-[\\w%.~-]*)?/?)(?:[?#].*)?$");
     }
 
-    /** Chrome does not lay out a tab in the background, and the following slices would never load. */
+    /** Chrome does not lay out a tab in the background, and the following listings would never show. */
     void open() {
         page.bringToFront();
-        // Body reading happens later: the Playwright API is not to be called from one of its handlers.
-        page.onResponse(unreadResponses::add);
         ChromeTabs.open(page, url);
     }
 
-/** Two different totals could stop the reading too early: nothing can be trusted then. */
+    /** Two different totals could stop the reading too early: nothing can be trusted then. */
     int displayedTotal(Duration timeout) {
         Locator totals = page.getByText(DISPLAYED_TOTAL);
         try {
@@ -83,57 +71,20 @@ final class WardrobePage {
         return Integer.parseInt(matcher.group(1).replaceAll("[\\s\\u00A0]", ""));
     }
 
-    /** The answer is read among the others: the page's own requests and this one go the same way. */
-    void askForFirstSlice() {
-        try {
-            page.evaluate(FETCH_FIRST_SLICE, itemsPath + "?page=1&per_page=20");
-        } catch (PlaywrightException noAnswer) {
-            throw new VintedUnreachable(noAnswer.getMessage(), noAnswer);
-        }
-    }
-
     /** A real wheel event: the page only reacts to what a member would do. */
     void scrollDown() {
         page.mouse().move(POINTER_X, POINTER_Y);
         page.mouse().wheel(0, WHEEL_STEP_PIXELS);
     }
 
-    /** Waits inside Playwright, which only delivers the page's responses while it is called. */
-    void pause(Duration pause) {
-        Instant end = clock.instant().plus(pause);
-        page.waitForCondition(() -> !clock.instant().isBefore(end),
-                new Page.WaitForConditionOptions().setTimeout(pause.toMillis() + SAFETY_MARGIN_MILLIS));
+    /** Anything else is left out: the count against the total then tells something is wrong. */
+    List<ListingLink> listingLinks() {
+        List<?> hrefs = (List<?>) page.locator(LISTING_LINKS).evaluateAll(HREFS);
+        return hrefs.stream().map(String::valueOf).map(listingAddress::matcher).filter(Matcher::matches)
+                .map(WardrobePage::link).toList();
     }
 
-    List<ScannedListing> listingsLoaded() {
-        List<ScannedListing> listings = new ArrayList<>();
-        List<Response> responses = List.copyOf(unreadResponses);
-        unreadResponses.clear();
-        for (Response response : responses) {
-            listings.addAll(read(response));
-        }
-        return listings;
-    }
-
-    private List<ScannedListing> read(Response response) {
-        if (!sliceUrl.matcher(response.url()).matches()) {
-            return List.of();
-        }
-        if (response.status() >= 400) {
-            throw new VintedUnreachable("HTTP " + response.status() + " on " + response.url());
-        }
-        try {
-            return WardrobeItems.parse(response.text());
-        } catch (PlaywrightException noContent) {
-            throw new WardrobeUnreadable("no content in " + response.url(), noContent);
-        }
-    }
-
-    private static String itemsPath(URI url) {
-        Matcher member = MEMBER_PATH.matcher(url.getPath());
-        if (!member.matches()) {
-            throw new WardrobeUnreadable("no member in " + url);
-        }
-        return "/api/v2/wardrobe/" + member.group(1) + "/items";
+    private static ListingLink link(Matcher address) {
+        return new ListingLink(new VintedListingId(Long.parseLong(address.group(2))), URI.create(address.group(1)));
     }
 }

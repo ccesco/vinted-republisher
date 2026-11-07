@@ -37,10 +37,13 @@ vinted:
   profile-settings-url: https://www.vinted.fr/settings/profile
   # Dressing du membre (US-04), de la forme https://www.vinted.fr/member/<id>.
   wardrobe-url: ${VINTED_WARDROBE_URL}
-  # Rythme du scan : pause aléatoire entre deux défilements, arrêt sans nouvelle tranche.
+  # Rythme du scan : pauses aléatoires entre deux défilements et entre deux annonces,
+  # arrêt du relevé après stall-timeout sans nouveau lien.
   scan:
-    min-pause: 3s
-    max-pause: 6s
+    min-scroll-pause: 3s
+    max-scroll-pause: 6s
+    min-listing-pause: 10s
+    max-listing-pause: 15s
     stall-timeout: 30s
 
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).

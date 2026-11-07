@@ -241,11 +241,11 @@ Premier essai (2026-11-06, ancienne lecture par l'API, un seul scan) : `wardrobe
 - `WardrobeListing` (relevé du dressing) : total affiché et liens ; dit si le relevé est complet. Remplace `WardrobeSnapshot`.
 - `ScannedListing` (annonce lue) : identifiant, URL, titre, prix, active ou non. Remplace `ListingStatusFlags`.
 - `WardrobeScan` (scan du dressing, agrégat) : date de début, date de fin ; dit si une annonce est déjà lue.
-- `ScanProblem`, `ScanPace`, `WardrobeOverview`, `WardrobeUnreadable`, `InvalidListing` ; `BrowserAction` gagne `SCANNING`.
-- Ports sortants : `WardrobeReader`, `ListingRepository`, `WardrobeScanRepository`. Cas d'usage : `ScanWardrobe`, `ShowWardrobe`.
+- `ScanProblem`, `LastScanProblem` (problème du dernier scan, en mémoire), `ScanPace` et `PauseRange`, `WardrobeOverview`, `WardrobeUnreadable`, `InvalidListing` ; `BrowserAction` gagne `SCANNING`.
+- Ports sortants : `WardrobeReader` (rappelle une `WardrobeVisit` : annonces à ouvrir, annonce lue), `ListingRepository`, `WardrobeScanRepository`. Cas d'usage : `ScanWardrobe`, `ShowWardrobe`.
 
 ## Tests unitaires et d'intégration attendus
-- `domain` : `WardrobeListingTest`, `WardrobeScanTest`, `ScannedListingTest`, `ListingTest`, `PriceTest`, `ScanPaceTest`.
+- `domain` : `ListingLinkTest`, `WardrobeListingTest`, `WardrobeScanTest`, `ScannedListingTest`, `ListingTest`, `PriceTest`, `ScanPaceTest`.
 - `application` : `ScanWardrobeTest` (lecture, enregistrement au fil de l'eau, reprise, chaque problème, verrou libéré), `ShowWardrobeTest`.
 - `adapter/out/browser` : `ListingPageTest` (JSON-LD, sans navigateur) et `PlaywrightWardrobeReaderTest` contre des pages locales avec le vrai Chrome.
 - `adapter/out/persistence` : tests Testcontainers des deux repositories.

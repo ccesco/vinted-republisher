@@ -2,12 +2,14 @@ package fr.vinted.republisher.application.wardrobe;
 
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
+import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
-import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
+import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -19,12 +21,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ShowWardrobeTest {
 
-    private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:00:00Z");
+    private static final Instant STARTED_AT = Instant.parse("2026-11-06T09:30:00Z");
+    private static final Instant FINISHED_AT = Instant.parse("2026-11-06T10:00:00Z");
 
     private final VintedSession session = new VintedSession();
     private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
-    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings);
+    private final InMemoryWardrobeScanRepository scans = new InMemoryWardrobeScanRepository();
+    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings, scans);
 
     @Test
     void nothing_is_known_before_the_first_scan() {
@@ -33,16 +37,28 @@ class ShowWardrobeTest {
     }
 
     @Test
-    void shows_present_listings_most_recent_first_with_the_date_of_the_last_scan() {
-        Listing older = Listing.seen(anActiveListing(1), SCANNED_AT);
-        Listing newer = Listing.seen(anActiveListing(2), SCANNED_AT);
-        Listing absent = Listing.seen(anActiveListing(3), SCANNED_AT.minusSeconds(3600)).absent();
+    void shows_present_listings_most_recent_first() {
+        Listing older = Listing.seen(anActiveListing(1), FINISHED_AT);
+        Listing newer = Listing.seen(anActiveListing(2), FINISHED_AT);
+        Listing absent = Listing.seen(anActiveListing(3), STARTED_AT).absent();
         listings.saveAll(List.of(older, absent, newer));
 
-        WardrobeOverview overview = showWardrobe.show();
+        assertThat(showWardrobe.show().listings()).containsExactly(newer, older);
+    }
 
-        assertThat(overview.listings()).containsExactly(newer, older);
-        assertThat(overview.lastScanAt()).contains(SCANNED_AT);
+    @Test
+    void date_of_the_last_scan_is_the_end_of_the_last_finished_one() {
+        scans.save(WardrobeScan.startedAt(STARTED_AT).finished(FINISHED_AT));
+
+        assertThat(showWardrobe.show().lastScanAt()).contains(FINISHED_AT);
+    }
+
+    @Test
+    void unfinished_scan_gives_no_date() {
+        scans.save(WardrobeScan.startedAt(STARTED_AT));
+        listings.saveAll(List.of(Listing.seen(anActiveListing(1), FINISHED_AT)));
+
+        assertThat(showWardrobe.show().lastScanAt()).isEmpty();
     }
 
     @Test
@@ -63,7 +79,7 @@ class ShowWardrobeTest {
             }
         };
 
-        assertThat(new ShowWardrobe(session, lastProblem, endingTheScan).show().scanInProgress()).isTrue();
+        assertThat(new ShowWardrobe(session, lastProblem, endingTheScan, scans).show().scanInProgress()).isTrue();
     }
 
     @Test

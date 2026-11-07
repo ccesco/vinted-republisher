@@ -2,69 +2,79 @@ package fr.vinted.republisher.fakes;
 
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
+import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.domain.wardrobe.WardrobeListing;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
-import fr.vinted.republisher.domain.wardrobe.WardrobeSnapshot;
+import fr.vinted.republisher.domain.wardrobe.WardrobeVisit;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.function.Supplier;
+import java.util.Map;
+import java.util.Optional;
 
 public class FakeWardrobeReader implements WardrobeReader {
 
-    private Supplier<WardrobeSnapshot> reading = () -> new WardrobeSnapshot(0, List.of());
-    private final List<Duration> pauses = new ArrayList<>();
-    private int scrolls;
+    private final Map<ListingLink, ScannedListing> wardrobe = new LinkedHashMap<>();
+    private final List<VintedListingId> opened = new ArrayList<>();
+    private final List<Duration> pausesBetweenListings = new ArrayList<>();
+    private int displayedTotal;
     private int reads;
+    private Optional<VintedListingId> refused = Optional.empty();
+    private Optional<RuntimeException> failure = Optional.empty();
+    private Runnable duringTheReading = () -> { };
 
     public FakeWardrobeReader holding(ScannedListing... listings) {
         return announcing(listings.length, listings);
     }
 
-    public FakeWardrobeReader announcing(int displayedTotal, ScannedListing... listings) {
-        reading = () -> new WardrobeSnapshot(displayedTotal, List.of(listings));
+    /** A new wardrobe: what was opened or refused so far is forgotten. */
+    public FakeWardrobeReader announcing(int total, ScannedListing... listings) {
+        wardrobe.clear();
+        List.of(listings).forEach(listing -> wardrobe.put(listing.link(), listing));
+        displayedTotal = total;
+        opened.clear();
+        failure = Optional.empty();
+        refused = Optional.empty();
         return this;
     }
 
-    public FakeWardrobeReader scrolling(int times) {
-        scrolls = times;
+    public FakeWardrobeReader whereVintedRefusesTheWardrobe() {
+        failure = Optional.of(new VintedUnreachable("HTTP 403"));
         return this;
     }
 
-    public FakeWardrobeReader whereVintedRefuses() {
-        reading = () -> {
-            throw new VintedUnreachable("HTTP 403");
-        };
+    public FakeWardrobeReader whereVintedRefuses(long listing) {
+        refused = Optional.of(new VintedListingId(listing));
         return this;
     }
 
     public FakeWardrobeReader whereBrowserCannotStart() {
-        reading = () -> {
-            throw new BrowserUnavailable("Chrome not found");
-        };
+        failure = Optional.of(new BrowserUnavailable("Chrome not found"));
         return this;
     }
 
     public FakeWardrobeReader whereBrowserFailsUnexpectedly() {
-        reading = () -> {
-            throw new IllegalStateException("unexpected browser failure");
-        };
+        failure = Optional.of(new IllegalStateException("unexpected browser failure"));
         return this;
     }
 
     public FakeWardrobeReader during(Runnable action) {
-        Supplier<WardrobeSnapshot> reading = this.reading;
-        this.reading = () -> {
-            action.run();
-            return reading.get();
-        };
+        duringTheReading = action;
         return this;
     }
 
-    public List<Duration> pauses() {
-        return pauses;
+    public List<VintedListingId> opened() {
+        return opened;
+    }
+
+    public List<Duration> pausesBetweenListings() {
+        return pausesBetweenListings;
     }
 
     public int reads() {
@@ -72,11 +82,27 @@ public class FakeWardrobeReader implements WardrobeReader {
     }
 
     @Override
-    public WardrobeSnapshot read(ScanPace pace) {
+    public void read(ScanPace pace, WardrobeVisit visit) {
         reads++;
-        for (int scroll = 0; scroll < scrolls; scroll++) {
-            pauses.add(pace.nextPause());
+        duringTheReading.run();
+        failure.ifPresent(reason -> {
+            throw reason;
+        });
+        List<ListingLink> links = List.copyOf(wardrobe.keySet());
+        Iterator<ListingLink> toOpen = visit.listingsToOpen(new WardrobeListing(displayedTotal, links)).iterator();
+        while (toOpen.hasNext()) {
+            visit.record(open(toOpen.next()));
+            if (toOpen.hasNext()) {
+                pausesBetweenListings.add(pace.nextPauseBetweenListings());
+            }
         }
-        return reading.get();
+    }
+
+    private ScannedListing open(ListingLink link) {
+        opened.add(link.id());
+        if (refused.filter(link.id()::equals).isPresent()) {
+            throw new VintedUnreachable("HTTP 403");
+        }
+        return wardrobe.get(link);
     }
 }

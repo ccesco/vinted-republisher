@@ -109,12 +109,12 @@ components:
         lastScanAt:
           type: string
           format: date-time
-          description: Date du dernier scan réussi ; absente si aucun scan n'a réussi.
+          description: Date de fin du dernier scan terminé ; absente si aucun scan n'est terminé.
         problem:
           $ref: '#/components/schemas/ScanProblem'
         listings:
           type: array
-          description: Annonces présentes dans le dernier scan réussi, les plus récentes d'abord.
+          description: Annonces présentes, les plus récentes d'abord ; pendant un scan, peut mêler anciennes et nouvelles valeurs.
           items:
             $ref: '#/components/schemas/Listing'
       example:

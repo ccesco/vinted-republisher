@@ -21,12 +21,14 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `Listing` | Annonce | Article du dressing connu de l'outil ; conservé en base même s'il n'est plus présent. |
 | `VintedListingId` | Identifiant Vinted | Identifiant numérique d'une annonce sur Vinted. |
 | `Price` | Prix | Montant décimal et devise d'une annonce. |
-| `ListingStatusFlags` | Indicateurs d'état | Indicateurs lus sur Vinted (brouillon, fermée, réservée, masquée, en cours de traitement) ; une annonce est active si aucun n'est vrai. Jamais stockés. |
-| `WardrobeScan` (`ScanWardrobe`) | Scan du dressing | Lecture complète du dressing par le Chrome piloté, tout ou rien ; uniquement sur demande. |
-| `WardrobeSnapshot` | Relevé du dressing | Résultat brut d'une lecture : total affiché et annonces lues. |
+| `WardrobeScan` (`ScanWardrobe`) | Scan du dressing | Parcours du dressing et lecture de chaque annonce par le Chrome piloté, uniquement sur demande ; persisté avec ses dates de début et de fin, il reste non terminé après un échec et se reprend au scan suivant. |
+| `WardrobeListing` | Relevé du dressing | Résultat du parcours du dressing : total affiché et liens des annonces. |
+| `ListingLink` | Lien d'annonce | Identifiant et adresse d'une annonce, relevés sur le dressing. |
+| `WardrobeVisit` | Visite du dressing | Ce que le scan fait de ce que le lecteur trouve : choisir les annonces à ouvrir, enregistrer chaque annonce lue. |
+| `LastScanProblem` | Problème du dernier scan | Problème affiché jusqu'au scan suivant, conservé en mémoire seulement. |
 | `ScanProblem` | Problème de scan | Raison affichée quand un scan n'a pas abouti : navigateur indisponible, Vinted inaccessible, dressing illisible, échec du scan. |
-| `WardrobeUnreadable` | Dressing illisible | Total illisible ou incohérent, aucune annonce lue, ou réponse de format inattendu. |
-| `ScannedListing` | Annonce lue | Annonce telle que lue sur Vinted lors d'un scan, active ou non. |
+| `WardrobeUnreadable` | Dressing illisible | Total illisible ou incohérent, aucun lien relevé, ou page d'annonce sans données `Product` complètes. |
+| `ScannedListing` | Annonce lue | Annonce telle que lue sur sa page lors d'un scan, active si sa disponibilité est `InStock`. |
 | `InvalidListing` | Annonce invalide | Annonce lue dont une valeur est inacceptable (identifiant, titre, lien, prix). |
-| `ScanPace` | Rythme du scan | Pauses aléatoires entre deux défilements, dans les bornes configurées. |
-| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date du dernier scan réussi, problème éventuel et annonces présentes, tels qu'affichés. |
+| `ScanPace` (`PauseRange`) | Rythme du scan | Pauses aléatoires entre deux défilements et entre deux annonces, chacune dans ses bornes configurées. |
+| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date de fin du dernier scan terminé, problème éventuel et annonces présentes, tels qu'affichés. |

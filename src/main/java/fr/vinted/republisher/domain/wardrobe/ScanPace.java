@@ -3,23 +3,28 @@ package fr.vinted.republisher.domain.wardrobe;
 import java.time.Duration;
 import java.util.random.RandomGenerator;
 
-/** The pauses of a reading, varied so that Vinted sees a human rhythm rather than a robot's. */
+/** The pauses of a scan, varied so that Vinted sees a human rhythm rather than a robot's. */
 public final class ScanPace {
 
-    private final Duration minimum;
-    private final Duration maximum;
+    private final PauseRange betweenScrolls;
+    private final PauseRange betweenListings;
     private final RandomGenerator random;
 
-    public ScanPace(Duration minimum, Duration maximum, RandomGenerator random) {
-        if (minimum.compareTo(maximum) > 0) {
-            throw new IllegalArgumentException("Minimum pause " + minimum + " above maximum " + maximum);
-        }
-        this.minimum = minimum;
-        this.maximum = maximum;
+    public ScanPace(PauseRange betweenScrolls, PauseRange betweenListings, RandomGenerator random) {
+        this.betweenScrolls = betweenScrolls;
+        this.betweenListings = betweenListings;
         this.random = random;
     }
 
-    public Duration nextPause() {
-        return Duration.ofMillis(random.nextLong(minimum.toMillis(), maximum.toMillis() + 1));
+    public Duration nextPauseBetweenScrolls() {
+        return nextPause(betweenScrolls);
+    }
+
+    public Duration nextPauseBetweenListings() {
+        return nextPause(betweenListings);
+    }
+
+    private Duration nextPause(PauseRange range) {
+        return Duration.ofMillis(random.nextLong(range.minimum().toMillis(), range.maximum().toMillis() + 1));
     }
 }
