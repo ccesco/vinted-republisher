@@ -14,7 +14,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @SpringBootTest(properties = {
         "app.data-dir=target/test-data",
         "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222"})
+        "chrome.debug-port=9222",
+        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
 abstract class ApplicationWithDatabaseTest {
 
     private static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
