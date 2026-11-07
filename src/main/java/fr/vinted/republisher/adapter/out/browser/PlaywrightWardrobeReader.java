@@ -31,10 +31,11 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
     }
 
     @Override
-    public void read(ScanPace pace, WardrobeVisit visit) {
-        tabs.<Void>inNewTab(page -> {
-            openListings(page, pace, visit, goThroughWardrobe(page, pace));
-            return null;
+    public WardrobeListing read(ScanPace pace, WardrobeVisit visit) {
+        return tabs.inNewTab(page -> {
+            WardrobeListing wardrobe = goThroughWardrobe(page, pace);
+            openListings(page, pace, visit, wardrobe);
+            return wardrobe;
         });
     }
 

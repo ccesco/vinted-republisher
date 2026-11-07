@@ -159,6 +159,13 @@ class PlaywrightWardrobeReaderTest {
         }
 
         @Test
+        void gives_what_it_found_on_the_wardrobe() {
+            Visit visit = new Visit(links -> List.of());
+
+            assertThat(read(visit, briskPace())).isEqualTo(visit.wardrobe);
+        }
+
+        @Test
         void keeps_the_address_of_a_listing_without_its_tracking_parameters() {
             assertThat(goThrough().links().getFirst().url())
                     .isEqualTo(URI.create(address("/items/1-pull-raye")));
@@ -422,9 +429,9 @@ class PlaywrightWardrobeReaderTest {
         return visit;
     }
 
-    private void read(Visit visit, ScanPace pace) {
+    private WardrobeListing read(Visit visit, ScanPace pace) {
         ChromeTabs tabs = new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort));
-        new PlaywrightWardrobeReader(URI.create(address(MEMBER)), Duration.ofSeconds(2), tabs, Clock.systemUTC())
+        return new PlaywrightWardrobeReader(URI.create(address(MEMBER)), Duration.ofSeconds(2), tabs, Clock.systemUTC())
                 .read(pace, visit);
     }
 

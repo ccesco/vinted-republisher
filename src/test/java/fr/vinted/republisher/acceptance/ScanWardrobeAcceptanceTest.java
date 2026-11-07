@@ -172,6 +172,24 @@ class ScanWardrobeAcceptanceTest {
     }
 
     @Test
+    void listing_gone_during_an_interruption_ends_up_absent() {
+        // Étant donné un scan interrompu après avoir lu 2 annonces sur 3
+        reader.holding(anActiveListing(1), anActiveListing(2), anActiveListing(3)).whereVintedRefuses(3);
+        scanWardrobe.scan();
+        clock.advance(Duration.ofHours(1));
+        // Et la deuxième annonce a quitté le dressing depuis
+        reader.holding(anActiveListing(1), anActiveListing(3));
+
+        // Quand je lance le scan
+        scanWardrobe.scan();
+
+        // Alors seule la troisième annonce est ouverte
+        // Et la deuxième annonce est marquée absente
+        assertThat(reader.opened()).containsExactly(new VintedListingId(3));
+        assertThat(listings.findAll()).contains(Listing.seen(anActiveListing(2), NOW).absent());
+    }
+
+    @Test
     void unavailable_browser_fails_the_scan() {
         // Étant donné un navigateur injoignable
         Listing known = anInventoryOfOneListing();

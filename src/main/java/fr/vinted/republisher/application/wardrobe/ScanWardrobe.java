@@ -88,8 +88,8 @@ public class ScanWardrobe {
 
     private void scanToTheEnd() {
         WardrobeScan scan = scans.findUnfinished().orElseGet(this::startScan);
-        reader.read(pace, new Visit(scan));
-        listings.saveAll(scan.missingFrom(listings.findAll()));
+        WardrobeListing wardrobe = reader.read(pace, new Visit(scan));
+        listings.saveAll(scan.missingFrom(listings.findAll(), wardrobe.links()));
         scans.save(scan.finished(clock.instant()));
     }
 
