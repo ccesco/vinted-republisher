@@ -3,7 +3,6 @@ package fr.vinted.republisher.domain.session;
 import java.util.Optional;
 
 import static fr.vinted.republisher.domain.session.BrowserAction.LOGGING_IN;
-import static fr.vinted.republisher.domain.session.BrowserAction.SCANNING;
 import static fr.vinted.republisher.domain.session.SessionProblem.MANUAL_LOGIN_NOT_COMPLETED;
 import static fr.vinted.republisher.domain.session.SessionStatus.DISCONNECTED;
 
@@ -23,7 +22,7 @@ public final class VintedSession {
             return false;
         }
         currentAction = Optional.of(action);
-        if (action != SCANNING) {
+        if (action.isAboutTheSession()) {
             problem = Optional.empty();
         }
         return true;

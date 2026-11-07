@@ -12,12 +12,17 @@ import org.slf4j.LoggerFactory;
 
 import java.net.URI;
 import java.util.Map;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.function.Consumer;
 import java.util.function.Function;
 
 /** Attaches to a normal Chrome (never launched by Playwright) and works in a tab it closes afterwards. */
 public class ChromeTabs {
 
     private static final Logger LOG = LoggerFactory.getLogger(ChromeTabs.class);
+    private static final int SAFETY_MARGIN_MILLIS = 30_000;
     // Playwright only attaches to the installed Chrome: it must not download its own browsers.
     private static final Playwright.CreateOptions NO_BROWSER_DOWNLOAD =
             new Playwright.CreateOptions().setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"));
@@ -36,6 +41,20 @@ public class ChromeTabs {
             LOG.error("Browser unavailable", unavailable);
             throw unavailable;
         }
+    }
+
+    void workInNewTab(Consumer<Page> action) {
+        inNewTab(page -> {
+            action.accept(page);
+            return page;
+        });
+    }
+
+    /** Waits inside Playwright, which keeps serving the page in the meantime. */
+    static void pause(Page page, Duration pause, Clock clock) {
+        Instant end = clock.instant().plus(pause);
+        page.waitForCondition(() -> !clock.instant().isBefore(end),
+                new Page.WaitForConditionOptions().setTimeout(pause.toMillis() + SAFETY_MARGIN_MILLIS));
     }
 
     /** An HTTP error is expected to be Vinted's anti-bot block page: it must not pass for a displayed page. */

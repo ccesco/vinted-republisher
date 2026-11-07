@@ -1,0 +1,29 @@
+# US-05 : sauvegardes du dressing, pour reprendre une sauvegarde interrompue et dater la dernière terminée.
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-wardrobe-backup
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: wardrobe_backup
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: started_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: finished_at
+                  type: timestamptz
+        # Une seule sauvegarde non terminée : c'est celle que la sauvegarde suivante reprend.
+        - sql:
+            sql: CREATE UNIQUE INDEX wardrobe_backup_one_unfinished ON wardrobe_backup ((finished_at IS NULL)) WHERE finished_at IS NULL
+      rollback:
+        - dropTable:
+            tableName: wardrobe_backup

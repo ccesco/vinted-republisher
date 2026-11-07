@@ -17,14 +17,10 @@ public final class ScanPace {
     }
 
     public Duration nextPauseBetweenScrolls() {
-        return nextPause(betweenScrolls);
+        return betweenScrolls.randomPause(random);
     }
 
     public Duration nextPauseBetweenListings() {
-        return nextPause(betweenListings);
-    }
-
-    private Duration nextPause(PauseRange range) {
-        return Duration.ofMillis(random.nextLong(range.minimum().toMillis(), range.maximum().toMillis() + 1));
+        return betweenListings.randomPause(random);
     }
 }

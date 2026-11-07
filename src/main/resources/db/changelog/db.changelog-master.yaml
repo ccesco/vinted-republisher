@@ -4,3 +4,7 @@ databaseChangeLog:
       file: db/changelog/changes/001-create-listing.yaml
   - include:
       file: db/changelog/changes/002-create-wardrobe-scan.yaml
+  - include:
+      file: db/changelog/changes/003-create-wardrobe-backup.yaml
+  - include:
+      file: db/changelog/changes/004-create-listing-content.yaml

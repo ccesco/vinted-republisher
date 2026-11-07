@@ -1,0 +1,58 @@
+# US-05 : contenu sauvegardé de chaque annonce, une ligne par annonce, une colonne typée par donnée.
+databaseChangeLog:
+  - changeSet:
+      id: 004-create-listing-content
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_content
+            columns:
+              - column: {name: listing_id, type: bigint, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: saved_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: title, type: text, constraints: {nullable: false}}
+              - column: {name: description, type: text, constraints: {nullable: false}}
+              - column: {name: price, type: 'numeric(10,2)', constraints: {nullable: false}}
+              - column: {name: currency, type: char(3), constraints: {nullable: false}}
+              - column: {name: catalog_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: category_label, type: text, constraints: {nullable: false}}
+              - column: {name: brand_id, type: bigint}
+              - column: {name: brand_label, type: text}
+              - column: {name: condition_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: condition_label, type: text, constraints: {nullable: false}}
+              - column: {name: size_id, type: bigint}
+              - column: {name: size_label, type: text}
+              - column: {name: color_ids, type: 'bigint[]'}
+              - column: {name: color_label, type: text}
+              - column: {name: material_ids, type: 'bigint[]'}
+              - column: {name: material_label, type: text}
+              - column: {name: package_size_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: package_size_label, type: text, constraints: {nullable: false}}
+              - column: {name: isbn, type: text}
+              - column: {name: book_title, type: text}
+              - column: {name: author, type: text}
+              - column: {name: manufacturer, type: text}
+              - column: {name: manufacturer_label, type: text}
+              - column: {name: model, type: text}
+              - column: {name: measurement_width, type: numeric}
+              - column: {name: measurement_length, type: numeric}
+              - column: {name: measurement_unit, type: text}
+        # Une annonce n'est jamais supprimée de l'inventaire : sa sauvegarde y reste attachée.
+        - addForeignKeyConstraint:
+            baseTableName: listing_content
+            baseColumnNames: listing_id
+            constraintName: listing_content_listing_fk
+            referencedTableName: listing
+            referencedColumnNames: vinted_id
+            onDelete: RESTRICT
+        - sql:
+            sql: >
+              ALTER TABLE listing_content
+                ADD CONSTRAINT listing_content_price_positive CHECK (price > 0),
+                ADD CONSTRAINT listing_content_title_not_blank CHECK (btrim(title) <> ''),
+                ADD CONSTRAINT listing_content_brand_labelled CHECK ((brand_id IS NULL) = (brand_label IS NULL)),
+                ADD CONSTRAINT listing_content_size_labelled CHECK ((size_id IS NULL) = (size_label IS NULL)),
+                ADD CONSTRAINT listing_content_colors_labelled CHECK ((color_ids IS NULL) = (color_label IS NULL)),
+                ADD CONSTRAINT listing_content_materials_labelled CHECK ((material_ids IS NULL) = (material_label IS NULL))
+      rollback:
+        - dropTable:
+            tableName: listing_content

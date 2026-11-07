@@ -16,8 +16,6 @@ import java.util.Iterator;
 /** Scrolls through the wardrobe, then opens its listings one by one, as a member would, slowly and in one tab. */
 public class PlaywrightWardrobeReader implements WardrobeReader {
 
-    private static final int SAFETY_MARGIN_MILLIS = 30_000;
-
     private final URI wardrobeUrl;
     private final Duration stallTimeout;
     private final ChromeTabs tabs;
@@ -46,7 +44,7 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
         Instant lastProgress = clock.instant();
         while (!found.allLinksFound() && !hasStalled(lastProgress)) {
             wardrobe.scrollDown();
-            pause(page, pace.nextPauseBetweenScrolls());
+            ChromeTabs.pause(page, pace.nextPauseBetweenScrolls(), clock);
             WardrobeListing extended = found.with(wardrobe.listingLinks());
             if (extended.links().size() > found.links().size()) {
                 lastProgress = clock.instant();
@@ -65,15 +63,8 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
         while (links.hasNext()) {
             visit.record(ListingPage.open(page, links.next()));
             if (links.hasNext()) {
-                pause(page, pace.nextPauseBetweenListings());
+                ChromeTabs.pause(page, pace.nextPauseBetweenListings(), clock);
             }
         }
-    }
-
-    /** Waits inside Playwright, which keeps serving the page in the meantime. */
-    private void pause(Page page, Duration pause) {
-        Instant end = clock.instant().plus(pause);
-        page.waitForCondition(() -> !clock.instant().isBefore(end),
-                new Page.WaitForConditionOptions().setTimeout(pause.toMillis() + SAFETY_MARGIN_MILLIS));
     }
 }

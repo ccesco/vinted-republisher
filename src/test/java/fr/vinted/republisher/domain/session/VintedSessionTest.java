@@ -129,6 +129,16 @@ class VintedSessionTest {
         }
 
         @Test
+        void backup_keeps_the_problem_of_the_session() {
+            session.start(CHECKING);
+            session.fail(BROWSER_UNAVAILABLE);
+
+            session.start(BrowserAction.BACKING_UP);
+
+            assertThat(session.overview().problem()).contains(BROWSER_UNAVAILABLE);
+        }
+
+        @Test
         void cannot_be_reported_when_no_action_is_in_progress() {
             Throwable attempt = catchThrowable(() -> session.fail(BROWSER_UNAVAILABLE));
 
