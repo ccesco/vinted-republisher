@@ -1,6 +1,6 @@
 # US-04 – Scanner mon dressing
 
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-02, US-03
 
@@ -31,19 +31,19 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 `SessionOverview.currentAction` gagne la valeur `SCANNING`, affichée « scan en cours » sur la page de la session.
 
 ## Critères d'acceptation
-- [ ] Le scan ne fait que des navigations de lecture et ne modifie rien sur le compte ; il n'envoie aucune requête directe à l'API de Vinted.
-- [ ] Toutes les annonces actives du dressing sont enregistrées avec identifiant Vinted, URL, titre et prix.
-- [ ] Une annonce dont la disponibilité n'est pas `InStock` n'est pas retenue.
-- [ ] Chaque annonce est enregistrée dès sa lecture.
-- [ ] Un scan interrompu se reprend sans relire les annonces déjà enregistrées par lui.
-- [ ] Une annonce n'est marquée absente qu'à la fin d'un scan terminé.
-- [ ] Un nouveau scan met à jour les annonces connues, sans créer de doublon.
-- [ ] Toute réponse HTTP ≥ 400 sur la page du dressing ou sur une page d'annonce arrête le scan, sans nouvelle tentative automatique.
-- [ ] La pause entre deux annonces est comprise entre 10 et 15 secondes.
-- [ ] Une seule action navigateur a lieu à la fois.
-- [ ] Le dernier inventaire reste consultable après un redémarrage de l'application.
-- [ ] Un autre site ouvert dans le navigateur ne peut pas lancer de scan, et l'application n'écoute que sur 127.0.0.1.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] Le scan ne fait que des navigations de lecture et ne modifie rien sur le compte ; il n'envoie aucune requête directe à l'API de Vinted.
+- [x] Toutes les annonces actives du dressing sont enregistrées avec identifiant Vinted, URL, titre et prix.
+- [x] Une annonce dont la disponibilité n'est pas `InStock` n'est pas retenue.
+- [x] Chaque annonce est enregistrée dès sa lecture.
+- [x] Un scan interrompu se reprend sans relire les annonces déjà enregistrées par lui.
+- [x] Une annonce n'est marquée absente qu'à la fin d'un scan terminé.
+- [x] Un nouveau scan met à jour les annonces connues, sans créer de doublon.
+- [x] Toute réponse HTTP ≥ 400 sur la page du dressing ou sur une page d'annonce arrête le scan, sans nouvelle tentative automatique.
+- [x] La pause entre deux annonces est comprise entre 10 et 15 secondes.
+- [x] Une seule action navigateur a lieu à la fois.
+- [x] Le dernier inventaire reste consultable après un redémarrage de l'application.
+- [x] Un autre site ouvert dans le navigateur ne peut pas lancer de scan, et l'application n'écoute que sur 127.0.0.1.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 
@@ -195,6 +195,7 @@ Et le nombre et le contenu des annonces correspondent à mon dressing
 ```
 Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter le scan après quelques annonces pour vérifier la reprise. Ce test vérifie aussi : la disponibilité affichée pour une annonce réservée, s'il y en a une ; le total de l'en-tête dans le Chrome connecté, y compris avec des annonces masquées. Tout écart se traite par une mise à jour de cette spec.
 Premier essai (2026-11-06, ancienne lecture par l'API, un seul scan) : `wardrobe.html` fonctionne dans l'application lancée, mais Vinted refuse la requête directe de la première tranche (HTTP 403). Scan arrêté sans nouvelle tentative, base inchangée, cause exacte non établie.
+Scan réel avec la lecture annonce par annonce : passé, confirmé par l'utilisateur le 2026-11-07.
 
 ### AT-04-17 – Annonce disparue pendant une interruption
 ```gherkin
