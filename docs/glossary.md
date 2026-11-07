@@ -9,7 +9,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `VintedAccount` | Compte Vinted | Compte du membre sur Vinted, atteint par un navigateur piloté (port sortant). |
 | `VintedSession` | Session Vinted | Connexion de l'outil au compte Vinted, conservée dans le profil navigateur d'un lancement à l'autre. |
 | `SessionStatus` (`CONNECTED` / `DISCONNECTED`) | État de session (connecté / non connecté) | Connecté si la page des paramètres du profil s'affiche, non connecté si Vinted redirige vers la connexion. Absent tant qu'aucune vérification n'a eu lieu (« non vérifié »). |
-| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING`) | Action navigateur (vérification / connexion / scan) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
+| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP`) | Action navigateur (vérification / connexion / scan / sauvegarde) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
 | `SessionCheck` (`checkSession`) | Vérification de session | Ouverture de la page des paramètres du profil dans un onglet de Chrome pour connaître l'état de session ; uniquement sur demande. |
 | `ProfileSettings` | Paramètres du profil | Page `/settings/profile` de Vinted, réservée au membre connecté (un visiteur est redirigé vers la connexion). |
 | `ManualLogin` (`awaitManualLogin`, `LogInToVinted`) | Connexion manuelle | Connexion faite par le membre lui-même dans le Chrome piloté ; l'outil ne saisit jamais d'identifiants. |
@@ -32,3 +32,15 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `InvalidListing` | Annonce invalide | Annonce lue dont une valeur est inacceptable (identifiant, titre, lien, prix). |
 | `ScanPace` (`PauseRange`) | Rythme du scan | Pauses aléatoires entre deux défilements et entre deux annonces, chacune dans ses bornes configurées. |
 | `WardrobeOverview` | Aperçu du dressing | Scan en cours, date de fin du dernier scan terminé, problème éventuel et annonces présentes, tels qu'affichés. |
+| `ListingContent` | Contenu d'une annonce | Tous les champs du formulaire de mise en vente sauf les photos, tels que lus sur Vinted : de quoi republier l'annonce sans rien ressaisir. |
+| `FormOption` / `FormOptions` | Option du formulaire | Choix unique (catégorie, marque, état, taille, format du colis) ou multiple (couleurs, matières) : identifiant Vinted, qui sert à republier, et libellé affiché, vide si le formulaire ne l'affiche pas. |
+| `CategoryDetails` | Détails propres à la catégorie | Champs que le formulaire ne demande que dans certaines catégories : ISBN, titre du livre, auteur, fabricant, modèle, mesures. |
+| `ListingEditForm` | Formulaire de modification | Page `/items/<id>/edit` de Vinted, réservée au membre connecté ; l'outil ne fait que la lire, sans rien cliquer, saisir ni soumettre. |
+| `ListingBackup` | Sauvegarde d'une annonce | Contenu d'une annonce et sa date de sauvegarde ; une seule par annonce, remplacée seulement par une lecture complète. |
+| `WardrobeBackup` (`BackUpWardrobe`) | Sauvegarde du dressing | Lecture du formulaire de chaque annonce présente, uniquement sur demande ; persistée avec ses dates de début et de fin, elle reste non terminée après un échec et se reprend à la sauvegarde suivante. |
+| `BackupPace` | Rythme de la sauvegarde | Pause aléatoire entre deux annonces, dans ses bornes configurées. |
+| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée, problème éventuel et date de sauvegarde de chaque annonce. |
+| `BackupProblem` | Problème de sauvegarde | Raison affichée quand une sauvegarde n'a pas abouti : navigateur indisponible, Vinted inaccessible, session non connectée, annonce illisible, échec de la sauvegarde. |
+| `LastBackupProblem` | Problème de la dernière sauvegarde | Problème affiché jusqu'à la sauvegarde suivante, conservé en mémoire seulement. |
+| `ListingUnreadable` | Annonce illisible | Formulaire sans données de l'annonce, champ obligatoire absent ou invalide, ou attribut de code inconnu. |
+| `SessionDisconnected` | Session non connectée | Vinted a renvoyé l'outil vers sa page de connexion pendant une action qui exige le membre connecté. |

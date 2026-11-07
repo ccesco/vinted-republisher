@@ -51,6 +51,7 @@ class WardrobePageTest {
     private final AtomicReference<String> launchAnswer = new AtomicReference<>(EMPTY);
     private final AtomicBoolean applicationDown = new AtomicBoolean();
     private final List<String> launchedScans = new CopyOnWriteArrayList<>();
+    private final List<String> launchedBackups = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -83,6 +84,10 @@ class WardrobePageTest {
         });
         fakeApi.createContext("/api/wardrobe/scan", exchange -> {
             launchedScans.add(exchange.getRequestMethod());
+            respond(exchange, 202, "application/json", launchAnswer.get().getBytes(StandardCharsets.UTF_8));
+        });
+        fakeApi.createContext("/api/wardrobe/backup", exchange -> {
+            launchedBackups.add(exchange.getRequestMethod());
             respond(exchange, 202, "application/json", launchAnswer.get().getBytes(StandardCharsets.UTF_8));
         });
         fakeApi.start();
@@ -214,6 +219,95 @@ class WardrobePageTest {
 
         assertThat(rows()).hasCount(2, new LocatorAssertions.HasCountOptions().setTimeout(5000));
         assertThat(problem()).isHidden();
+    }
+
+    @Test
+    void shows_backup_state() {
+        // Étant donné une annonce sauvegardée et une annonce jamais sauvegardée
+        overview.set("""
+                {"scanInProgress": false, "backupInProgress": false, "lastBackupAt": "2026-11-07T11:02:10Z",
+                 "listings": [
+                  {"vintedId": 2, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                   "url": "https://vinted.test/items/2", "savedAt": "2026-11-07T10:31:45Z"},
+                  {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                   "url": "https://vinted.test/items/1"}]}""");
+        // Quand j'ouvre la page du dressing
+        open();
+        // Alors je vois la date de sauvegarde de la première et « non sauvegardée » pour la seconde
+        // Et je vois la date de la dernière sauvegarde terminée et le bouton « Sauvegarder »
+        assertThat(rows().nth(0)).containsText("sauvegardée le 07/11/2026");
+        assertThat(rows().nth(1)).containsText("non sauvegardée");
+        assertThat(backupSummary()).containsText("Dernière sauvegarde terminée le 07/11/2026");
+        assertThat(backupButton()).isVisible();
+    }
+
+    @Test
+    void says_when_no_backup_has_finished_yet() {
+        open();
+
+        assertThat(backupSummary()).hasText("Aucune sauvegarde terminée pour l'instant.");
+    }
+
+    @Test
+    void backup_button_launches_a_backup() {
+        open();
+
+        backupButton().click();
+
+        page.waitForCondition(() -> !launchedBackups.isEmpty());
+        assertThat(launchedBackups).containsExactly("POST");
+    }
+
+    @Test
+    void follows_a_backup_in_progress_until_done_without_offering_another_action() {
+        overview.set("{\"scanInProgress\": false, \"backupInProgress\": true, \"listings\": []}");
+        open();
+        assertThat(backupProgress()).isVisible();
+        assertThat(backupButton()).isHidden();
+        assertThat(button()).isHidden();
+
+        overview.set(TWO_LISTINGS);
+
+        assertThat(backupProgress()).isHidden(new LocatorAssertions.IsHiddenOptions().setTimeout(5000));
+        assertThat(backupButton()).isVisible();
+        assertThat(button()).isVisible();
+    }
+
+    @Test
+    void explains_a_disconnected_session() {
+        overview.set("{\"scanInProgress\": false, \"backupInProgress\": false, "
+                + "\"backupProblem\": \"SESSION_DISCONNECTED\", \"listings\": []}");
+
+        open();
+
+        assertThat(backupProblem()).hasText("La session Vinted n'est pas connectée : connectez-vous depuis la page "
+                + "de la session, puis relancez la sauvegarde, qui reprendra là où elle s'est arrêtée.");
+    }
+
+    @Test
+    void explains_an_unreadable_listing() {
+        overview.set("{\"scanInProgress\": false, \"backupInProgress\": false, "
+                + "\"backupProblem\": \"LISTING_UNREADABLE\", \"listings\": []}");
+
+        open();
+
+        assertThat(backupProblem()).containsText("Une annonce est illisible");
+    }
+
+    private Locator backupSummary() {
+        return page.locator("#backup-summary");
+    }
+
+    private Locator backupProgress() {
+        return page.locator("#backup-progress");
+    }
+
+    private Locator backupProblem() {
+        return page.locator("#backup-problem");
+    }
+
+    private Locator backupButton() {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Sauvegarder").setExact(true));
     }
 
     private void open() {
