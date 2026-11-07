@@ -48,8 +48,10 @@ Prérequis : JDK 25, Maven, Docker.
 cp .env.example .env          # puis modifier DB_PASSWORD
 docker compose up -d          # PostgreSQL avec volume persistant
 mvn spring-boot:run           # profil local actif par défaut, lit .env
-mvn test                      # tests sans navigateur
-mvn test -Pbrowser            # tous les tests, Chrome compris (CHROME_PATH hors Windows)
+mvn test                      # indépendant du système : ni Chrome ni Docker
+mvn test -Pdocker             # ajoute les tests sur PostgreSQL (Testcontainers), Docker doit tourner
+mvn test -Pbrowser            # ajoute les tests Chrome (CHROME_PATH hors Windows)
+mvn test "-Pbrowser,docker"   # tous les tests
 ```
 
 Dans IntelliJ, renseigner `local` dans *Active profiles* de la configuration de lancement.
