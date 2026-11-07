@@ -1,16 +1,22 @@
 package fr.vinted.republisher.adapter.out.browser;
 
+import com.microsoft.playwright.Page;
+import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
+import fr.vinted.republisher.domain.wardrobe.WardrobeListing;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
-import fr.vinted.republisher.domain.wardrobe.WardrobeSnapshot;
+import fr.vinted.republisher.domain.wardrobe.WardrobeVisit;
 
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Iterator;
 
-/** Scrolls through the wardrobe as a member would, and gathers what the page loads on the way. */
+/** Scrolls through the wardrobe, then opens its listings one by one, as a member would, slowly and in one tab. */
 public class PlaywrightWardrobeReader implements WardrobeReader {
+
+    private static final int SAFETY_MARGIN_MILLIS = 30_000;
 
     private final URI wardrobeUrl;
     private final Duration stallTimeout;
@@ -25,29 +31,48 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
     }
 
     @Override
-    public WardrobeSnapshot read(ScanPace pace) {
-        return tabs.inNewTab(page -> read(new WardrobePage(page, wardrobeUrl, clock), pace));
+    public void read(ScanPace pace, WardrobeVisit visit) {
+        tabs.<Void>inNewTab(page -> {
+            openListings(page, pace, visit, goThroughWardrobe(page, pace));
+            return null;
+        });
     }
 
-    private WardrobeSnapshot read(WardrobePage wardrobe, ScanPace pace) {
+    private WardrobeListing goThroughWardrobe(Page page, ScanPace pace) {
+        WardrobePage wardrobe = new WardrobePage(page, wardrobeUrl);
         wardrobe.open();
-        int displayedTotal = wardrobe.displayedTotal(stallTimeout);
-        wardrobe.askForFirstSlice();
-        WardrobeSnapshot snapshot = new WardrobeSnapshot(displayedTotal, wardrobe.listingsLoaded());
+        WardrobeListing found = new WardrobeListing(wardrobe.displayedTotal(stallTimeout), wardrobe.listingLinks());
         Instant lastProgress = clock.instant();
-        while (snapshot.listings().size() < displayedTotal && !hasStalled(lastProgress)) {
+        while (!found.allLinksFound() && !hasStalled(lastProgress)) {
             wardrobe.scrollDown();
-            wardrobe.pause(pace.nextPause());
-            WardrobeSnapshot extended = snapshot.with(wardrobe.listingsLoaded());
-            if (extended.listings().size() > snapshot.listings().size()) {
+            pause(page, pace.nextPauseBetweenScrolls());
+            WardrobeListing extended = found.with(wardrobe.listingLinks());
+            if (extended.links().size() > found.links().size()) {
                 lastProgress = clock.instant();
             }
-            snapshot = extended;
+            found = extended;
         }
-        return snapshot;
+        return found;
     }
 
     private boolean hasStalled(Instant lastProgress) {
         return clock.instant().isAfter(lastProgress.plus(stallTimeout));
+    }
+
+    private void openListings(Page page, ScanPace pace, WardrobeVisit visit, WardrobeListing wardrobe) {
+        Iterator<ListingLink> links = visit.listingsToOpen(wardrobe).iterator();
+        while (links.hasNext()) {
+            visit.record(ListingPage.open(page, links.next()));
+            if (links.hasNext()) {
+                pause(page, pace.nextPauseBetweenListings());
+            }
+        }
+    }
+
+    /** Waits inside Playwright, which keeps serving the page in the meantime. */
+    private void pause(Page page, Duration pause) {
+        Instant end = clock.instant().plus(pause);
+        page.waitForCondition(() -> !clock.instant().isBefore(end),
+                new Page.WaitForConditionOptions().setTimeout(pause.toMillis() + SAFETY_MARGIN_MILLIS));
     }
 }

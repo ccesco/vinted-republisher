@@ -13,6 +13,8 @@ import java.time.Duration;
 @ConfigurationProperties("vinted")
 public record WardrobeProperties(@NotNull URI wardrobeUrl, @NotNull @Valid Scan scan) {
 
-    public record Scan(@NotNull Duration minPause, @NotNull Duration maxPause, @NotNull Duration stallTimeout) {
+    public record Scan(@NotNull Duration minScrollPause, @NotNull Duration maxScrollPause,
+                       @NotNull Duration minListingPause, @NotNull Duration maxListingPause,
+                       @NotNull Duration stallTimeout) {
     }
 }

@@ -5,6 +5,8 @@ import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
+import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
+import fr.vinted.republisher.domain.wardrobe.WardrobeScanRepository;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
@@ -25,16 +27,19 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ListingPersistenceAcceptanceTest {
 
     private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:00:00Z");
+    private static final Instant FINISHED_AT = SCANNED_AT.plusSeconds(60);
 
     @Container
     static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
 
     @Test
     void inventory_survives_a_restart() {
-        // Étant donné un scan réussi
+        // Étant donné un scan terminé
         Listing scanned = Listing.seen(anActiveListing(1), SCANNED_AT);
         try (ConfigurableApplicationContext application = startApplication()) {
             application.getBean(ListingRepository.class).saveAll(List.of(scanned));
+            application.getBean(WardrobeScanRepository.class)
+                    .save(WardrobeScan.startedAt(SCANNED_AT).finished(FINISHED_AT));
         }
 
         // Quand l'application redémarre
@@ -43,7 +48,7 @@ class ListingPersistenceAcceptanceTest {
 
             // Alors l'inventaire et la date du dernier scan restent affichés
             assertThat(overview.listings()).containsExactly(scanned);
-            assertThat(overview.lastScanAt()).contains(SCANNED_AT);
+            assertThat(overview.lastScanAt()).contains(FINISHED_AT);
         }
     }
 

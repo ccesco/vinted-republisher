@@ -16,8 +16,8 @@
     const PROBLEM_MESSAGES = {
         BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
         VINTED_UNREACHABLE: 'Vinted est inaccessible (réseau ou blocage anti-robot) : réessayez plus tard.',
-        WARDROBE_UNREADABLE: 'Le dressing est illisible (total incohérent ou page changée) : inventaire inchangé, voir les logs.',
-        SCAN_FAILED: 'Le scan a échoué : inventaire inchangé, voir les logs.'
+        WARDROBE_UNREADABLE: 'Le dressing est illisible (total incohérent ou page changée) : ce qui a été lu est conservé, le prochain scan reprendra. Voir les logs.',
+        SCAN_FAILED: 'Le scan a échoué : ce qui a été lu est conservé, le prochain scan reprendra. Voir les logs.'
     };
     const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
     const POLL_INTERVAL_MS = 2000;
@@ -45,7 +45,7 @@
 
     function summaryOf(overview) {
         if (!overview.lastScanAt) {
-            return "Aucun scan réussi pour l'instant.";
+            return "Aucun scan terminé pour l'instant.";
         }
         const count = overview.listings.length;
         const date = new Date(overview.lastScanAt).toLocaleString('fr-FR');

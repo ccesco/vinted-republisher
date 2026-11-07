@@ -5,11 +5,12 @@ import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
-import fr.vinted.republisher.domain.wardrobe.ScanPace;
+import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -19,16 +20,15 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
 import java.util.concurrent.Executor;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** AT-04-13: the API answers as described by the OpenAPI contract. */
@@ -52,6 +52,9 @@ class WardrobeApiControllerTest {
     private InMemoryListingRepository listings;
 
     @Autowired
+    private InMemoryWardrobeScanRepository scans;
+
+    @Autowired
     private FakeWardrobeReader reader;
 
     @Autowired
@@ -67,6 +70,7 @@ class WardrobeApiControllerTest {
     @Test
     void shows_the_inventory_and_the_date_of_the_last_scan() {
         listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+        scans.save(WardrobeScan.startedAt(SCANNED_AT.minusSeconds(60)).finished(SCANNED_AT));
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .hasStatusOk()
@@ -179,6 +183,11 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
+        InMemoryWardrobeScanRepository scans() {
+            return new InMemoryWardrobeScanRepository();
+        }
+
+        @Bean
         FakeWardrobeReader reader() {
             return new FakeWardrobeReader();
         }
@@ -189,15 +198,16 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
-        ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryListingRepository listings) {
-            return new ShowWardrobe(session, lastProblem, listings);
+        ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryListingRepository listings,
+                                  InMemoryWardrobeScanRepository scans) {
+            return new ShowWardrobe(session, lastProblem, listings, scans);
         }
 
         @Bean
-        ScanWardrobe scanWardrobe(VintedSession session, LastScanProblem lastProblem, FakeWardrobeReader reader,
+        ScanWardrobe scanWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryWardrobeScanRepository scans,
+                                  FakeWardrobeReader reader,
                                   InMemoryListingRepository listings, Background background) {
-            return new ScanWardrobe(session, lastProblem, reader, listings,
-                    new ScanPace(Duration.ZERO, Duration.ZERO, new Random(42)),
+            return new ScanWardrobe(session, lastProblem, scans, reader, listings, noPause(),
                     Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background);
         }
     }

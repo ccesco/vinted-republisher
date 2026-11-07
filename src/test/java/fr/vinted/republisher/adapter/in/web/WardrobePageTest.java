@@ -127,7 +127,7 @@ class WardrobePageTest {
     void says_when_no_scan_has_succeeded_yet() {
         open();
 
-        assertThat(summary()).hasText("Aucun scan réussi pour l'instant.");
+        assertThat(summary()).hasText("Aucun scan terminé pour l'instant.");
         assertThat(rows()).hasCount(0);
     }
 
@@ -171,7 +171,8 @@ class WardrobePageTest {
 
         open();
 
-        assertThat(problem()).containsText("Le dressing est illisible");
+        assertThat(problem()).hasText("Le dressing est illisible (total incohérent ou page changée) : "
+                + "ce qui a été lu est conservé, le prochain scan reprendra. Voir les logs.");
     }
 
     @Test
@@ -198,7 +199,8 @@ class WardrobePageTest {
 
         open();
 
-        assertThat(problem()).containsText("Le scan a échoué");
+        assertThat(problem()).hasText("Le scan a échoué : ce qui a été lu est conservé, "
+                + "le prochain scan reprendra. Voir les logs.");
     }
 
     @Test

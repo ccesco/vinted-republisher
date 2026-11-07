@@ -1,0 +1,29 @@
+# US-04 : scans du dressing, pour reprendre un scan interrompu et dater le dernier scan terminé.
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-wardrobe-scan
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: wardrobe_scan
+            columns:
+              - column:
+                  name: id
+                  type: uuid
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: started_at
+                  type: timestamptz
+                  constraints:
+                    nullable: false
+              - column:
+                  name: finished_at
+                  type: timestamptz
+        # Un seul scan non terminé : c'est celui que le scan suivant reprend.
+        - sql:
+            sql: CREATE UNIQUE INDEX wardrobe_scan_one_unfinished ON wardrobe_scan ((finished_at IS NULL)) WHERE finished_at IS NULL
+      rollback:
+        - dropTable:
+            tableName: wardrobe_scan
