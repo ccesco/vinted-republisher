@@ -10,6 +10,10 @@
 <p id="scan-progress" hidden>Scan en cours…</p>
 <p id="wardrobe-problem" role="alert" hidden></p>
 <p><button id="scan" type="button" hidden>Scanner</button></p>
+<p id="backup-summary"></p>
+<p id="backup-progress" hidden>Sauvegarde en cours…</p>
+<p id="backup-problem" role="alert" hidden></p>
+<p><button id="backup" type="button" hidden>Sauvegarder</button></p>
 <ul id="listings"></ul>
 <script>
     // Codes du contrat OpenAPI (ScanProblem) -> libellés affichés.
@@ -19,6 +23,14 @@
         WARDROBE_UNREADABLE: 'Le dressing est illisible (total incohérent ou page changée) : ce qui a été lu est conservé, le prochain scan reprendra. Voir les logs.',
         SCAN_FAILED: 'Le scan a échoué : ce qui a été lu est conservé, le prochain scan reprendra. Voir les logs.'
     };
+    // Codes du contrat OpenAPI (BackupProblem) -> libellés affichés.
+    const BACKUP_PROBLEM_MESSAGES = {
+        BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible (réseau, blocage anti-robot ou annonce disparue) : ce qui a été sauvegardé est conservé, la prochaine sauvegarde reprendra.',
+        SESSION_DISCONNECTED: "La session Vinted n'est pas connectée : connectez-vous depuis la page de la session, puis relancez la sauvegarde, qui reprendra là où elle s'est arrêtée.",
+        LISTING_UNREADABLE: 'Une annonce est illisible (formulaire changé ou incomplet) : sa sauvegarde précédente est intacte. Voir les logs.',
+        BACKUP_FAILED: 'La sauvegarde a échoué : ce qui a été sauvegardé est conservé, la prochaine sauvegarde reprendra. Voir les logs.'
+    };
     const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
     const POLL_INTERVAL_MS = 2000;
 
@@ -27,6 +39,10 @@
     const problemMessage = document.getElementById('wardrobe-problem');
     const scanButton = document.getElementById('scan');
     const listings = document.getElementById('listings');
+    const backupSummary = document.getElementById('backup-summary');
+    const backupProgress = document.getElementById('backup-progress');
+    const backupProblem = document.getElementById('backup-problem');
+    const backupButton = document.getElementById('backup');
 
     // Application arrêtée ou en erreur : on réessaie jusqu'à ce qu'elle réponde.
     async function refresh() {
@@ -52,6 +68,19 @@
         return `${count} annonce${count > 1 ? 's' : ''}, dernier scan le ${date}.`;
     }
 
+    function backupSummaryOf(overview) {
+        if (!overview.lastBackupAt) {
+            return "Aucune sauvegarde terminée pour l'instant.";
+        }
+        return `Dernière sauvegarde terminée le ${new Date(overview.lastBackupAt).toLocaleString('fr-FR')}.`;
+    }
+
+    function backupStateOf(listing) {
+        return listing.savedAt
+            ? 'sauvegardée le ' + new Date(listing.savedAt).toLocaleString('fr-FR')
+            : 'non sauvegardée';
+    }
+
     // Titres et liens viennent de Vinted : jamais d'innerHTML.
     function rowOf(listing) {
         const link = document.createElement('a');
@@ -61,14 +90,21 @@
         const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
             .format(listing.price.amount);
         const row = document.createElement('li');
-        row.append(link, ' – ' + price);
+        row.append(link, ' – ' + price + ' – ' + backupStateOf(listing));
         return row;
     }
 
     function show(overview) {
         summary.textContent = summaryOf(overview);
         progress.hidden = !overview.scanInProgress;
-        scanButton.hidden = overview.scanInProgress;
+        // Une seule action navigateur à la fois : aucune autre n'est proposée pendant un scan ou une sauvegarde.
+        const busy = overview.scanInProgress || overview.backupInProgress;
+        scanButton.hidden = busy;
+        backupButton.hidden = busy;
+        backupSummary.textContent = backupSummaryOf(overview);
+        backupProgress.hidden = !overview.backupInProgress;
+        backupProblem.textContent = BACKUP_PROBLEM_MESSAGES[overview.backupProblem] ?? '';
+        backupProblem.hidden = !overview.backupProblem;
         problemMessage.textContent = PROBLEM_MESSAGES[overview.problem] ?? '';
         problemMessage.hidden = !overview.problem;
         listings.replaceChildren(...overview.listings.map(rowOf));
@@ -76,16 +112,17 @@
 
     function follow(overview) {
         show(overview);
-        if (overview.scanInProgress) {
+        if (overview.scanInProgress || overview.backupInProgress) {
             setTimeout(refresh, POLL_INTERVAL_MS);
         }
     }
 
-    // La réponse donne le scan lancé ; en cas d'échec, refresh affiche le problème.
-    async function scan() {
+    // La réponse donne l'action lancée ; en cas d'échec, refresh affiche le problème.
+    async function launch(path) {
         scanButton.hidden = true;
+        backupButton.hidden = true;
         try {
-            const response = await fetch('/api/wardrobe/scan', {method: 'POST'});
+            const response = await fetch(path, {method: 'POST'});
             if (!response.ok) {
                 throw new Error('HTTP ' + response.status);
             }
@@ -95,7 +132,8 @@
         }
     }
 
-    scanButton.addEventListener('click', scan);
+    scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
+    backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
     refresh();
 </script>
 </body>

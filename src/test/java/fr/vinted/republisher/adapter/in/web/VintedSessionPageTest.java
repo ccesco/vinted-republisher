@@ -148,6 +148,15 @@ class VintedSessionPageTest {
     }
 
     @Test
+    void backup_is_shown_while_in_progress() {
+        overview.set("{\"currentAction\": \"BACKING_UP\"}");
+
+        open();
+
+        assertStatus("sauvegarde en cours");
+    }
+
+    @Test
     void action_in_progress_hides_the_buttons_and_is_followed_until_done() {
         overview.set("{\"status\": \"DISCONNECTED\", \"currentAction\": \"LOGGING_IN\"}");
         open();
