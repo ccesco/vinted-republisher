@@ -13,12 +13,10 @@ import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
-import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -26,23 +24,20 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
  * The edit form of a listing, only ever read: nothing is clicked, typed or submitted. Its identifiers come from the
- * data the page streams in its scripts, steadier than its layout; its labels, for the member, from the form.
- * Anything missing or unexpected makes the listing unreadable, rather than being guessed.
+ * data the page streams in its scripts ({@link FlightPayload}), steadier than its layout; its labels, for the
+ * member, from the form. Anything missing or unexpected makes the listing unreadable, rather than being guessed.
  */
 final class ListingEditForm {
 
-    // Next.js streams the page data in chunks: decoded and put end to end, they are rows "<key>:<JSON>".
-    private static final String CHUNK_PREFIX = "self.__next_f.push([1,";
-    private static final String CHUNK_SUFFIX = "])";
     private static final String TITLE_FIELD = "input[name='title']";
     // A field with nothing displayed shows a hint starting so, as "Sélectionne une taille" (observed 2026-11-07).
     private static final String PLACEHOLDER = "Sélectionne";
     private static final Set<String> KNOWN_ATTRIBUTES = Set.of("condition", "size", "material");
-    private static final JsonMapper JSON = JsonMapper.builder().build();
 
     // The badge "Recommandé" sits inside the title of a package size: it is not part of its label.
     private static final String LABELS = """
@@ -90,28 +85,33 @@ final class ListingEditForm {
     }
 
     static ListingContent parse(VintedListingId id, List<String> scripts, DisplayedLabels labels) {
-        ListingData data = dataOf(id, scripts);
-        try {
-            return content(id, data, labels);
-        } catch (JacksonException | IllegalArgumentException unexpected) {
-            throw new ListingUnreadable("unexpected data on " + id.value(), unexpected);
-        }
+        return unexpectedDataIsUnreadable(id, () -> content(id, itemOf(id, FlightPayload.of(scripts)), labels));
     }
 
     static Set<String> awaitedLabels(VintedListingId id, List<String> scripts) {
-        JsonNode item = dataOf(id, scripts).item();
-        Set<String> awaited = new LinkedHashSet<>(List.of("condition", "packageSize"));
-        Map<String, List<Long>> attributes = attributes(id, item);
-        if (attributes.containsKey("size")) {
-            awaited.add("size");
+        return unexpectedDataIsUnreadable(id, () -> {
+            Item item = itemOf(id, FlightPayload.of(scripts));
+            Set<String> awaited = new LinkedHashSet<>(List.of("condition", "packageSize"));
+            Map<String, List<Long>> attributes = item.attributes(id);
+            if (attributes.containsKey("size")) {
+                awaited.add("size");
+            }
+            if (attributes.containsKey("material")) {
+                awaited.add("material");
+            }
+            if (!item.ids("colorIds").isEmpty()) {
+                awaited.add("color");
+            }
+            return awaited;
+        });
+    }
+
+    private static <T> T unexpectedDataIsUnreadable(VintedListingId id, Supplier<T> reading) {
+        try {
+            return reading.get();
+        } catch (JacksonException | IllegalArgumentException unexpected) {
+            throw new ListingUnreadable("unexpected data on " + id.value(), unexpected);
         }
-        if (attributes.containsKey("material")) {
-            awaited.add("material");
-        }
-        if (!ids(item.path("colorIds")).isEmpty()) {
-            awaited.add("color");
-        }
-        return awaited;
     }
 
     /** Vinted sends a visitor to its login page, sometimes by script once the page is loaded. */
@@ -152,54 +152,28 @@ final class ListingEditForm {
                 labels.get("material"), labels.get("packageSize"));
     }
 
-    private record ListingData(JsonNode item, String categoryTitle) {
-    }
-
-    private static ListingData dataOf(VintedListingId id, List<String> scripts) {
-        List<JsonNode> rows = rows(scripts);
-        Set<JsonNode> items = objects(rows, node -> node.has("catalogId") && isNumber(node.path("id"), id.value()));
+    private static Item itemOf(VintedListingId id, FlightPayload payload) {
+        Set<JsonNode> items = objects(payload, node -> node.has("catalogId") && isNumber(node.path("id"), id.value()));
         if (items.size() != 1) {
             throw new ListingUnreadable((items.isEmpty() ? "no" : items.size()) + " listing data on " + id.value());
         }
-        JsonNode item = items.iterator().next();
-        long catalogId = item.path("catalogId").asLong();
-        Set<String> titles = objects(rows, node -> node.has("catalogs") && isNumber(node.path("id"), catalogId)
-                && node.path("title").isString()).stream().map(node -> node.path("title").stringValue())
-                .collect(Collectors.toSet());
+        return new Item(items.iterator().next(), payload);
+    }
+
+    private static String categoryTitle(VintedListingId id, Item item) {
+        long catalogId = item.number("catalogId");
+        Set<String> titles = objects(item.payload(), node -> node.has("catalogs")
+                && isNumber(node.path("id"), catalogId) && node.path("title").isString()).stream()
+                .map(node -> new Item(node, item.payload()).text("title")).collect(Collectors.toSet());
         if (titles.size() != 1) {
             throw new ListingUnreadable("no category " + catalogId + " on " + id.value());
         }
-        return new ListingData(item, titles.iterator().next());
+        return titles.iterator().next();
     }
 
-    /** A row that is not JSON, such as a text row spread over several lines, holds no listing data. */
-    private static List<JsonNode> rows(List<String> scripts) {
-        String payload = scripts.stream().map(String::strip)
-                .filter(script -> script.startsWith(CHUNK_PREFIX) && script.endsWith(CHUNK_SUFFIX))
-                .map(script -> JSON.readValue(script.substring(CHUNK_PREFIX.length(),
-                        script.length() - CHUNK_SUFFIX.length()), String.class))
-                .collect(Collectors.joining());
-        List<JsonNode> rows = new ArrayList<>();
-        for (String row : payload.split("\n")) {
-            int separator = row.indexOf(':');
-            if (separator > 0) {
-                parsed(row.substring(separator + 1)).ifPresent(rows::add);
-            }
-        }
-        return rows;
-    }
-
-    private static Optional<JsonNode> parsed(String json) {
-        try {
-            return Optional.of(JSON.readTree(json));
-        } catch (JacksonException notJson) {
-            return Optional.empty();
-        }
-    }
-
-    private static Set<JsonNode> objects(List<JsonNode> rows, Predicate<JsonNode> wanted) {
+    private static Set<JsonNode> objects(FlightPayload payload, Predicate<JsonNode> wanted) {
         Set<JsonNode> found = new LinkedHashSet<>();
-        rows.forEach(row -> collect(row, wanted, found));
+        payload.jsonRows().forEach(row -> collect(row, wanted, found));
         return found;
     }
 
@@ -216,16 +190,16 @@ final class ListingEditForm {
         return node.isIntegralNumber() && node.longValue() == value;
     }
 
-    private static ListingContent content(VintedListingId id, ListingData data, DisplayedLabels labels) {
-        JsonNode item = data.item();
-        Map<String, List<Long>> attributes = attributes(id, item);
-        List<Long> colors = ids(item.path("colorIds"));
+    private static ListingContent content(VintedListingId id, Item item, DisplayedLabels labels) {
+        Map<String, List<Long>> attributes = item.attributes(id);
+        List<Long> colors = item.ids("colorIds");
         return new ListingContent(id,
-                text(item, "title"),
-                optionalText(item, "description").orElse(""),
-                new Price(decimal(item, "price"), text(item, "currency")),
-                new FormOption(number(item, "catalogId"), data.categoryTitle()),
-                brand(item),
+                item.text("title"),
+                // The column holds no null: a listing without description has an empty one.
+                item.optionalText("description").orElse(""),
+                new Price(item.decimal("price"), item.text("currency")),
+                new FormOption(item.number("catalogId"), categoryTitle(id, item)),
+                item.brand(),
                 new FormOption(single(attributes, "condition")
                         .orElseThrow(() -> new ListingUnreadable("no condition on " + id.value())),
                         label(labels.condition())),
@@ -233,25 +207,12 @@ final class ListingEditForm {
                 colors.isEmpty() ? Optional.empty() : Optional.of(new FormOptions(colors, label(labels.color()))),
                 Optional.ofNullable(attributes.get("material"))
                         .map(materials -> new FormOptions(materials, label(labels.material()))),
-                new FormOption(number(item, "packageSizeId"), label(labels.packageSize())),
-                new CategoryDetails(optionalText(item, "isbn"), optionalText(item, "bookTitle"),
-                        optionalText(item, "author"), optionalText(item, "manufacturer"),
-                        optionalText(item, "manufacturerLabel"), optionalText(item, "model"),
-                        optionalDecimal(item, "measurementWidth"), optionalDecimal(item, "measurementLength"),
-                        optionalText(item, "measurementUnit")));
-    }
-
-    /** Without a column for it, an attribute would be lost when republishing: it makes the reading incomplete. */
-    private static Map<String, List<Long>> attributes(VintedListingId id, JsonNode item) {
-        Map<String, List<Long>> attributes = new HashMap<>();
-        for (JsonNode attribute : item.path("itemAttributes").valueStream().toList()) {
-            String code = text(attribute, "code");
-            if (!KNOWN_ATTRIBUTES.contains(code)) {
-                throw new ListingUnreadable("unknown attribute code " + code + " on " + id.value());
-            }
-            attributes.put(code, ids(attribute.required("ids")));
-        }
-        return attributes;
+                new FormOption(item.number("packageSizeId"), label(labels.packageSize())),
+                new CategoryDetails(item.optionalText("isbn"), item.optionalText("bookTitle"),
+                        item.optionalText("author"), item.optionalText("manufacturer"),
+                        item.optionalText("manufacturerLabel"), item.optionalText("model"),
+                        item.optionalDecimal("measurementWidth"), item.optionalDecimal("measurementLength"),
+                        item.optionalText("measurementUnit")));
     }
 
     private static Optional<Long> single(Map<String, List<Long>> attributes, String code) {
@@ -265,67 +226,86 @@ final class ListingEditForm {
         return Optional.of(ids.getFirst());
     }
 
-    private static Optional<FormOption> brand(JsonNode item) {
-        JsonNode brandId = item.required("brandId");
-        if (brandId.isNull()) {
-            return Optional.empty();
-        }
-        return Optional.of(new FormOption(number(item, "brandId"),
-                optionalText(item.path("brand"), "title").orElse("")));
-    }
-
-    private static List<Long> ids(JsonNode ids) {
-        if (ids.isMissingNode() || ids.isNull()) {
-            return List.of();
-        }
-        if (!ids.isArray()) {
-            throw new IllegalArgumentException("identifiers are not a list");
-        }
-        return ids.valueStream().map(ListingEditForm::number).toList();
-    }
-
     private static String label(String displayed) {
         return displayed == null || displayed.startsWith(PLACEHOLDER) ? "" : displayed.strip();
     }
 
-    private static String text(JsonNode parent, String field) {
-        return optionalText(parent, field).orElseThrow(() -> new IllegalArgumentException(field + " is missing"));
-    }
+    /** An object of the page data, whose texts may be escaped or sent apart by React. */
+    private record Item(JsonNode node, FlightPayload payload) {
 
-    private static Optional<String> optionalText(JsonNode parent, String field) {
-        JsonNode value = parent.required(field);
-        if (value.isNull()) {
-            return Optional.empty();
+        /** Without a column for it, an attribute would be lost when republishing: it makes the reading incomplete. */
+        Map<String, List<Long>> attributes(VintedListingId id) {
+            Map<String, List<Long>> attributes = new HashMap<>();
+            for (JsonNode attribute : node.path("itemAttributes").valueStream().toList()) {
+                Item read = new Item(attribute, payload);
+                String code = read.text("code");
+                if (!KNOWN_ATTRIBUTES.contains(code)) {
+                    throw new ListingUnreadable("unknown attribute code " + code + " on " + id.value());
+                }
+                attributes.put(code, read.ids("ids"));
+            }
+            return attributes;
         }
-        if (!value.isString()) {
-            throw new IllegalArgumentException(field + " is not a text");
-        }
-        return Optional.of(value.stringValue());
-    }
 
-    private static long number(JsonNode parent, String field) {
-        return number(parent.required(field));
-    }
-
-    private static long number(JsonNode value) {
-        if (!value.isIntegralNumber()) {
-            throw new IllegalArgumentException(value + " is not an identifier");
+        Optional<FormOption> brand() {
+            if (node.required("brandId").isNull()) {
+                return Optional.empty();
+            }
+            JsonNode brand = node.path("brand");
+            String title = brand.isObject() ? new Item(brand, payload).optionalText("title").orElse("") : "";
+            return Optional.of(new FormOption(number("brandId"), title));
         }
-        return value.longValue();
-    }
 
-    private static BigDecimal decimal(JsonNode parent, String field) {
-        return optionalDecimal(parent, field).orElseThrow(() -> new IllegalArgumentException(field + " is missing"));
-    }
+        List<Long> ids(String field) {
+            JsonNode ids = node.path(field);
+            if (ids.isMissingNode() || ids.isNull()) {
+                return List.of();
+            }
+            if (!ids.isArray()) {
+                throw new IllegalArgumentException(field + " is not a list");
+            }
+            return ids.valueStream().map(Item::identifier).toList();
+        }
 
-    private static Optional<BigDecimal> optionalDecimal(JsonNode parent, String field) {
-        JsonNode value = parent.required(field);
-        if (value.isNull()) {
-            return Optional.empty();
+        String text(String field) {
+            return optionalText(field).orElseThrow(() -> new IllegalArgumentException(field + " is missing"));
         }
-        if (!value.isNumber()) {
-            throw new IllegalArgumentException(field + " is not a number");
+
+        Optional<String> optionalText(String field) {
+            JsonNode value = node.required(field);
+            if (value.isNull()) {
+                return Optional.empty();
+            }
+            if (!value.isString()) {
+                throw new IllegalArgumentException(field + " is not a text");
+            }
+            return Optional.of(payload.text(value.stringValue()));
         }
-        return Optional.of(value.decimalValue());
+
+        long number(String field) {
+            return identifier(node.required(field));
+        }
+
+        BigDecimal decimal(String field) {
+            return optionalDecimal(field).orElseThrow(() -> new IllegalArgumentException(field + " is missing"));
+        }
+
+        Optional<BigDecimal> optionalDecimal(String field) {
+            JsonNode value = node.required(field);
+            if (value.isNull()) {
+                return Optional.empty();
+            }
+            if (!value.isNumber()) {
+                throw new IllegalArgumentException(field + " is not a number");
+            }
+            return Optional.of(value.decimalValue());
+        }
+
+        private static long identifier(JsonNode value) {
+            if (!value.isIntegralNumber()) {
+                throw new IllegalArgumentException(value + " is not an identifier");
+            }
+            return value.longValue();
+        }
     }
 }

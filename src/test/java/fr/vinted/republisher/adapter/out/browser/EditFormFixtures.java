@@ -2,15 +2,19 @@ package fr.vinted.republisher.adapter.out.browser;
 
 import tools.jackson.databind.json.JsonMapper;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.regex.Pattern;
 
 /**
  * Invented edit forms in the shape observed on Vinted on 2026-11-07: the page streams its data through scripts
- * {@code self.__next_f.push([1,"…"])} whose decoded texts, put end to end, are rows {@code <key>:<JSON>}.
+ * {@code self.__next_f.push([1,"…"])} whose decoded texts, put end to end, form React Flight rows: a JSON row
+ * {@code <key>:<JSON>} ends with a line break, a text row {@code <key>:T<length in bytes, hex>,<text>} does not.
  */
 final class EditFormFixtures {
 
     private static final JsonMapper JSON = JsonMapper.builder().build();
+    private static final Pattern TEXT_ROW = Pattern.compile("^[0-9a-f]+:T[0-9a-f]+,", Pattern.DOTALL);
 
     static final String CATALOG_ROW = """
             7:{"catalogs":[{"id":1904,"title":"Femmes","url":"/catalog/1904-women","catalogs":[\
@@ -32,14 +36,22 @@ final class EditFormFixtures {
 
     /** The scripts of a form page, the item nested in a component as Next.js does, cut in the middle of a row. */
     static List<String> scriptsWith(String... rows) {
-        String payload = "0:[\"$\",\"html\",null,{}]\n1:T2a,texte libre\nsur deux lignes\n"
-                + String.join("\n", rows) + "\n";
+        StringBuilder payload = new StringBuilder("0:[\"$\",\"html\",null,{}]\n")
+                .append(textRow("1", "texte libre\nsur deux lignes : 3 ans"));
+        for (String row : rows) {
+            payload.append(row).append(TEXT_ROW.matcher(row).find() ? "" : "\n");
+        }
         int middle = payload.length() / 2;
         return List.of("console.log('unrelated')", push(payload.substring(0, middle)), push(payload.substring(middle)));
     }
 
     static String itemRow(String item) {
         return "5:[\"$\",\"div\",null,{\"children\":[\"$\",\"$L6\",null,{\"item\":" + item + "}]}]";
+    }
+
+    /** React sends a long text apart, in a row the value refers to as {@code "$<key>"}. */
+    static String textRow(String key, String text) {
+        return key + ":T" + Integer.toHexString(text.getBytes(StandardCharsets.UTF_8).length) + "," + text;
     }
 
     private static String push(String chunk) {
