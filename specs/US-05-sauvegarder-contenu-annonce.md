@@ -193,7 +193,7 @@ Alors la sauvegarde se termine
 Et le contenu sauvegardé de quelques annonces correspond à leur formulaire de modification
 Et aucune annonce n'a été modifiée sur Vinted
 ```
-Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la sauvegarde après quelques annonces pour vérifier la reprise. Tout attribut inconnu rencontré se traite par une mise à jour de cette spec.
+Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la sauvegarde après quelques annonces pour vérifier la reprise. Tout attribut inconnu rencontré se traite par une mise à jour de cette spec. Ce test vérifie aussi : une description longue sauvegardée en entier ; le comportement d'une annonce non modifiable (vendue, réservée) sur `/items/<id>/edit` (aujourd'hui, toute redirection hors du formulaire est traitée en « session non connectée ») ; le libellé du format du colis.
 
 ## Cas limites et erreurs
 - Objet de l'annonce absent des scripts, `id` différent de l'annonce ouverte, champ obligatoire absent ou invalide : « annonce illisible », la sauvegarde s'arrête.
@@ -221,7 +221,8 @@ Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la
 - Périmètre, décidé par l'utilisateur : chaque sauvegarde relit toutes les annonces présentes, pour prendre en compte les modifications faites sur Vinted. Elle est persistée (dates de début et de fin) ; une sauvegarde interrompue est reprise par la suivante, sans relire les annonces déjà sauvegardées par elle.
 - Version, décidée par l'utilisateur : une seule sauvegarde par annonce, avec sa date. Elle n'est remplacée que par une lecture complète. Une lecture incomplète ou illisible arrête la sauvegarde avec un problème affiché, l'ancienne version reste intacte. Pas d'historique (aucun usage prévu).
 - Représentation, décidée par l'utilisateur : les identifiants de l'objet de l'annonce lu dans les scripts du formulaire, plus les libellés affichés pour la lecture humaine. Les identifiants servent à republier, les libellés à afficher et contrôler.
-- Lecture complète, décidée par l'utilisateur : l'objet de l'annonce est trouvé, son `id` est celui de l'annonce ouverte, et sont présents et valides : titre non vide, `catalogId`, `price` positif, `currency`, `packageSizeId`, attribut `condition`. Tous les autres champs sont enregistrés tels que lus, même nuls : leur caractère obligatoire dépend de la catégorie.
+- Lecture complète, décidée par l'utilisateur : l'objet de l'annonce est trouvé, son `id` est celui de l'annonce ouverte, et sont présents et valides : titre non vide, `catalogId`, `price` positif, `currency`, `packageSizeId`, attribut `condition`. Tous les autres champs sont enregistrés tels que lus, même nuls : leur caractère obligatoire dépend de la catégorie. Seule exception : une description nulle est enregistrée vide (colonne non nulle).
+- Décodage des données de la page, à la suite de la revue : ce sont des lignes React Flight. React échappe en `$$` un texte qui commence par `$` et envoie un long texte (description) à part, dans une ligne `<clé>:T<longueur en octets>,<texte>` que la valeur désigne par `"$<clé>"`. L'outil dés-échappe et résout ces textes ; toute autre valeur en `$…` (référence introuvable, date, etc.) rend l'annonce illisible plutôt que d'enregistrer un texte faux. Toute donnée inattendue, y compris avant la lecture des libellés, donne « annonce illisible ».
 - Stockage, décidé par l'utilisateur : une colonne par donnée avec un type approprié, sans `jsonb`. Table `listing_content`, une ligne par annonce (clé = `listing_id`, référence `listing`), remplacée à chaque lecture complète :
   - `saved_at` `timestamptz` ;
   - `title`, `description` `text` ;

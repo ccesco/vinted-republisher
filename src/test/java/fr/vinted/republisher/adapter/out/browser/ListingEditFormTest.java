@@ -17,6 +17,7 @@ import static fr.vinted.republisher.adapter.out.browser.EditFormFixtures.CATALOG
 import static fr.vinted.republisher.adapter.out.browser.EditFormFixtures.anItem;
 import static fr.vinted.republisher.adapter.out.browser.EditFormFixtures.itemRow;
 import static fr.vinted.republisher.adapter.out.browser.EditFormFixtures.scriptsWith;
+import static fr.vinted.republisher.adapter.out.browser.EditFormFixtures.textRow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -136,6 +137,54 @@ class ListingEditFormTest {
         List<String> scripts = scriptsWith(itemRow(anItem(10)), "8:{\"item\":" + anItem(10) + "}", CATALOG_ROW);
 
         assertThat(ListingEditForm.parse(ID, scripts, LABELS).title()).isEqualTo("Paire chaussure 9-12 mois");
+    }
+
+    @Test
+    void long_description_sent_apart_is_read_from_its_text_row() {
+        String longDescription = "Très bon état, portée deux fois.\nTaille grand : prendre une taille en dessous. "
+                .repeat(30);
+        List<String> scripts = scriptsWith(textRow("1a", longDescription),
+                itemRow(anItem(10).replace("\"2 paires\"", "\"$1a\"")), CATALOG_ROW);
+
+        assertThat(ListingEditForm.parse(ID, scripts, LABELS).description()).isEqualTo(longDescription);
+    }
+
+    @Test
+    void text_starting_with_a_dollar_is_unescaped() {
+        String dollar = anItem(10).replace("\"Paire chaussure 9-12 mois\"", "\"$$5 la paire\"");
+
+        assertThat(parse(dollar, LABELS).title()).isEqualTo("$5 la paire");
+    }
+
+    @Test
+    void reference_to_a_missing_text_is_unreadable() {
+        String missing = anItem(10).replace("\"2 paires\"", "\"$2b\"");
+
+        assertThatThrownBy(() -> parse(missing, LABELS))
+                .isInstanceOf(ListingUnreadable.class).hasMessageContaining("unexpected data on 10");
+    }
+
+    @Test
+    void any_other_reference_is_unreadable() {
+        String date = anItem(10).replace("\"2 paires\"", "\"$D2026-11-07T10:00:00.000Z\"");
+
+        assertThatThrownBy(() -> parse(date, LABELS)).isInstanceOf(ListingUnreadable.class);
+    }
+
+    @Test
+    void attribute_without_code_is_unreadable_even_before_reading_the_labels() {
+        String noCode = anItem(10).replace("\"code\":\"size\"", "\"name\":\"size\"");
+        List<String> scripts = scriptsWith(itemRow(noCode), CATALOG_ROW);
+
+        assertThatThrownBy(() -> ListingEditForm.awaitedLabels(ID, scripts))
+                .isInstanceOf(ListingUnreadable.class).hasMessageContaining("unexpected data on 10");
+    }
+
+    @Test
+    void chunk_that_is_not_a_text_is_unreadable() {
+        List<String> scripts = List.of("self.__next_f.push([1,{\"not\":\"a text\"}])");
+
+        assertThatThrownBy(() -> ListingEditForm.parse(ID, scripts, LABELS)).isInstanceOf(ListingUnreadable.class);
     }
 
     @Test
