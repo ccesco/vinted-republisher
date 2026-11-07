@@ -1,9 +1,11 @@
 package fr.vinted.republisher.adapter.in.web;
 
+import fr.vinted.republisher.adapter.in.web.api.model.BackupProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BrowserActionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ScanProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionStatusDto;
+import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionProblem;
 import fr.vinted.republisher.domain.session.SessionStatus;
@@ -37,7 +39,12 @@ class ContractEnumsTest {
         assertThat(names(ScanProblemDto.values())).containsExactlyInAnyOrder(names(ScanProblem.values()));
     }
 
-    private static String[] names(Enum<?>[] values) {
+    @Test
+  void contract_knows_every_backup_problem() {
+    assertThat(names(BackupProblemDto.values())).containsExactlyInAnyOrder(names(BackupProblem.values()));
+  }
+
+  private static String[] names(Enum<?>[] values) {
         return Arrays.stream(values).map(Enum::name).toArray(String[]::new);
     }
 }

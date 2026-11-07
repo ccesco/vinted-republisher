@@ -13,7 +13,7 @@ En tant que membre, je veux lancer la sauvegarde du contenu de toutes les annonc
 1. La page `/wardrobe.html` gagne un bouton « Sauvegarder », la date de fin de la dernière sauvegarde terminée, un éventuel problème de sauvegarde, et pour chaque annonce sa date de sauvegarde (« non sauvegardée » sinon). Tant qu'une sauvegarde est en cours, elle affiche « sauvegarde en cours » et relit l'état toutes les 2 secondes.
 2. « Sauvegarder » lance la sauvegarde en arrière-plan. Elle partage le verrou « une seule action navigateur » d'US-03 (nouvelle action `BACKING_UP`) : une demande reçue pendant une action en cours est ignorée. Aucune vérification de session préalable.
 3. **Reprise** : s'il existe une sauvegarde non terminée, la nouvelle la reprend ; sinon une sauvegarde est créée avec sa date de début. Les annonces traitées sont les annonces présentes de l'inventaire ; celles déjà sauvegardées depuis le début de la sauvegarde en cours sont sautées. Inventaire vide : la sauvegarde se termine aussitôt.
-4. **Lecture** : dans un seul onglet du Chrome piloté, passé au premier plan, l'outil ouvre une à une `https://www.vinted.fr/items/<id>/edit`, avec une pause aléatoire de 10 à 15 secondes entre deux annonces. Il lit l'objet de l'annonce dans les scripts de la page (identifiants) et les libellés affichés par le formulaire. Il attend au plus 10 secondes que chaque champ renseigné affiche son libellé. Il ne clique sur rien, ne saisit rien et ne soumet rien.
+4. **Lecture** : dans un seul onglet du Chrome piloté, passé au premier plan, l'outil ouvre une à une `https://www.vinted.fr/items/<id>/edit`, avec une pause aléatoire de 10 à 15 secondes entre deux annonces. Il lit l'objet de l'annonce dans les scripts de la page (identifiants), le libellé de la catégorie dans l'arbre des catégories de ces mêmes scripts, et les autres libellés affichés par le formulaire. Il attend au plus 10 secondes que chaque champ renseigné affiche son libellé ; passé ce délai, le libellé est enregistré vide. Il ne clique sur rien, ne saisit rien et ne soumet rien.
 5. **Enregistrement** : une lecture complète remplace aussitôt la sauvegarde de l'annonce (`listing_content`), avec `saved_at` à l'instant de la lecture.
 6. **Fin** : quand toutes les annonces sont traitées, l'outil ferme l'onglet et termine la sauvegarde.
 7. **Échec** : la sauvegarde s'arrête, reste non terminée, le problème est affiché. Les sauvegardes déjà écrites restent ; celle de l'annonce en cours n'est pas touchée.
@@ -149,7 +149,7 @@ Test : `BackUpWardrobeTest.pauses_between_two_listings()`
 Quand l'application redémarre
 Alors le contenu sauvegardé de chaque annonce est relu à l'identique, colonne par colonne
 ```
-Test : `JpaListingContentRepositoryTest` (Testcontainers)
+Test : `JpaListingBackupRepositoryTest` (Testcontainers)
 
 ### AT-05-13 – Page du dressing
 ```gherkin
@@ -197,7 +197,7 @@ Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la
 
 ## Cas limites et erreurs
 - Objet de l'annonce absent des scripts, `id` différent de l'annonce ouverte, champ obligatoire absent ou invalide : « annonce illisible », la sauvegarde s'arrête.
-- Identifiant renseigné dont le libellé ne s'affiche pas après 10 secondes : « annonce illisible ».
+- Identifiant renseigné dont le libellé ne s'affiche pas après 10 secondes : l'identifiant est sauvegardé avec un libellé vide (décidé par l'utilisateur le 2026-11-07).
 - Champ facultatif non renseigné (taille, matière, marque…) : enregistré nul, avec un libellé nul.
 - Annonce vendue ou retirée entre le scan et la sauvegarde (HTTP 404) : « Vinted inaccessible », arrêt ; un nouveau scan la marquera absente.
 - Annonce marquée absente par un scan pendant une interruption de la sauvegarde : elle n'est plus traitée à la reprise ; sa sauvegarde existante est conservée.
@@ -235,22 +235,28 @@ Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la
 - Session non connectée, décidé par l'utilisateur : pas de vérification préalable. Si un formulaire de modification redirige vers la connexion, la sauvegarde s'arrête (reprenable), affiche « session non connectée » et l'état de session passe à `DISCONNECTED` (US-03).
 - Règles reprises d'US-04, décidé par l'utilisateur : un seul onglet au premier plan, pause aléatoire de 10 à 15 secondes entre deux annonces (configuration) ; annonces présentes au début de la sauvegarde ; table `wardrobe_backup` (`id`, `started_at`, `finished_at`), une annonce est déjà traitée si son `saved_at` n'est pas antérieur au début de la sauvegarde en cours ; réponse HTTP ≥ 400 du formulaire → « Vinted inaccessible », arrêt sans nouvelle tentative ; ressources tierces ignorées ; navigateur injoignable → « navigateur indisponible » ; erreur inattendue ou base indisponible → « échec de la sauvegarde » ; verrou toujours libéré ; `POST` d'un autre site → 403.
 - Page et API, laissées à Claude par l'utilisateur : la sauvegarde s'ajoute à `wardrobe.html` et à `WardrobeOverview` (bouton, état, date, problème, date par annonce), sans exposer le contenu. Le problème de sauvegarde est distinct de celui du scan (`backupProblem`), affiché jusqu'à la sauvegarde suivante, en mémoire seulement. Attente des libellés : 10 secondes au plus. Aucune nouvelle dépendance.
+- Libellé non affiché, décidé par l'utilisateur après une troisième lecture du formulaire (2026-11-07, aucun clic) : l'annonce 10208778166 a `size` 588, mais le formulaire affiche « Sélectionne une taille » même entièrement chargé. Un identifiant dont le libellé ne s'affiche pas sous 10 secondes est donc sauvegardé avec un libellé vide : les identifiants servent à republier, les libellés seulement à lire. Pour US-12 : une taille non affichée n'est peut-être plus proposée par Vinted pour la catégorie.
+- Même lecture : l'objet de l'annonce se trouve dans les scripts `self.__next_f.push([1,"…"])`, dont les chaînes décodées et mises bout à bout forment des lignes `<clé>:<JSON>` ; un seul objet porte `catalogId` et l'`id` de l'annonce. L'arbre des catégories y figure aussi (`{"id":1653,"title":"Chaussures bébé",…}`) : le libellé de la catégorie en est tiré. `self.__next_f` lui-même est vide une fois la page chargée. Les autres libellés sont dans `[data-testid="<champ>-…-input--value"]` ; celui du format du colis est le titre du bouton radio coché.
 
 ## Questions ouvertes
 - Aucune. Les points inconnus (autres codes d'attribut, catégories à champs propres) sont vérifiés par AT-05-17.
 
 ## Modèle de domaine
-- `ListingContent` (contenu d'une annonce, value object) : titre, description, `Price`, catégorie, marque, état, taille, couleurs, matières, format du colis, détails de livre, mesures, fabricant, modèle, `savedAt`. Chaque choix du formulaire est une `FormOption` (identifiant + libellé affiché).
-- `FormOption` (option du formulaire, value object) : identifiant Vinted et libellé affiché.
+- `ListingContent` (contenu d'une annonce, value object) : identifiant, titre, description, `Price`, catégorie, marque, état, taille, couleurs, matières, format du colis, `CategoryDetails`. Chaque choix unique du formulaire est une `FormOption`, chaque choix multiple une `FormOptions`.
+- `FormOption` (option du formulaire, value object) : identifiant Vinted et libellé affiché (vide s'il ne s'affiche pas). `FormOptions` : identifiants et libellé affiché d'un choix multiple (couleurs, matières).
+- `CategoryDetails` (détails propres à la catégorie) : ISBN, titre du livre, auteur, fabricant, libellé du fabricant, modèle, mesures et leur unité, tous facultatifs.
+- `ListingBackup` (sauvegarde d'une annonce) : `ListingContent` et date de sauvegarde ; une par annonce.
 - `ListingEditForm` (formulaire de modification) : ce que l'adaptateur navigateur lit d'une annonce ; produit un `ListingContent` ou signale `ListingUnreadable`.
 - `WardrobeBackup` (sauvegarde du dressing, agrégat) : date de début, date de fin ; dit si une annonce est déjà sauvegardée par elle.
 - `BackupProblem` (`BROWSER_UNAVAILABLE` / `VINTED_UNREACHABLE` / `SESSION_DISCONNECTED` / `LISTING_UNREADABLE` / `BACKUP_FAILED`), `LastBackupProblem` (en mémoire), `ListingUnreadable`, `SessionDisconnected` ; `BrowserAction` gagne `BACKING_UP` ; `WardrobeOverview` gagne l'état de sauvegarde.
-- Ports sortants : `ListingContentReader` (lit le formulaire d'une annonce), `ListingContentRepository`, `WardrobeBackupRepository`. Cas d'usage : `BackUpWardrobe` ; `ShowWardrobe` enrichi.
-- Glossaire : ajouter `ListingContent`, `FormOption`, `ListingEditForm`, `WardrobeBackup` (`BackUpWardrobe`), `BackupProblem`, `LastBackupProblem`, `ListingUnreadable`, `SessionDisconnected`, et `BACKING_UP` à `BrowserAction`.
+- `BackupPace` (rythme de la sauvegarde) : pause aléatoire entre deux annonces.
+- `BackupOverview` (aperçu de la sauvegarde) : sauvegarde en cours, date de la dernière terminée, problème, date de sauvegarde par annonce ; l'API la joint à l'aperçu du dressing.
+- Ports sortants : `ListingContentReader` (lit le formulaire des annonces demandées, dans un onglet), `ListingBackupRepository`, `WardrobeBackupRepository`. Cas d'usage : `BackUpWardrobe`, `ShowBackup` (paquet `backup`, qui dépend de `wardrobe` sans l'inverse).
+- Glossaire : ajouter `ListingContent`, `FormOption`, `FormOptions`, `CategoryDetails`, `ListingBackup`, `ListingEditForm`, `WardrobeBackup` (`BackUpWardrobe`), `BackupPace`, `BackupOverview`, `BackupProblem`, `LastBackupProblem`, `ListingUnreadable`, `SessionDisconnected`, et `BACKING_UP` à `BrowserAction`.
 
 ## Tests unitaires et d'intégration attendus
-- `domain` : `ListingContentTest`, `FormOptionTest`, `WardrobeBackupTest`.
-- `application` : `BackUpWardrobeTest` (lecture, enregistrement au fil de l'eau, reprise, chaque problème, session déconnectée, verrou libéré, rythme, inventaire vide), `ShowWardrobeTest` (état de sauvegarde) ; `BackUpWardrobeAcceptanceTest`.
-- `adapter/out/browser` : `ListingEditFormTest` (objet de l'annonce et libellés, sans navigateur : complet, champ manquant, `id` différent, attribut inconnu) et `PlaywrightListingContentReaderTest` contre des pages locales avec le vrai Chrome (formulaire, libellés retardés, redirection vers la connexion, erreur HTTP, aucune interaction).
-- `adapter/out/persistence` : tests Testcontainers de `JpaListingContentRepository` et `JpaWardrobeBackupRepository`.
+- `domain` : `ListingContentTest`, `FormOptionTest`, `WardrobeBackupTest`, `BackupPaceTest`, `VintedSessionTest` (action `BACKING_UP`).
+- `application` : `BackUpWardrobeTest` (lecture, enregistrement au fil de l'eau, reprise, chaque problème, session déconnectée, verrou libéré, rythme, inventaire vide), `ShowBackupTest` ; `BackUpWardrobeAcceptanceTest`.
+- `adapter/out/browser` : `ListingEditFormTest` (objet de l'annonce et libellés, sans navigateur : complet, champ manquant, `id` différent, attribut inconnu, libellé vide) et `PlaywrightListingContentReaderTest` contre des pages locales avec le vrai Chrome (formulaire, libellés retardés, redirection vers la connexion, erreur HTTP, aucune interaction).
+- `adapter/out/persistence` : tests Testcontainers de `JpaListingBackupRepository` et `JpaWardrobeBackupRepository`.
 - `adapter/in/web` : `WardrobeApiControllerTest`, `ContractEnumsTest`, `WardrobePageTest`.

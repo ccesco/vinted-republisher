@@ -96,12 +96,31 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WardrobeOverview'
+  /api/wardrobe/backup:
+    post:
+      tags: [wardrobe]
+      operationId: backUpWardrobe
+      summary: Sauvegarder le contenu des annonces
+      description: >
+        Lance en arrière-plan la lecture du formulaire de modification de chaque annonce présente, en session
+        connectée, sans rien cliquer, saisir ni soumettre. Ignorée si une action navigateur est déjà en cours.
+      responses:
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '202':
+          description: >
+            Sauvegarde lancée (ou ignorée) ; aperçu du dressing juste après la demande.
+            Suivre la suite avec GET /api/wardrobe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WardrobeOverview'
 components:
   schemas:
     WardrobeOverview:
       type: object
       description: Aperçu du dressing ; un champ absent signifie « aucun ».
-      required: [scanInProgress, listings]
+      required: [scanInProgress, backupInProgress, listings]
       properties:
         scanInProgress:
           type: boolean
@@ -112,6 +131,15 @@ components:
           description: Date de fin du dernier scan terminé ; absente si aucun scan n'est terminé.
         problem:
           $ref: '#/components/schemas/ScanProblem'
+        backupInProgress:
+          type: boolean
+          description: Vrai tant qu'une sauvegarde est en cours.
+        lastBackupAt:
+          type: string
+          format: date-time
+          description: Date de fin de la dernière sauvegarde terminée ; absente si aucune n'est terminée.
+        backupProblem:
+          $ref: '#/components/schemas/BackupProblem'
         listings:
           type: array
           description: Annonces présentes, les plus récentes d'abord ; pendant un scan, peut mêler anciennes et nouvelles valeurs.
@@ -120,6 +148,8 @@ components:
       example:
         scanInProgress: false
         lastScanAt: '2026-11-06T10:15:30Z'
+        backupInProgress: false
+        lastBackupAt: '2026-11-07T11:02:10Z'
         listings:
           - vintedId: 90000000001
             title: Pull rayé
@@ -127,6 +157,7 @@ components:
               amount: 1.5
               currency: EUR
             url: https://www.vinted.fr/items/90000000001-pull-raye
+            savedAt: '2026-11-07T10:31:45Z'
     Listing:
       type: object
       description: Annonce active du dressing.
@@ -144,6 +175,10 @@ components:
           type: string
           format: uri
           description: Adresse de l'annonce sur Vinted.
+        savedAt:
+          type: string
+          format: date-time
+          description: Date de la sauvegarde du contenu de l'annonce ; absente si elle n'a jamais été sauvegardée.
     Price:
       type: object
       description: Prix affiché sur Vinted, hors frais.
@@ -159,6 +194,12 @@ components:
       type: string
       description: Raison pour laquelle le dernier scan n'a pas abouti.
       enum: [BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, WARDROBE_UNREADABLE, SCAN_FAILED]
+    BackupProblem:
+      type: string
+      description: >
+        Raison pour laquelle la dernière sauvegarde n'a pas abouti : navigateur indisponible, Vinted inaccessible,
+        session non connectée, annonce illisible, échec de la sauvegarde.
+      enum: [BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, SESSION_DISCONNECTED, LISTING_UNREADABLE, BACKUP_FAILED]
     SessionOverview:
       type: object
       description: Aperçu de session ; un champ absent signifie « aucun ».
@@ -176,7 +217,7 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN, SCANNING]
+      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.

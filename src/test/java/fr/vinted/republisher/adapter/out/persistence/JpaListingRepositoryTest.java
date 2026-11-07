@@ -47,6 +47,7 @@ class JpaListingRepositoryTest {
 
     @BeforeEach
     void startFromAnEmptyInventory() {
+        database.update("DELETE FROM listing_content");
         database.update("DELETE FROM listing");
     }
 
