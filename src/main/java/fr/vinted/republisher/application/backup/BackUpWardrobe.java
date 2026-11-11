@@ -6,6 +6,8 @@ import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
+import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.domain.backup.WardrobeBackupRepository;
@@ -25,8 +27,8 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 /**
- * Saves the content of each present listing as soon as it is read, so that a failure loses nothing and the next
- * backup resumes. A listing's previous backup is only replaced by a complete reading.
+ * Saves the content and the photos of each present listing as soon as they are read, so that a failure loses nothing
+ * and the next backup resumes. A listing's previous backup is only replaced by a complete reading.
  */
 public class BackUpWardrobe {
 
@@ -38,19 +40,22 @@ public class BackUpWardrobe {
     private final ListingContentReader reader;
     private final ListingRepository listings;
     private final ListingBackupRepository listingBackups;
+    private final PhotoStorage photos;
     private final BackupPace pace;
     private final Clock clock;
     private final Executor background;
 
     public BackUpWardrobe(VintedSession session, LastBackupProblem lastProblem, WardrobeBackupRepository backups,
                           ListingContentReader reader, ListingRepository listings,
-                          ListingBackupRepository listingBackups, BackupPace pace, Clock clock, Executor background) {
+                          ListingBackupRepository listingBackups, PhotoStorage photos, BackupPace pace, Clock clock,
+                          Executor background) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.backups = backups;
         this.reader = reader;
         this.listings = listings;
         this.listingBackups = listingBackups;
+        this.photos = photos;
         this.pace = pace;
         this.clock = clock;
         this.background = background;
@@ -101,9 +106,20 @@ public class BackUpWardrobe {
         WardrobeBackup backup = backups.findUnfinished().orElseGet(this::startBackup);
         List<VintedListingId> toOpen = backup.listingsToOpen(listings.findAll(), listingBackups.findAll());
         if (!toOpen.isEmpty()) {
-            reader.read(toOpen, pace, content -> listingBackups.save(new ListingBackup(content, clock.instant())));
+            reader.read(toOpen, pace, this::save);
         }
         backups.save(backup.finished(clock.instant()));
+    }
+
+    /**
+     * Files first, then the backup that points at them, then the files nothing points at any more: an interruption
+     * never leaves a backup without its photos.
+     */
+    private void save(ListingReading reading) {
+        reading.photos().forEach(photo -> photos.store(reading.id(), photo));
+        ListingBackup backup = ListingBackup.of(reading, clock.instant());
+        listingBackups.save(backup);
+        photos.removeAllBut(backup.id(), backup.photos());
     }
 
     private WardrobeBackup startBackup() {

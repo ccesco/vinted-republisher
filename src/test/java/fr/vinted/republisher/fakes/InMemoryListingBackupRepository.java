@@ -8,14 +8,22 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 public class InMemoryListingBackupRepository implements ListingBackupRepository {
 
     private final Map<VintedListingId, ListingBackup> backups = new LinkedHashMap<>();
     private boolean databaseDown;
+    private Consumer<ListingBackup> onSave = backup -> { };
 
     public InMemoryListingBackupRepository whereDatabaseIsDown() {
         databaseDown = true;
+        return this;
+    }
+
+    /** Runs when a backup is about to be saved: to look at the state of the world at that moment. */
+    public InMemoryListingBackupRepository whenSaving(Consumer<ListingBackup> action) {
+        onSave = action;
         return this;
     }
 
@@ -33,6 +41,7 @@ public class InMemoryListingBackupRepository implements ListingBackupRepository 
         if (databaseDown) {
             throw new IllegalStateException("database down");
         }
+        onSave.accept(backup);
         backups.put(backup.id(), backup);
     }
 }

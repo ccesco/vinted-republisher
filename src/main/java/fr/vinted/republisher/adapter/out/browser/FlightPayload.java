@@ -7,9 +7,12 @@ import tools.jackson.databind.json.JsonMapper;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
@@ -46,6 +49,22 @@ final class FlightPayload {
 
     List<JsonNode> jsonRows() {
         return jsonRows;
+    }
+
+    /** The objects of the rows, nested ones included, that are wanted; each distinct one once. */
+    Set<JsonNode> objects(Predicate<JsonNode> wanted) {
+        Set<JsonNode> found = new LinkedHashSet<>();
+        jsonRows.forEach(row -> collect(row, wanted, found));
+        return found;
+    }
+
+    private static void collect(JsonNode node, Predicate<JsonNode> wanted, Set<JsonNode> found) {
+        if (node.isObject() && wanted.test(node)) {
+            found.add(node);
+        }
+        if (node.isContainer()) {
+            node.valueStream().forEach(child -> collect(child, wanted, found));
+        }
     }
 
     /** React escapes a text starting with "$" as "$$", and sends a long one apart as "$<key>". */

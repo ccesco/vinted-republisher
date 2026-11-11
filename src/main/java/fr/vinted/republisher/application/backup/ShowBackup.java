@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.backup.WardrobeBackupRepository;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 
+import java.util.List;
 import java.util.stream.Collectors;
 
 public class ShowBackup {
@@ -30,10 +31,13 @@ public class ShowBackup {
     public BackupOverview show() {
         boolean backupInProgress = session.overview().currentAction()
                 .filter(BrowserAction.BACKING_UP::equals).isPresent();
+        List<ListingBackup> saved = listingBackups.findAll();
         return new BackupOverview(
                 backupInProgress,
                 backups.findLastFinished().flatMap(WardrobeBackup::finishedAt),
                 lastProblem.current(),
-                listingBackups.findAll().stream().collect(Collectors.toMap(ListingBackup::id, ListingBackup::savedAt)));
+                saved.stream().collect(Collectors.toMap(ListingBackup::id, ListingBackup::savedAt)),
+                saved.stream().filter(backup -> !backup.photos().isEmpty())
+                        .collect(Collectors.toMap(ListingBackup::id, backup -> backup.photos().size())));
     }
 }

@@ -5,7 +5,9 @@ import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.math.BigDecimal;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Random;
@@ -31,6 +33,20 @@ public final class BackupFixtures {
                 Optional.empty(),
                 new FormOption(1, "Petit"),
                 CategoryDetails.none());
+    }
+
+    /** Invented bytes, served as WebP. */
+    public static DownloadedPhoto aPhoto(String name) {
+        return new DownloadedPhoto(("photo " + name).getBytes(StandardCharsets.UTF_8), "image/webp");
+    }
+
+    /** The content of the listing and one photo of its own. */
+    public static ListingReading aReading(long id) {
+        return new ListingReading(aContent(id), List.of(aPhoto("of " + id)));
+    }
+
+    public static ListingBackup aBackup(long id, Instant savedAt) {
+        return ListingBackup.of(aReading(id), savedAt);
     }
 
     public static BackupPace noBackupPause() {

@@ -7,7 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Instant;
 import java.util.List;
 
-import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -61,6 +61,6 @@ class WardrobeBackupTest {
     }
 
     private static ListingBackup savedAt(long id, Instant at) {
-        return new ListingBackup(aContent(id), at);
+        return aBackup(id, at);
     }
 }

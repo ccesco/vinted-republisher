@@ -4,6 +4,7 @@ import fr.vinted.republisher.domain.backup.BackupOverview;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -13,10 +14,13 @@ import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ShowBackupTest {
@@ -32,7 +36,7 @@ class ShowBackupTest {
 
     @Test
     void nothing_is_known_before_the_first_backup() {
-        assertThat(showBackup.show()).isEqualTo(new BackupOverview(false, Optional.empty(), Optional.empty(), Map.of()));
+        assertThat(showBackup.show()).isEqualTo(new BackupOverview(false, Optional.empty(), Optional.empty(), Map.of(), Map.of()));
     }
 
     @Test
@@ -45,9 +49,17 @@ class ShowBackupTest {
 
     @Test
     void tells_when_each_listing_was_saved() {
-        listingBackups.save(new ListingBackup(aContent(1), STARTED_AT));
+        listingBackups.save(aBackup(1, STARTED_AT));
 
         assertThat(showBackup.show().savedAt()).isEqualTo(Map.of(new VintedListingId(1), STARTED_AT));
+    }
+
+    @Test
+    void tells_how_many_photos_each_listing_has_kept_none_before_photos_were_kept() {
+        listingBackups.save(ListingBackup.of(new ListingReading(aContent(1), List.of(aPhoto("A"), aPhoto("B"))), STARTED_AT));
+        listingBackups.save(new ListingBackup(aContent(2), List.of(), STARTED_AT));
+
+        assertThat(showBackup.show().photoCount()).isEqualTo(Map.of(new VintedListingId(1), 2));
     }
 
     @Test

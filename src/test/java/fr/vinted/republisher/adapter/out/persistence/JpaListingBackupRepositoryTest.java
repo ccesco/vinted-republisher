@@ -6,6 +6,7 @@ import fr.vinted.republisher.domain.backup.FormOptions;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.Price;
@@ -28,11 +29,12 @@ import java.util.List;
 import java.util.Optional;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
-/** AT-05-12, on a disposable PostgreSQL with the real changelog, never the real data. */
+/** AT-05-12 and AT-06-10, on a disposable PostgreSQL with the real changelog, never the real data. */
 @Tag("docker")
 @Testcontainers
 @SpringBootTest(properties = {
@@ -67,19 +69,23 @@ class JpaListingBackupRepositoryTest {
     @Test
     void gives_back_every_field_as_it_was_saved() {
         // Étant donné une sauvegarde terminée
-        ListingBackup full = new ListingBackup(aFullContent(1), SAVED_AT);
-        ListingBackup minimal = new ListingBackup(aMinimalContent(2), SAVED_AT);
+        ListingBackup full = ListingBackup.of(new ListingReading(aFullContent(1),
+                List.of(aPhoto("front"), aPhoto("back"), aPhoto("label"))), SAVED_AT);
+        ListingBackup minimal = new ListingBackup(aMinimalContent(2), List.of(), SAVED_AT);
         backups.save(full);
         backups.save(minimal);
         // Quand l'application redémarre
         // Alors le contenu sauvegardé de chaque annonce est relu à l'identique, colonne par colonne
+        // Et le rang et l'empreinte de chaque photo sont relus à l'identique (AT-06-10)
         assertThat(backups.findAll()).containsExactlyInAnyOrder(full, minimal);
     }
 
     @Test
     void a_new_backup_of_a_listing_replaces_the_previous_one() {
-        backups.save(new ListingBackup(aContent(1, "Pull rayé", "Porté deux fois"), SAVED_AT));
-        ListingBackup newer = new ListingBackup(aContent(1, "Pull rayé", "Porté trois fois"), SAVED_AT.plusSeconds(60));
+        backups.save(ListingBackup.of(new ListingReading(aContent(1, "Pull rayé", "Porté deux fois"),
+                List.of(aPhoto("A"), aPhoto("B"))), SAVED_AT));
+        ListingBackup newer = ListingBackup.of(new ListingReading(aContent(1, "Pull rayé", "Porté trois fois"),
+                List.of(aPhoto("B"))), SAVED_AT.plusSeconds(60));
 
         backups.save(newer);
 
@@ -88,7 +94,7 @@ class JpaListingBackupRepositoryTest {
 
     @Test
     void each_value_has_its_own_typed_column() {
-        backups.save(new ListingBackup(aFullContent(1), SAVED_AT));
+        backups.save(aBackupOf(aFullContent(1)));
 
         assertThat(database.queryForObject(
                 "SELECT pg_typeof(color_ids)::text || ' ' || pg_typeof(price)::text || ' ' || pg_typeof(catalog_id)::text"
@@ -98,9 +104,21 @@ class JpaListingBackupRepositoryTest {
 
     @Test
     void a_backup_belongs_to_a_known_listing() {
-        Throwable attempt = catchThrowable(() -> backups.save(new ListingBackup(aContent(99), SAVED_AT)));
+        Throwable attempt = catchThrowable(() -> backups.save(aBackupOf(aContent(99))));
 
         assertThat(attempt).isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void photos_go_with_the_backup_of_their_listing() {
+        backups.save(aBackupOf(aContent(1)));
+
+        assertThat(database.queryForObject("SELECT count(*) FROM listing_photo WHERE listing_id = 1", Integer.class))
+                .isEqualTo(1);
+    }
+
+    private static ListingBackup aBackupOf(ListingContent content) {
+        return ListingBackup.of(new ListingReading(content, List.of(aPhoto("front"))), SAVED_AT);
     }
 
     private static ListingContent aFullContent(long id) {

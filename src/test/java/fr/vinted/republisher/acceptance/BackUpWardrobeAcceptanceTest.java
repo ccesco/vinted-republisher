@@ -6,7 +6,8 @@ import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
-import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingPhoto;
+import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionStatus;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -17,6 +18,7 @@ import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,13 +28,18 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.stream.LongStream;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aReading;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 @ExtendWith(OutputCaptureExtension.class)
 class BackUpWardrobeAcceptanceTest {
@@ -47,11 +54,13 @@ class BackUpWardrobeAcceptanceTest {
     private final InMemoryListingBackupRepository listingBackups = new InMemoryListingBackupRepository();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final FakeListingContentReader reader = new FakeListingContentReader();
+    private final InMemoryPhotoStorage photos = new InMemoryPhotoStorage();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final BackupPace pace = new BackupPace(
             new PauseRange(Duration.ofSeconds(10), Duration.ofSeconds(15)), new Random(42));
     private final BackUpWardrobe backUpWardrobe =
-            new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, pace, clock, RIGHT_AWAY);
+            new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, photos, pace,
+                    clock, RIGHT_AWAY);
     private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups, listingBackups);
 
     @Test
@@ -64,8 +73,8 @@ class BackUpWardrobeAcceptanceTest {
         // Alors le contenu des 3 annonces est sauvegardé avec ses identifiants et ses libellés
         // Et la date de fin de la sauvegarde est enregistrée
         assertThat(listingBackups.findAll()).containsExactly(
-                new ListingBackup(aContent(1), NOW), new ListingBackup(aContent(2), NOW),
-                new ListingBackup(aContent(3), NOW));
+                aBackup(1, NOW), aBackup(2, NOW),
+                aBackup(3, NOW));
         assertThat(showBackup.show().lastBackupAt()).contains(NOW);
     }
 
@@ -73,21 +82,97 @@ class BackUpWardrobeAcceptanceTest {
     void complete_reading_replaces_the_previous_content() {
         // Étant donné une annonce déjà sauvegardée dont la description a changé sur Vinted
         anInventoryOf(1);
-        listingBackups.save(new ListingBackup(aContent(1, "Pull rayé", "Porté deux fois"), EARLIER));
-        ListingContent changed = aContent(1, "Pull rayé", "Porté trois fois");
+        listingBackups.save(ListingBackup.of(
+                new ListingReading(aContent(1, "Pull rayé", "Porté deux fois"), List.of(aPhoto("front"))), EARLIER));
+        ListingReading changed = new ListingReading(aContent(1, "Pull rayé", "Porté trois fois"), List.of(aPhoto("front")));
         reader.showing(changed);
         // Quand je lance la sauvegarde
         backUpWardrobe.backUp();
         // Alors sa sauvegarde contient la nouvelle description et une nouvelle date
         // Et elle n'a qu'une sauvegarde
-        assertThat(listingBackups.findAll()).containsExactly(new ListingBackup(changed, NOW));
+        assertThat(listingBackups.findAll()).containsExactly(ListingBackup.of(changed, NOW));
+    }
+
+    @Test
+    void backup_keeps_every_photo_of_the_listing_in_order() {
+        // Étant donné une annonce présente dont la page publique montre 3 photos
+        anInventoryOf(1);
+        reader.showing(new ListingReading(aContent(1), List.of(aPhoto("front"), aPhoto("back"), aPhoto("label"))));
+        // Quand je lance la sauvegarde
+        backUpWardrobe.backUp();
+        // Alors l'annonce est sauvegardée avec 3 photos, de rang 0 à 2 dans l'ordre de la page
+        // Et chaque fichier est dans photos/<annonce>/<empreinte>.<extension>, identique à l'octet près à ce qui a été servi
+        assertThat(listingBackups.find(1).orElseThrow().photos()).containsExactly(ListingPhoto.at(0, aPhoto("front")),
+                ListingPhoto.at(1, aPhoto("back")), ListingPhoto.at(2, aPhoto("label")));
+        assertThat(photos.files(1)).containsOnlyKeys(
+                aPhoto("front").fileName(), aPhoto("back").fileName(), aPhoto("label").fileName());
+        assertThat(photos.files(1).get(aPhoto("back").fileName())).isEqualTo(aPhoto("back").content());
+    }
+
+    @Test
+    void new_photos_replace_the_previous_ones() {
+        // Étant donné une annonce sauvegardée avec les photos A et B
+        anInventoryOf(1);
+        reader.showing(new ListingReading(aContent(1), List.of(aPhoto("A"), aPhoto("B"))));
+        backUpWardrobe.backUp();
+        clock.advance(Duration.ofHours(1));
+        // Et sa page publique montre maintenant les photos B et C
+        reader.afresh().showing(new ListingReading(aContent(1), List.of(aPhoto("B"), aPhoto("C"))));
+        // Quand je lance la sauvegarde
+        backUpWardrobe.backUp();
+        // Alors sa sauvegarde a les photos B puis C
+        // Et le fichier de B n'est pas réécrit
+        // Et le fichier de A est supprimé
+        assertThat(listingBackups.find(1).orElseThrow().photos())
+                .containsExactly(ListingPhoto.at(0, aPhoto("B")), ListingPhoto.at(1, aPhoto("C")));
+        assertThat(photos.written()).containsExactly(
+                aPhoto("A").fileName(), aPhoto("B").fileName(), aPhoto("C").fileName());
+        assertThat(photos.files(1)).containsOnlyKeys(aPhoto("B").fileName(), aPhoto("C").fileName());
+    }
+
+    @Test
+    void photo_not_downloaded_stops_and_keeps_the_previous_backup() {
+        // Étant donné une annonce sauvegardée avec ses photos
+        anInventoryOf(1, 2);
+        reader.showing(aReading(1), aReading(2));
+        backUpWardrobe.backUp();
+        ListingBackup previous = listingBackups.find(1).orElseThrow();
+        Map<String, byte[]> previousFiles = photos.files(1);
+        clock.advance(Duration.ofHours(1));
+        // Et l'une de ses photos ne se télécharge pas
+        reader.afresh().whereFormIsUnreadable(1, "photo 2 of 1 answered HTTP 404");
+        // Quand la sauvegarde atteint cette annonce
+        backUpWardrobe.backUp();
+        // Alors la sauvegarde s'arrête et reste non terminée
+        // Et le problème indique une annonce illisible
+        // Et l'ancienne sauvegarde de l'annonce, contenu et fichiers, est intacte
+        assertThat(backups.findUnfinished()).isPresent();
+        assertThat(showBackup.show().problem()).contains(BackupProblem.LISTING_UNREADABLE);
+        assertThat(listingBackups.find(1)).contains(previous);
+        assertThat(photos.files(1)).containsOnlyKeys(previousFiles.keySet());
+    }
+
+    @Test
+    void failed_write_stops_the_backup_and_keeps_the_previous_one() {
+        // Étant donné un dossier des photos où l'écriture est impossible
+        anInventoryOf(1);
+        ListingBackup previous = aBackup(1, EARLIER);
+        listingBackups.save(previous);
+        reader.showing(new ListingReading(aContent(1), List.of(aPhoto("new"))));
+        photos.whereWritingFails();
+        // Quand la sauvegarde atteint une annonce
+        catchThrowable(backUpWardrobe::backUp);
+        // Alors la sauvegarde s'arrête avec le problème « échec de la sauvegarde »
+        // Et l'ancienne sauvegarde de l'annonce est intacte
+        assertThat(showBackup.show().problem()).contains(BackupProblem.BACKUP_FAILED);
+        assertThat(listingBackups.findAll()).containsExactly(previous);
     }
 
     @Test
     void incomplete_reading_stops_and_keeps_the_previous_content() {
         // Étant donné une annonce déjà sauvegardée dont le formulaire n'a pas d'état
         anInventoryOf(1, 2);
-        ListingBackup previous = new ListingBackup(aContent(1), EARLIER);
+        ListingBackup previous = aBackup(1, EARLIER);
         listingBackups.save(previous);
         reader.showing(aContent(2)).whereFormIsUnreadable(1, "no condition on 1");
         // Quand la sauvegarde atteint cette annonce
@@ -128,7 +213,7 @@ class BackUpWardrobeAcceptanceTest {
         assertThat(showBackup.show().problem()).contains(BackupProblem.SESSION_DISCONNECTED);
         assertThat(session.overview().status()).contains(SessionStatus.DISCONNECTED);
         assertThat(session.overview().currentAction()).isEmpty();
-        assertThat(listingBackups.findAll()).containsExactly(new ListingBackup(aContent(1), NOW));
+        assertThat(listingBackups.findAll()).containsExactly(aBackup(1, NOW));
     }
 
     @Test
@@ -143,7 +228,7 @@ class BackUpWardrobeAcceptanceTest {
         // Et les annonces déjà sauvegardées le restent
         assertThat(reader.opened()).containsExactly(new VintedListingId(1), new VintedListingId(2));
         assertThat(showBackup.show().problem()).contains(BackupProblem.VINTED_UNREACHABLE);
-        assertThat(listingBackups.findAll()).containsExactly(new ListingBackup(aContent(1), NOW));
+        assertThat(listingBackups.findAll()).containsExactly(aBackup(1, NOW));
     }
 
     @Test
@@ -167,7 +252,7 @@ class BackUpWardrobeAcceptanceTest {
     void unavailable_browser_is_reported() {
         // Étant donné un navigateur injoignable
         anInventoryOf(1);
-        ListingBackup previous = new ListingBackup(aContent(1), EARLIER);
+        ListingBackup previous = aBackup(1, EARLIER);
         listingBackups.save(previous);
         reader.whereBrowserCannotStart();
         // Quand je lance la sauvegarde

@@ -3,21 +3,25 @@ package fr.vinted.republisher.adapter.config;
 import fr.vinted.republisher.adapter.out.browser.BackupProperties;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightListingContentReader;
+import fr.vinted.republisher.adapter.out.storage.FilePhotoStorage;
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
+import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.backup.WardrobeBackupRepository;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Random;
 import java.util.concurrent.Executor;
@@ -34,7 +38,8 @@ public class BackupConfiguration {
 
     @Bean
     ListingContentReader listingContentReader(BackupProperties backup, ChromeTabs tabs, Clock clock) {
-        return new PlaywrightListingContentReader(backup.editFormUrl(), backup.labelTimeout(), tabs, clock);
+        return new PlaywrightListingContentReader(backup.editFormUrl(), backup.listingPageUrl(), backup.labelTimeout(),
+                backup.photoTimeout(), tabs, clock);
     }
 
     @Bean
@@ -44,14 +49,19 @@ public class BackupConfiguration {
     }
 
     @Bean
+    PhotoStorage photoStorage(@Value("${app.data-dir}") Path dataDirectory) {
+        return new FilePhotoStorage(dataDirectory.resolve("photos"));
+    }
+
+    @Bean
     BackUpWardrobe backUpWardrobe(VintedSession session, LastBackupProblem lastBackupProblem,
                                   WardrobeBackupRepository backups, ListingContentReader reader,
                                   ListingRepository listings, ListingBackupRepository listingBackups,
-                                  BackupProperties backup, Clock clock,
+                                  PhotoStorage photos, BackupProperties backup, Clock clock,
                                   @Qualifier("applicationTaskExecutor") Executor background) {
-        BackupPace pace = new BackupPace(new PauseRange(backup.minListingPause(), backup.maxListingPause()),
+        BackupPace pace = new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()),
                 new Random());
-        return new BackUpWardrobe(session, lastBackupProblem, backups, reader, listings, listingBackups, pace, clock,
-                new FailureLoggingExecutor(background));
+        return new BackUpWardrobe(session, lastBackupProblem, backups, reader, listings, listingBackups, photos, pace,
+                clock, new FailureLoggingExecutor(background));
     }
 }

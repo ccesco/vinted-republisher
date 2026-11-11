@@ -76,9 +76,14 @@
     }
 
     function backupStateOf(listing) {
-        return listing.savedAt
-            ? 'sauvegardée le ' + new Date(listing.savedAt).toLocaleString('fr-FR')
-            : 'non sauvegardée';
+        if (!listing.savedAt) {
+            return 'non sauvegardée';
+        }
+        const saved = 'sauvegardée le ' + new Date(listing.savedAt).toLocaleString('fr-FR');
+        if (!listing.photoCount) {
+            return saved;
+        }
+        return `${saved} · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}`;
     }
 
     // Titres et liens viennent de Vinted : jamais d'innerHTML.
