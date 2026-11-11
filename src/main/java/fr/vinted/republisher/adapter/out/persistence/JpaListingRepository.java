@@ -2,9 +2,11 @@ package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 class JpaListingRepository implements ListingRepository {
@@ -18,6 +20,11 @@ class JpaListingRepository implements ListingRepository {
     @Override
     public List<Listing> findAll() {
         return repository.findAll().stream().map(ListingJpaEntity::toListing).toList();
+    }
+
+    @Override
+    public Optional<Listing> find(VintedListingId listing) {
+        return repository.findById(listing.value()).map(ListingJpaEntity::toListing);
     }
 
     /** Spring Data runs saveAll in one transaction. */

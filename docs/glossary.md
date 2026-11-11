@@ -44,11 +44,19 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `DownloadedPhoto` | Photo téléchargée | Fichier d'une photo tel que Vinted l'a servi, à l'octet près, avec son type ; jamais réencodé. |
 | `ListingPhoto` | Photo gardée | Photo d'une sauvegarde : son rang dans l'annonce (0 = couverture), l'empreinte SHA-256 et l'extension de son fichier. |
 | `ListingGallery` | Galerie de l'annonce | Liste ordonnée des photos pleine taille que donne la page publique d'une annonce ; la page les télécharge elle-même. |
-| `PhotoStorage` | Rangement des photos | Fichiers des photos sous `APP_DATA_DIR/photos/<annonce>/<SHA-256>.<extension>`, écrits une fois et jamais modifiés. |
+| `PhotoStorage` | Rangement des photos | Fichiers des photos sous `APP_DATA_DIR/photos/<annonce>/<SHA-256>.<extension>`, écrits une fois et jamais modifiés ; relus tels quels pour la vérification et l'aperçu (absent ou illisible = manquant). |
 | `WardrobeBackup` (`BackUpWardrobe`) | Sauvegarde du dressing | Lecture du formulaire de modification et des photos de la page publique de chaque annonce présente, uniquement sur demande ; persistée avec ses dates de début et de fin, elle reste non terminée après un échec et se reprend à la sauvegarde suivante. |
 | `BackupPace` | Rythme de la sauvegarde | Pause aléatoire entre deux pages ouvertes par la sauvegarde, dans ses bornes configurées. |
-| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée, problème éventuel, date de sauvegarde et nombre de photos gardées de chaque annonce. |
+| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée, problème éventuel, date de sauvegarde et nombre de photos gardées de chaque annonce, date de validation de chaque annonce dont la sauvegarde actuelle est validée. |
 | `BackupProblem` | Problème de sauvegarde | Raison affichée quand une sauvegarde n'a pas abouti : navigateur indisponible, Vinted inaccessible, session non connectée, annonce illisible, échec de la sauvegarde. |
 | `LastBackupProblem` | Problème de la dernière sauvegarde | Problème affiché jusqu'à la sauvegarde suivante, conservé en mémoire seulement. |
 | `ListingUnreadable` | Annonce illisible | Formulaire sans données de l'annonce, champ obligatoire absent ou invalide, ou attribut de code inconnu. |
 | `SessionDisconnected` | Session non connectée | Vinted a renvoyé l'outil vers sa page de connexion pendant une action qui exige le membre connecté. |
+| `BackupVerification` | Vérification de la sauvegarde | Contrôle d'une sauvegarde avant validation et avant suppression : au moins une photo, chaque fichier présent avec l'empreinte enregistrée, annonce présente dans le dressing, titre et prix identiques au dernier scan. Jamais gardée : refaite à chaque fois. |
+| `VerificationFailure` | Échec de vérification | Aucune photo, photo manquante, photo modifiée, annonce absente, titre changé ou prix changé (valeurs sauvegardée et lue). |
+| `BackupValidation` (`ValidateListingBackup`) | Validation de la sauvegarde | Confirmation par le membre, annonce par annonce, de la sauvegarde qu'il a vue et dont la vérification est réussie ; ne vaut que pour cette version de la sauvegarde (sa date). |
+| `BackupValidationRepository` | Validations | Dernière validation de chaque annonce ; une validation dont la version n'est plus la sauvegarde actuelle ne compte pas. |
+| `ListingBackupView` (`ShowListingBackup`) | Aperçu de la sauvegarde d'une annonce | Contenu par ses libellés, photos gardées dans l'ordre, résultat de la vérification et date de validation éventuelle. |
+| `ListingNotBackedUp` | Annonce non sauvegardée | L'annonce n'a aucune sauvegarde à montrer ni à valider. |
+| `BackupReplaced` | Sauvegarde remplacée | La version vue par le membre n'est plus la sauvegarde actuelle : la validation est refusée. |
+| `BackupNotVerified` | Sauvegarde non vérifiée | La vérification refaite au moment de valider échoue : la validation est refusée. |

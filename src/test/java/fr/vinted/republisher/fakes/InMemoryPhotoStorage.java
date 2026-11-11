@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
@@ -29,6 +30,21 @@ public class InMemoryPhotoStorage implements PhotoStorage {
     /** File name to content, for the given listing. */
     public Map<String, byte[]> files(long listing) {
         return new TreeMap<>(files.getOrDefault(new VintedListingId(listing), Map.of()));
+    }
+
+    /** The file of the photo disappears, as if deleted by hand. */
+    public void lose(long listing, ListingPhoto photo) {
+        files.getOrDefault(new VintedListingId(listing), new HashMap<>()).remove(photo.fileName());
+    }
+
+    /** The file of the photo now holds other bytes, as if edited by hand. */
+    public void overwrite(long listing, ListingPhoto photo, byte[] content) {
+        files.computeIfAbsent(new VintedListingId(listing), id -> new HashMap<>()).put(photo.fileName(), content);
+    }
+
+    @Override
+    public Optional<byte[]> read(VintedListingId listing, ListingPhoto photo) {
+        return Optional.ofNullable(files.getOrDefault(listing, Map.of()).get(photo.fileName())).map(byte[]::clone);
     }
 
     /** Names of the files written so far, in order. */

@@ -40,6 +40,16 @@ public final class DownloadedPhoto {
         return extension;
     }
 
+    /** The type Vinted served the file with. */
+    public String mediaType() {
+        return mediaTypeOf(extension);
+    }
+
+    static String mediaTypeOf(String extension) {
+        return EXTENSIONS.entrySet().stream().filter(type -> type.getValue().equals(extension))
+                .map(Map.Entry::getKey).findFirst().orElseThrow();
+    }
+
     /** Proves the kept file has not changed since it was downloaded. */
     public String sha256() {
         return sha256;
@@ -65,7 +75,7 @@ public final class DownloadedPhoto {
         return "DownloadedPhoto[" + fileName() + ", " + content.length + " bytes]";
     }
 
-    private static String sha256(byte[] content) {
+    static String sha256(byte[] content) {
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content));
         } catch (NoSuchAlgorithmException alwaysThere) {

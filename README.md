@@ -64,6 +64,8 @@ Session Vinted : page `http://localhost:8080/vinted-session.html` (contrat d'API
 
 Dressing : page `http://localhost:8080/wardrobe.html`. « Scanner » parcourt le dressing `VINTED_WARDROBE_URL` dans ce Chrome, puis ouvre chaque annonce une à une, sans rien modifier sur Vinted : comptez 10 à 15 secondes par annonce, soit environ 30 à 35 minutes pour 146 annonces. Chaque annonce active est enregistrée dès sa lecture. Un scan interrompu garde ce qu'il a lu et reprend au scan suivant ; une annonce n'est marquée absente qu'à la fin d'un scan terminé. L'onglet du scan passe au premier plan : laissez-le visible pendant le relevé, sinon la page ne charge pas la suite des annonces. L'application n'écoute que sur `127.0.0.1` et refuse les demandes venues d'un autre site.
 
+Validation : sur la page du dressing, « Voir la sauvegarde » ouvre l'aperçu de la sauvegarde d'une annonce (`listing-backup.html`) : photos gardées, contenu par ses libellés et vérification faite à l'ouverture (au moins une photo, fichiers présents et intacts, annonce présente, titre et prix identiques au dernier scan). « Valider » confirme cette version de la sauvegarde ; une nouvelle sauvegarde de l'annonce annule la validation. Rien n'est demandé à Vinted.
+
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
 | `DB_NAME` | nom de la base | `appdb` |

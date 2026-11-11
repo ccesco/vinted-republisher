@@ -37,6 +37,11 @@ public class InMemoryListingBackupRepository implements ListingBackupRepository 
     }
 
     @Override
+    public Optional<ListingBackup> find(VintedListingId listing) {
+        return Optional.ofNullable(backups.get(listing));
+    }
+
+    @Override
     public void save(ListingBackup backup) {
         if (databaseDown) {
             throw new IllegalStateException("database down");

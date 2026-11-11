@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Sauvegarde d'une annonce</title>
+    <style>
+        #photos img { max-width: 100%; max-height: 80vh; display: block; margin-bottom: 1em; }
+    </style>
+</head>
+<body>
+<p><a href="wardrobe.html">Retour au dressing</a></p>
+<h1>Sauvegarde d'une annonce</h1>
+<p id="problem" role="alert" hidden></p>
+<section id="backup" hidden>
+    <div id="verification"></div>
+    <p id="saved-at"></p>
+    <p id="validated-at"></p>
+    <p><button id="validate" type="button" hidden>Valider</button></p>
+    <dl id="content"></dl>
+    <div id="photos"></div>
+</section>
+<script>
+    const LABELS = [
+        ['title', 'Titre'], ['description', 'Description'], ['price', 'Prix'], ['category', 'Catégorie'],
+        ['brand', 'Marque'], ['condition', 'État'], ['size', 'Taille'], ['colors', 'Couleurs'],
+        ['materials', 'Matières'], ['packageSize', 'Format du colis'], ['isbn', 'ISBN'],
+        ['bookTitle', 'Titre du livre'], ['author', 'Auteur'], ['manufacturer', 'Fabricant'],
+        ['manufacturerLabel', 'Libellé du fabricant'], ['model', 'Modèle'], ['measurementWidth', 'Largeur'],
+        ['measurementLength', 'Longueur'], ['measurementUnit', 'Unité de mesure']
+    ];
+    const REFUSALS = {
+        BACKUP_REPLACED: "La sauvegarde a été remplacée depuis l'ouverture de cette page : rechargez-la pour voir la nouvelle version avant de la valider.",
+        VERIFICATION_FAILED: 'La vérification a échoué : rien n\'a été validé.'
+    };
+    const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : rechargez la page.";
+
+    const listingId = new URLSearchParams(location.search).get('id');
+    const problem = document.getElementById('problem');
+    const section = document.getElementById('backup');
+    const verification = document.getElementById('verification');
+    const savedAt = document.getElementById('saved-at');
+    const validatedAt = document.getElementById('validated-at');
+    const validateButton = document.getElementById('validate');
+    const content = document.getElementById('content');
+    const photos = document.getElementById('photos');
+    let current;
+
+    function priceOf(price) {
+        return new Intl.NumberFormat('fr-FR', {style: 'currency', currency: price.currency}).format(price.amount);
+    }
+
+    function dateOf(instant) {
+        return new Date(instant).toLocaleString('fr-FR');
+    }
+
+    function failureOf(failure) {
+        switch (failure.kind) {
+            case 'NO_PHOTO': return 'aucune photo gardée : refaites la sauvegarde';
+            case 'PHOTO_MISSING': return `photo ${failure.rank} manquante sur le disque`;
+            case 'PHOTO_ALTERED': return `photo ${failure.rank} modifiée sur le disque depuis sa sauvegarde`;
+            case 'LISTING_ABSENT': return 'annonce absente du dressing';
+            case 'TITLE_CHANGED':
+                return `titre « ${failure.savedTitle} » sauvegardé, « ${failure.scannedTitle} » au dernier scan`;
+            case 'PRICE_CHANGED':
+                return `prix ${priceOf(failure.savedPrice)} sauvegardé, ${priceOf(failure.scannedPrice)} au dernier scan`;
+            default: return failure.kind;
+        }
+    }
+
+    // Les textes viennent de Vinted : jamais d'innerHTML.
+    function showVerification(result) {
+        if (result.passed) {
+            const passed = document.createElement('p');
+            passed.textContent = 'Vérification réussie.';
+            verification.replaceChildren(passed);
+            return;
+        }
+        const title = document.createElement('p');
+        title.textContent = 'Vérification échouée, la sauvegarde ne peut pas être validée :';
+        const list = document.createElement('ul');
+        list.replaceChildren(...result.failures.map(failure => {
+            const item = document.createElement('li');
+            item.textContent = failureOf(failure);
+            return item;
+        }));
+        verification.replaceChildren(title, list);
+    }
+
+    function showContent(fields) {
+        content.replaceChildren(...LABELS.filter(([key]) => fields[key] !== undefined && fields[key] !== '')
+            .flatMap(([key, label]) => {
+                const term = document.createElement('dt');
+                term.textContent = label;
+                const value = document.createElement('dd');
+                value.textContent = key === 'price' ? priceOf(fields.price) : String(fields[key]);
+                value.style.whiteSpace = 'pre-wrap';
+                return [term, value];
+            }));
+    }
+
+    function showPhotos(kept) {
+        photos.replaceChildren(...kept.map(photo => {
+            const image = document.createElement('img');
+            image.src = photo.url;
+            image.alt = photo.rank === 0 ? 'Photo 0 (couverture)' : 'Photo ' + photo.rank;
+            return image;
+        }));
+    }
+
+    function show(view) {
+        current = view;
+        section.hidden = false;
+        problem.hidden = true;
+        showVerification(view.verification);
+        savedAt.textContent = 'Sauvegardée le ' + dateOf(view.savedAt) + '.';
+        validatedAt.textContent = view.validatedAt ? 'Validée le ' + dateOf(view.validatedAt) + '.' : '';
+        validateButton.hidden = Boolean(view.validatedAt);
+        validateButton.disabled = !view.verification.passed;
+        showContent(view.content);
+        showPhotos(view.photos);
+    }
+
+    function tell(message) {
+        problem.textContent = message;
+        problem.hidden = false;
+    }
+
+    async function load() {
+        try {
+            const response = await fetch('/api/listings/' + encodeURIComponent(listingId) + '/backup');
+            // 400 : identifiant absent ou invalide dans l'adresse de la page.
+            if (response.status === 404 || response.status === 400) {
+                tell('Aucune sauvegarde pour cette annonce.');
+                return;
+            }
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            show(await response.json());
+        } catch (unreachable) {
+            tell(APPLICATION_DOWN_MESSAGE);
+        }
+    }
+
+    async function validate() {
+        validateButton.disabled = true;
+        try {
+            const response = await fetch('/api/listings/' + encodeURIComponent(listingId) + '/backup/validation', {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({savedAt: current.savedAt})
+            });
+            if (response.ok) {
+                show(await response.json());
+                return;
+            }
+            const refusal = response.status === 409 || response.status === 422 ? await response.json() : null;
+            // Refusée (version remplacée ou vérification échouée) : rien à revalider avant de recharger la page.
+            if (refusal?.verification) {
+                showVerification(refusal.verification);
+            } else if (!refusal) {
+                validateButton.disabled = false;
+            }
+            tell(REFUSALS[refusal?.reason] ?? APPLICATION_DOWN_MESSAGE);
+        } catch (unreachable) {
+            validateButton.disabled = false;
+            tell(APPLICATION_DOWN_MESSAGE);
+        }
+    }
+
+    validateButton.addEventListener('click', validate);
+    load();
+</script>
+</body>
+</html>

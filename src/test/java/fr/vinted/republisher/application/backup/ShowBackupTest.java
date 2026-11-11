@@ -2,6 +2,7 @@ package fr.vinted.republisher.application.backup;
 
 import fr.vinted.republisher.domain.backup.BackupOverview;
 import fr.vinted.republisher.domain.backup.BackupProblem;
+import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
@@ -9,6 +10,7 @@ import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
 import org.junit.jupiter.api.Test;
@@ -32,11 +34,12 @@ class ShowBackupTest {
     private final LastBackupProblem lastProblem = new LastBackupProblem();
     private final InMemoryWardrobeBackupRepository backups = new InMemoryWardrobeBackupRepository();
     private final InMemoryListingBackupRepository listingBackups = new InMemoryListingBackupRepository();
-    private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups, listingBackups);
+    private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
+    private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups, listingBackups, validations);
 
     @Test
     void nothing_is_known_before_the_first_backup() {
-        assertThat(showBackup.show()).isEqualTo(new BackupOverview(false, Optional.empty(), Optional.empty(), Map.of(), Map.of()));
+        assertThat(showBackup.show()).isEqualTo(new BackupOverview(false, Optional.empty(), Optional.empty(), Map.of(), Map.of(), Map.of()));
     }
 
     @Test
@@ -77,5 +80,17 @@ class ShowBackupTest {
         lastProblem.report(BackupProblem.SESSION_DISCONNECTED);
 
         assertThat(showBackup.show().problem()).contains(BackupProblem.SESSION_DISCONNECTED);
+    }
+
+    @Test
+    void shows_the_validations_that_hold_for_the_current_backups_only() {
+        ListingBackup validated = aBackup(1, STARTED_AT);
+        ListingBackup replaced = aBackup(2, FINISHED_AT);
+        listingBackups.save(validated);
+        listingBackups.save(replaced);
+        validations.save(BackupValidation.of(validated, FINISHED_AT));
+        validations.save(BackupValidation.of(aBackup(2, STARTED_AT), FINISHED_AT));
+
+        assertThat(showBackup.show().validatedAt()).isEqualTo(Map.of(new VintedListingId(1), FINISHED_AT));
     }
 }

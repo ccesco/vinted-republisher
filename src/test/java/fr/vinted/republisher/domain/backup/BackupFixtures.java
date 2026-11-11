@@ -23,8 +23,12 @@ public final class BackupFixtures {
     }
 
     public static ListingContent aContent(long id, String title, String description) {
+        return aContent(id, title, description, "12.50");
+    }
+
+    public static ListingContent aContent(long id, String title, String description, String price) {
         return new ListingContent(new VintedListingId(id), title, description,
-                new Price(new BigDecimal("12.50"), "EUR"),
+                new Price(new BigDecimal(price), "EUR"),
                 new FormOption(1653, "Chaussures bébé"),
                 Optional.of(new FormOption(60, "Kiabi")),
                 new FormOption(2, "Très bon état"),

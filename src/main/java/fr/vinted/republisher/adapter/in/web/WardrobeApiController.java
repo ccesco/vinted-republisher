@@ -86,6 +86,7 @@ public class WardrobeApiController implements WardrobeApi {
                 .url(listing.url())
                 .savedAt(dateOf(Optional.ofNullable(backup.savedAt().get(listing.id()))))
                 .photoCount(backup.photoCount().get(listing.id()))
+                .validatedAt(dateOf(Optional.ofNullable(backup.validatedAt().get(listing.id()))))
                 .statistics(Optional.ofNullable(statistics.get(listing.id())).map(WardrobeApiController::statisticsOf)
                         .orElse(null));
     }

@@ -6,7 +6,11 @@ import fr.vinted.republisher.adapter.out.browser.PlaywrightListingContentReader;
 import fr.vinted.republisher.adapter.out.storage.FilePhotoStorage;
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
+import fr.vinted.republisher.application.backup.ShowListingBackup;
+import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
+import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.domain.backup.BackupPace;
+import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
@@ -44,8 +48,27 @@ public class BackupConfiguration {
 
     @Bean
     ShowBackup showBackup(VintedSession session, LastBackupProblem lastBackupProblem,
-                          WardrobeBackupRepository backups, ListingBackupRepository listingBackups) {
-        return new ShowBackup(session, lastBackupProblem, backups, listingBackups);
+                          WardrobeBackupRepository backups, ListingBackupRepository listingBackups,
+                          BackupValidationRepository validations) {
+        return new ShowBackup(session, lastBackupProblem, backups, listingBackups, validations);
+    }
+
+    @Bean
+    ShowListingBackup showListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
+                                        PhotoStorage photos, BackupValidationRepository validations) {
+        return new ShowListingBackup(listings, listingBackups, photos, validations);
+    }
+
+    @Bean
+    ValidateListingBackup validateListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
+                                                PhotoStorage photos, BackupValidationRepository validations,
+                                                Clock clock) {
+        return new ValidateListingBackup(listings, listingBackups, photos, validations, clock);
+    }
+
+    @Bean
+    ShowListingBackupPhoto showListingBackupPhoto(ListingBackupRepository listingBackups, PhotoStorage photos) {
+        return new ShowListingBackupPhoto(listingBackups, photos);
     }
 
     @Bean

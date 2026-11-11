@@ -23,6 +23,11 @@ public record ListingPhoto(int rank, String sha256, String extension) {
         return new ListingPhoto(rank, photo.sha256(), photo.extension());
     }
 
+    /** The type Vinted served the file with. */
+    public String mediaType() {
+        return DownloadedPhoto.mediaTypeOf(extension);
+    }
+
     public String fileName() {
         return sha256 + "." + extension;
     }

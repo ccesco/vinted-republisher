@@ -272,6 +272,32 @@ class WardrobePageTest {
     }
 
     @Test
+    void shows_validation() {
+        // Étant donné une annonce sauvegardée et validée, et une autre sauvegardée non validée, et une jamais sauvegardée
+        overview.set("""
+                {"scanInProgress": false, "backupInProgress": false,
+                 "listings": [
+                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                    "url": "https://vinted.test/items/3", "savedAt": "2026-11-07T10:00:00Z", "photoCount": 2,
+                    "validatedAt": "2026-11-08T09:00:00Z"},
+                   {"vintedId": 2, "title": "Jupe", "price": {"amount": 4, "currency": "EUR"},
+                    "url": "https://vinted.test/items/2", "savedAt": "2026-11-07T10:00:00Z", "photoCount": 1},
+                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                    "url": "https://vinted.test/items/1"}]}""");
+        // Quand j'ouvre la page du dressing
+        open();
+        // Alors le dressing affiche « Voir la sauvegarde » pour les deux sauvegardées et « validée le … » pour la première
+        assertThat(rows().nth(0)).containsText("validée le 08/11/2026");
+        assertThat(rows().nth(1)).not().containsText("validée");
+        assertThat(rows().nth(0).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
+                .hasAttribute("href", "listing-backup.html?id=3");
+        assertThat(rows().nth(1).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
+                .hasAttribute("href", "listing-backup.html?id=2");
+        assertThat(rows().nth(2).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
+                .hasCount(0);
+    }
+
+    @Test
     void says_when_no_backup_has_finished_yet() {
         open();
 

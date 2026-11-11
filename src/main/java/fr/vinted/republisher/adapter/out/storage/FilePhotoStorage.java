@@ -11,6 +11,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -61,6 +62,16 @@ public class FilePhotoStorage implements PhotoStorage {
             }
         } catch (IOException failure) {
             throw new UncheckedIOException("Photos of " + folder + " not cleaned up", failure);
+        }
+    }
+
+    /** A file that cannot be read is as good as missing: it cannot be republished. */
+    @Override
+    public Optional<byte[]> read(VintedListingId listing, ListingPhoto photo) {
+        try {
+            return Optional.of(Files.readAllBytes(folderOf(listing).resolve(photo.fileName())));
+        } catch (IOException missingOrUnreadable) {
+            return Optional.empty();
         }
     }
 
