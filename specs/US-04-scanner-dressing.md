@@ -14,7 +14,7 @@ En tant que membre, je veux lancer un scan de mon dressing, afin que l'outil con
 1. Une page web minimale (`/wardrobe.html`, HTML statique + JS) affiche un bouton « Scanner », la date et le nombre d'annonces du dernier scan terminé, un éventuel problème, et la liste simple des annonces présentes (titre, prix, lien vers Vinted). Elle n'appelle que l'API REST. Tant qu'un scan est en cours, elle affiche « scan en cours » et relit l'état toutes les 2 secondes.
 2. « Scanner » lance le scan en arrière-plan. Il partage le verrou « une seule action navigateur » d'US-03 : une demande reçue pendant une action en cours est ignorée. Aucune session connectée n'est exigée.
 3. **Reprise** : s'il existe un scan non terminé, le nouveau scan le reprend ; sinon un scan est créé avec sa date de début.
-4. **Relevé** : l'outil ouvre `VINTED_WARDROBE_URL` dans un onglet du Chrome piloté, passé au premier plan, et lit le total affiché par l'en-tête. Il défile avec une pause aléatoire, en lisant dans la page les liens des annonces, jusqu'à en avoir autant que le total, ou après 30 secondes sans nouveau lien. Le nombre de liens doit égaler le total, et être non nul ; sinon le scan échoue et rien ne change.
+4. **Relevé** : l'outil ouvre `VINTED_WARDROBE_URL` dans un onglet du Chrome piloté, passé au premier plan, et lit le total affiché par l'en-tête. Il défile avec une pause aléatoire, en lisant dans la page les liens des annonces, jusqu'à en avoir autant que le total, ou après 30 secondes sans nouveau lien. Une carte qui affiche le bandeau « Vendu » est ignorée : son lien n'est pas relevé, l'annonce n'est jamais ouverte. Le nombre de liens doit égaler le total, et être non nul ; sinon le scan échoue et rien ne change.
 5. **Lecture** : dans le même onglet, l'outil ouvre une à une les annonces non encore lues par ce scan, avec une pause aléatoire de 10 à 15 secondes entre deux annonces. Il lit le titre, le prix, la devise et la disponibilité dans les données structurées de la page (`Product` en JSON-LD).
 6. Une annonce est active si sa disponibilité est `InStock`. Chaque annonce active est enregistrée aussitôt, créée ou mise à jour, marquée présente, avec `last_seen_at` à l'instant de sa lecture.
 7. **Fin** : quand toutes les annonces ont été lues, l'outil ferme l'onglet, marque absentes les annonces présentes non vues depuis le début du scan ou sorties du dernier relevé, et termine le scan. Aucune ligne n'est supprimée.
@@ -207,7 +207,17 @@ Et la deuxième annonce est marquée absente
 ```
 Test : `ScanWardrobeAcceptanceTest.listing_gone_during_an_interruption_ends_up_absent()`
 
+### AT-04-18 – Annonces vendues ignorées
+```gherkin
+Étant donné un dressing annonçant 1 article, dont la grille montre aussi une carte marquée "Vendu"
+Quand l'adaptateur navigateur lit le dressing
+Alors seul le lien de l'annonce non vendue est relevé
+Et le relevé est complet
+```
+Test : `PlaywrightWardrobeReaderTest.Reading.ignores_the_cards_of_sold_listings()`
+
 ## Cas limites et erreurs
+- Annonce connue qui passe à « Vendu » : elle sort du relevé et est marquée absente à la fin du scan, comme une annonce retirée.
 - Page d'annonce sans données `Product`, ou données incomplètes : problème « dressing illisible », le scan s'arrête et reste non terminé.
 - En-tête sans total lisible, ou plusieurs totaux différents sur la page : problème « dressing illisible », rien n'est changé.
 - Annonce vendue ou retirée entre le relevé et sa lecture, page en HTTP 404 : traitée comme toute erreur HTTP, le scan s'arrête ; le suivant la relèvera ou non.
@@ -231,6 +241,7 @@ Test : `ScanWardrobeAcceptanceTest.listing_gone_during_an_interruption_ends_up_a
 - Lecture décidée par l'utilisateur après le 403 : annonce par annonce, en ouvrant chaque page. Aucune requête directe vers l'API de Vinted. Écartés : recopier les en-têtes de la page (contournerait un refus) ; lire seulement les cartes du dressing (état réservé ou masqué non garanti).
 - Observations du 2026-11-06, en visiteur, navigateur intégré de l'app : le dressing affiche « 146 articles » et ses 146 annonces apparaissent en défilant, chacune dans un `grid-item` avec un lien `/items/<id>`. Une page d'annonce contient un JSON-LD `Product` avec `name`, `offers.price`, `offers.priceCurrency`, `offers.url` et `offers.availability` (`InStock`). Aucune annonce non active n'a été observée.
 - Une annonce est active si `offers.availability` vaut `InStock`.
+- Recette du 2026-11-11, Chrome connecté : la grille montre 147 cartes pour « 144 articles » ; les annonces vendues y restent, avec un bandeau vert « Vendu » en bas de la photo, et l'en-tête ne les compterait pas (à confirmer par la reprise de la recette : sinon le relevé reste incomplet et le scan échoue). Décision de l'utilisateur : le scan ne lit pas les annonces vendues ; une carte dont un texte vaut exactement « Vendu » est ignorée au relevé.
 - Enregistrement au fil de la lecture, décidé par l'utilisateur : un échec garde ce qui a été lu. Il remplace le scan tout ou rien.
 - Table `wardrobe_scan` (`id`, `started_at`, `finished_at`) : elle permet de reprendre un scan et de distinguer un scan partiel d'un scan terminé. Sa date de fin est la date du dernier scan affichée.
 - Une annonce est déjà lue par le scan en cours si son `last_seen_at` n'est pas antérieur à son début. Une annonce non active n'est pas enregistrée : elle est donc relue en cas de reprise.
