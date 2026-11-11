@@ -34,6 +34,7 @@ final class WardrobePage {
                 .filter(element => element.children.length === 0).map(element => element.textContent);
               return [...card.querySelectorAll("a[href*='/items/']")].map(link => ({href: link.href, texts}));
             })""";
+    private static final String SOLD_BANNER = "Vendu";
     private static final int WHEEL_STEP_PIXELS = 2500;
     private static final int POINTER_X = 400;
     private static final int POINTER_Y = 400;
@@ -93,12 +94,17 @@ final class WardrobePage {
 
     private Optional<ListingLink> linkOn(Map<?, ?> card) {
         Matcher address = listingAddress.matcher(String.valueOf(card.get("href")));
-        if (!address.matches()) {
+        List<String> texts = ((List<?>) card.get("texts")).stream().map(String::valueOf).toList();
+        if (!address.matches() || isSold(texts)) {
             return Optional.empty();
         }
         ListingLink link =
                 new ListingLink(new VintedListingId(Long.parseLong(address.group(2))), URI.create(address.group(1)));
-        List<String> texts = ((List<?>) card.get("texts")).stream().map(String::valueOf).toList();
         return Optional.of(ListingStatistics.shownBy(texts).map(link::showing).orElse(link));
+    }
+
+    /** Sold listings stay in the grid under a "Vendu" banner, but the header does not count them: never read. */
+    private static boolean isSold(List<String> texts) {
+        return texts.stream().map(String::strip).anyMatch(SOLD_BANNER::equals);
     }
 }
