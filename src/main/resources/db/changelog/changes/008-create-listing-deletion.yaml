@@ -1,0 +1,36 @@
+# US-09 : chaque tentative de suppression d'une annonce sur Vinted arrivée au clic de confirmation, jamais supprimée.
+# La republication (US-12) ne partira que d'une suppression CONFIRMED.
+databaseChangeLog:
+  - changeSet:
+      id: 008-create-listing-deletion
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_deletion
+            columns:
+              - column: {name: id, type: uuid, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: listing_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: backup_saved_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: attempted_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: outcome, type: text, constraints: {nullable: false}}
+              - column: {name: settled_at, type: timestamptz}
+        # Une suppression s'appuie sur une sauvegarde ; elle en garde la trace : la sauvegarde ne peut plus disparaître.
+        - addForeignKeyConstraint:
+            baseTableName: listing_deletion
+            baseColumnNames: listing_id
+            constraintName: listing_deletion_listing_content_fk
+            referencedTableName: listing_content
+            referencedColumnNames: listing_id
+            onDelete: RESTRICT
+        - sql:
+            sql: >
+              ALTER TABLE listing_deletion ADD CONSTRAINT listing_deletion_outcome_check
+                CHECK (outcome IN ('CONFIRMED', 'UNCONFIRMED', 'NOT_DONE')
+                       AND (outcome = 'UNCONFIRMED') = (settled_at IS NULL));
+              CREATE UNIQUE INDEX listing_deletion_one_confirmed ON listing_deletion (listing_id)
+                WHERE outcome = 'CONFIRMED';
+              CREATE UNIQUE INDEX listing_deletion_one_unconfirmed ON listing_deletion (listing_id)
+                WHERE outcome = 'UNCONFIRMED';
+      rollback:
+        - dropTable:
+            tableName: listing_deletion

@@ -14,3 +14,5 @@ databaseChangeLog:
       file: db/changelog/changes/006-create-listing-statistics-reading.yaml
   - include:
       file: db/changelog/changes/007-create-backup-validation.yaml
+  - include:
+      file: db/changelog/changes/008-create-listing-deletion.yaml

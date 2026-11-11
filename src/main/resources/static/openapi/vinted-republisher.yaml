@@ -14,6 +14,8 @@ tags:
     description: Dressing (US-04)
   - name: listing-backup
     description: Sauvegarde d'une annonce et sa validation (US-08)
+  - name: listing-deletion
+    description: Suppression d'une annonce sur Vinted et mode dry-run (US-09, US-10)
 paths:
   /api/vinted-session:
     get:
@@ -213,6 +215,108 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ValidationRefusal'
+  /api/listings/{listingId}/deletion:
+    post:
+      tags: [listing-deletion]
+      operationId: deleteListing
+      summary: Supprimer une annonce de Vinted
+      description: >
+        Supprime l'annonce sur Vinted dans le Chrome piloté, comme le membre, seulement si la version de la sauvegarde
+        vue (savedAt) est la sauvegarde actuelle, validée, dont la vérification réussit, et si Vinted montre l'annonce
+        active, au titre et au prix sauvegardés. Tout refus survient avant le moindre clic. En dry-run (par défaut),
+        s'arrête avant le moindre clic de suppression et ne garde rien. Répond une fois l'action finie.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeletionRequest'
+      responses:
+        '200':
+          description: >
+            Suppression faite (deletion.outcome CONFIRMED), restée dans le doute après le clic de confirmation
+            (UNCONFIRMED), ou dry-run réussi (dryRunPassed) ; aperçu à jour.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '400':
+          description: Corps de la demande invalide.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: >
+            Sauvegarde remplacée depuis l'aperçu, non validée, annonce déjà supprimée, suppression non confirmée à
+            revérifier, ou autre action navigateur en cours. Rien n'est touché sur Vinted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
+        '422':
+          description: >
+            La vérification de la sauvegarde échoue, ou Vinted montre l'annonce autrement que sa sauvegarde.
+            Rien n'est touché sur Vinted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
+        '500':
+          description: Échec inattendu avant le clic de confirmation (détail dans les logs) ; rien n'est supprimé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée ou page de l'annonce illisible, avant
+            le clic de confirmation ; rien n'est supprimé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
+  /api/listings/{listingId}/deletion/recheck:
+    post:
+      tags: [listing-deletion]
+      operationId: recheckListingDeletion
+      summary: Revérifier sur Vinted une suppression non confirmée
+      description: >
+        Ouvre seulement la page de l'annonce, sans aucun clic. Plus montrée : suppression confirmée. Montrée et active :
+        suppression non faite, une nouvelle suppression redevient possible. Sinon le doute reste.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      responses:
+        '200':
+          description: Aperçu à jour.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: Aucune suppression non confirmée, ou autre action navigateur en cours.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
+        '500':
+          description: Échec inattendu ; le doute reste.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
+        '502':
+          description: Navigateur indisponible, Vinted inaccessible, session non connectée ou page illisible ; le doute reste.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeletionRefusal'
 components:
   parameters:
     ListingId:
@@ -367,7 +471,7 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP]
+      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.
@@ -375,11 +479,19 @@ components:
     ListingBackupView:
       type: object
       description: Ce que le membre voit de la sauvegarde d'une annonce avant de la valider.
-      required: [vintedId, savedAt, verification, content, photos]
+      required: [vintedId, savedAt, verification, content, photos, deletionDryRun]
       properties:
         vintedId:
           type: integer
           format: int64
+        deletionDryRun:
+          type: boolean
+          description: Vrai tant que le dry-run est actif (aucune suppression réelle) ; se règle par DELETION_DRY_RUN.
+        dryRunPassed:
+          type: boolean
+          description: Présent et vrai seulement dans la réponse d'un dry-run réussi ; rien n'a été supprimé.
+        deletion:
+          $ref: '#/components/schemas/ListingDeletion'
         savedAt:
           type: string
           format: date-time
@@ -526,3 +638,82 @@ components:
           enum: [BACKUP_REPLACED, VERIFICATION_FAILED]
         verification:
           $ref: '#/components/schemas/BackupVerification'
+    DeletionRequest:
+      type: object
+      required: [savedAt]
+      properties:
+        savedAt:
+          type: string
+          format: date-time
+          description: Date de la sauvegarde que le membre a vue.
+    ListingDeletion:
+      type: object
+      description: Dernière tentative de suppression de l'annonce, arrivée au clic de confirmation dans Vinted.
+      required: [outcome, attemptedAt, backupSavedAt]
+      properties:
+        outcome:
+          $ref: '#/components/schemas/DeletionOutcome'
+        attemptedAt:
+          type: string
+          format: date-time
+          description: Date du clic de confirmation dans Vinted.
+        settledAt:
+          type: string
+          format: date-time
+          description: Date de la preuve ou de la levée du doute ; absente tant que la suppression est non confirmée.
+        backupSavedAt:
+          type: string
+          format: date-time
+          description: Version de la sauvegarde sur laquelle s'appuie la suppression.
+      example:
+        outcome: CONFIRMED
+        attemptedAt: '2026-11-11T10:00:00Z'
+        settledAt: '2026-11-11T10:00:05Z'
+        backupSavedAt: '2026-11-10T10:00:00Z'
+    DeletionOutcome:
+      type: string
+      description: >
+        CONFIRMED : Vinted ne montre plus l'annonce. UNCONFIRMED : suppression non confirmée, à revérifier sur Vinted.
+        NOT_DONE : l'annonce était toujours là.
+      enum: [CONFIRMED, UNCONFIRMED, NOT_DONE]
+    DeletionRefusal:
+      type: object
+      description: Raison pour laquelle la suppression ou la revérification n'a pas eu lieu.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [BACKUP_REPLACED, NOT_VALIDATED, ALREADY_DELETED, DELETION_UNCONFIRMED, NO_UNCONFIRMED_DELETION,
+                 BROWSER_BUSY, VERIFICATION_FAILED, LISTING_CHANGED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
+                 SESSION_DISCONNECTED, LISTING_PAGE_UNREADABLE, DELETION_FAILED]
+        verification:
+          $ref: '#/components/schemas/BackupVerification'
+        differences:
+          type: array
+          nullable: true
+          description: Écarts entre l'annonce montrée par Vinted et sa sauvegarde ; présent pour LISTING_CHANGED seulement.
+          items:
+            $ref: '#/components/schemas/ListingDifference'
+      example:
+        reason: LISTING_CHANGED
+        differences:
+          - kind: PRICE_CHANGED
+            savedPrice: {amount: 12.50, currency: EUR}
+            readPrice: {amount: 10.00, currency: EUR}
+    ListingDifference:
+      type: object
+      required: [kind]
+      properties:
+        kind:
+          type: string
+          enum: [NOT_ACTIVE, TITLE_CHANGED, PRICE_CHANGED]
+        savedTitle:
+          type: string
+          description: Titre sauvegardé, pour TITLE_CHANGED.
+        readTitle:
+          type: string
+          description: Titre lu sur Vinted, pour TITLE_CHANGED.
+        savedPrice:
+          $ref: '#/components/schemas/Price'
+        readPrice:
+          $ref: '#/components/schemas/Price'
