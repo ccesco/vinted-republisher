@@ -1,5 +1,5 @@
 # US-05 – Sauvegarder le contenu d'une annonce
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-03, US-04
 
@@ -29,18 +29,18 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 `SessionOverview.currentAction` gagne `BACKING_UP`, affiché « sauvegarde en cours » sur la page de la session. Le contenu sauvegardé n'est pas exposé par l'API (fiche détail : US-18b).
 
 ## Critères d'acceptation
-- [ ] La sauvegarde ne fait que des navigations de lecture : aucun clic, aucune saisie, aucune soumission sur le formulaire, aucune requête directe à l'API de Vinted.
-- [ ] Chaque annonce présente est sauvegardée avec tous les champs du formulaire sauf les photos : identifiants et libellés affichés.
-- [ ] Une sauvegarde n'est remplacée que par une lecture complète ; une lecture incomplète, illisible ou avec un attribut inconnu arrête la sauvegarde et laisse l'ancienne version intacte.
-- [ ] Chaque annonce est sauvegardée dès sa lecture.
-- [ ] Une sauvegarde interrompue se reprend sans relire les annonces déjà sauvegardées par elle.
-- [ ] Une redirection vers la connexion arrête la sauvegarde et passe l'état de session à « non connecté ».
-- [ ] Toute réponse HTTP ≥ 400 sur un formulaire arrête la sauvegarde, sans nouvelle tentative automatique.
-- [ ] La pause entre deux annonces est comprise entre 10 et 15 secondes.
-- [ ] Une seule action navigateur a lieu à la fois.
-- [ ] Les sauvegardes restent en base après un redémarrage de l'application, une colonne typée par donnée.
-- [ ] Un autre site ouvert dans le navigateur ne peut pas lancer de sauvegarde.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] La sauvegarde ne fait que des navigations de lecture : aucun clic, aucune saisie, aucune soumission sur le formulaire, aucune requête directe à l'API de Vinted.
+- [x] Chaque annonce présente est sauvegardée avec tous les champs du formulaire sauf les photos : identifiants et libellés affichés.
+- [x] Une sauvegarde n'est remplacée que par une lecture complète ; une lecture incomplète, illisible ou avec un attribut inconnu arrête la sauvegarde et laisse l'ancienne version intacte.
+- [x] Chaque annonce est sauvegardée dès sa lecture.
+- [x] Une sauvegarde interrompue se reprend sans relire les annonces déjà sauvegardées par elle.
+- [x] Une redirection vers la connexion arrête la sauvegarde et passe l'état de session à « non connecté ».
+- [x] Toute réponse HTTP ≥ 400 sur un formulaire arrête la sauvegarde, sans nouvelle tentative automatique.
+- [x] La pause entre deux annonces est comprise entre 10 et 15 secondes.
+- [x] Une seule action navigateur a lieu à la fois.
+- [x] Les sauvegardes restent en base après un redémarrage de l'application, une colonne typée par donnée.
+- [x] Un autre site ouvert dans le navigateur ne peut pas lancer de sauvegarde.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 ### AT-05-01 – Sauvegarde d'un dressing
@@ -194,6 +194,7 @@ Et le contenu sauvegardé de quelques annonces correspond à leur formulaire de 
 Et aucune annonce n'a été modifiée sur Vinted
 ```
 Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la sauvegarde après quelques annonces pour vérifier la reprise. Tout attribut inconnu rencontré se traite par une mise à jour de cette spec. Ce test vérifie aussi : une description longue sauvegardée en entier ; le comportement d'une annonce non modifiable (vendue, réservée) sur `/items/<id>/edit` (aujourd'hui, toute redirection hors du formulaire est traitée en « session non connectée ») ; le libellé du format du colis.
+Non fait à la clôture (2026-11-11) : l'utilisateur a choisi de passer l'US en « implémentée » avec ce test encore ouvert. Tout écart constaté se traite par une mise à jour de cette spec.
 
 ## Cas limites et erreurs
 - Objet de l'annonce absent des scripts, `id` différent de l'annonce ouverte, champ obligatoire absent ou invalide : « annonce illisible », la sauvegarde s'arrête.
