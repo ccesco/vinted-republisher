@@ -1,6 +1,8 @@
 package fr.vinted.republisher.adapter.out.browser;
 
+import fr.vinted.republisher.domain.deletion.DeletionVisit;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
+import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import org.junit.jupiter.api.Test;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aLink;
@@ -14,8 +16,17 @@ class UnobservedListingDeleterTest {
 
     @Test
     void refuses_to_delete_without_asking_anything() {
-        assertThatThrownBy(() -> deleter.delete(aLink(1), read -> fail("nothing may be decided")))
-                .isInstanceOf(ListingPageUnreadable.class).hasMessageContaining("AT-09-20");
+        assertThatThrownBy(() -> deleter.delete(aLink(1), new DeletionVisit() {
+            @Override
+            public boolean agreesToDelete(ScannedListing read) {
+                return fail("nothing may be decided");
+            }
+
+            @Override
+            public void aboutToConfirm() {
+                fail("nothing may be confirmed");
+            }
+        })).isInstanceOf(ListingPageUnreadable.class).hasMessageContaining("AT-09-20");
     }
 
     @Test

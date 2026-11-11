@@ -14,10 +14,14 @@ import java.util.Optional;
 public class InMemoryListingDeletionRepository implements ListingDeletionRepository {
 
     private final Map<ListingDeletionId, ListingDeletion> deletions = new LinkedHashMap<>();
-    private boolean databaseDown;
+    private int savesBeforeTheDatabaseGoesDown = Integer.MAX_VALUE;
 
     public InMemoryListingDeletionRepository whereDatabaseIsDown() {
-        databaseDown = true;
+        return whereDatabaseGoesDownAfter(0);
+    }
+
+    public InMemoryListingDeletionRepository whereDatabaseGoesDownAfter(int saves) {
+        savesBeforeTheDatabaseGoesDown = saves;
         return this;
     }
 
@@ -33,9 +37,10 @@ public class InMemoryListingDeletionRepository implements ListingDeletionReposit
 
     @Override
     public void save(ListingDeletion deletion) {
-        if (databaseDown) {
+        if (savesBeforeTheDatabaseGoesDown == 0) {
             throw new IllegalStateException("database down");
         }
+        savesBeforeTheDatabaseGoesDown--;
         deletions.put(deletion.id(), deletion);
     }
 }

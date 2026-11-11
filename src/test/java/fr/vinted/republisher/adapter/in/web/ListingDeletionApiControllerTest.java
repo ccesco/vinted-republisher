@@ -6,6 +6,8 @@ import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -28,6 +30,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
@@ -62,6 +65,12 @@ class ListingDeletionApiControllerTest {
 
     @Autowired
     private FakeListingDeleter vinted;
+
+    @Autowired
+    private InMemoryListingDeletionRepository deletions;
+
+    @Autowired
+    private VintedSession session;
 
     @Test
     void dry_run_answers_that_nothing_was_deleted() {
@@ -149,6 +158,89 @@ class ListingDeletionApiControllerTest {
 
         assertThat(mvc.post().uri("/api/listings/1/deletion").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .hasStatus(400);
+    }
+
+    @Test
+    void recheck_answers_with_the_settled_deletion() {
+        ListingBackup backup = aValidatedListing();
+        deletions.save(ListingDeletion.attempted(backup, NOW));
+        vinted.showingNothing();
+
+        assertThat(mvc.post().uri("/api/listings/1/deletion/recheck"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.deletion").isEqualTo(Map.of("outcome", "CONFIRMED",
+                        "attemptedAt", "2026-11-11T10:00:00Z", "settledAt", "2026-11-11T10:00:00Z",
+                        "backupSavedAt", "2026-11-10T10:00:00Z"));
+    }
+
+    @Test
+    void deletion_in_doubt_is_a_conflict() {
+        ListingBackup backup = aValidatedListing();
+        deletions.save(ListingDeletion.attempted(backup, NOW));
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"DELETION_UNCONFIRMED\"}");
+    }
+
+    @Test
+    void listing_already_deleted_is_a_conflict() {
+        ListingBackup backup = aValidatedListing();
+        deletions.save(ListingDeletion.attempted(backup, NOW).confirmed(NOW));
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"ALREADY_DELETED\"}");
+    }
+
+    @Test
+    void another_browser_action_is_a_conflict() {
+        aValidatedListing();
+        session.start(BrowserAction.SCANNING);
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"BROWSER_BUSY\"}");
+    }
+
+    @Test
+    void disconnected_session_is_a_bad_gateway() {
+        aValidatedListing();
+        vinted.whereSessionIsDisconnected();
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(502)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"SESSION_DISCONNECTED\"}");
+    }
+
+    @Test
+    void unavailable_browser_is_a_bad_gateway() {
+        aValidatedListing();
+        vinted.whereBrowserCannotStart();
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(502)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"BROWSER_UNAVAILABLE\"}");
+    }
+
+    @Test
+    void unexpected_failure_is_a_failed_deletion() {
+        aValidatedListing();
+        vinted.whereBrowserFailsUnexpectedly();
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(500)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"DELETION_FAILED\"}");
+    }
+
+    @Test
+    void malformed_request_is_invalid() {
+        aValidatedListing();
+
+        assertThat(mvc.post().uri("/api/listings/1/deletion").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"savedAt\": \"not a date\"}")).hasStatus(400);
+        assertThat(mvc.post().uri("/api/listings/abc/deletion/recheck")).hasStatus(400);
+        assertThat(vinted.pagesOpened()).isZero();
     }
 
     @Test

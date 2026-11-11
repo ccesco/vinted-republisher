@@ -181,7 +181,6 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1));
         deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
-        listings.saveAll(List.of(Listing.seen(anActiveListing(1), SCANNED_AT)));
         int pagesOpened = vinted.pagesOpened();
         // Quand je demande de nouveau sa suppression
         Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
@@ -217,6 +216,9 @@ class DeleteListingAcceptanceTest {
                         VintedUnreachable.class),
                 Arguments.of("le bouton de suppression est introuvable",
                         (Consumer<DeleteListingAcceptanceTest>) test -> test.vinted.whereTheDeleteButtonIsMissing(),
+                        ListingPageUnreadable.class),
+                Arguments.of("la confirmation de Vinted n'apparaît pas",
+                        (Consumer<DeleteListingAcceptanceTest>) test -> test.vinted.whereTheConfirmationNeverShows(),
                         ListingPageUnreadable.class),
                 Arguments.of("la base est indisponible",
                         (Consumer<DeleteListingAcceptanceTest>) test -> test.deletions.whereDatabaseIsDown(),
@@ -274,6 +276,20 @@ class DeleteListingAcceptanceTest {
         // Et le verrou est libéré
         assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.UNCONFIRMED);
         assertThat(vinted.confirmationClicks()).isEqualTo(1);
+        assertThat(session.overview().currentAction()).isEmpty();
+    }
+
+    @Test
+    void database_down_when_saving_the_proof_leaves_the_deletion_unconfirmed() {
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        deletions.whereDatabaseGoesDownAfter(1);
+
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+
+        assertThat(vinted.confirmationClicks()).isEqualTo(1);
+        assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.UNCONFIRMED);
+        assertThat(listings.find(LISTING)).map(Listing::present).contains(true);
         assertThat(session.overview().currentAction()).isEmpty();
     }
 
@@ -360,6 +376,17 @@ class DeleteListingAcceptanceTest {
     }
 
     @Test
+    void recheck_keeps_the_doubt_when_the_listing_shows_but_is_no_longer_active() {
+        anUnconfirmedDeletion();
+        vinted.showing(anInactiveListing(1));
+
+        DeletionReport report = recheckListingDeletion().recheck(LISTING);
+
+        assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.UNCONFIRMED);
+        assertThat(listings.find(LISTING)).map(Listing::present).contains(true);
+    }
+
+    @Test
     void recheck_refuses_a_listing_without_unconfirmed_deletion() {
         aValidatedListing();
         vinted.showing(anActiveListing(1));
@@ -380,6 +407,8 @@ class DeleteListingAcceptanceTest {
         assertThat(new ShowListingDeletion(listings, listingBackups, photos, validations, deletions,
                 DeletionMode.REAL).show(LISTING).lastDeletion()).map(ListingDeletion::outcome)
                 .contains(DeletionOutcome.UNCONFIRMED);
+        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT)))
+                .isInstanceOf(DeletionUnconfirmed.class);
     }
 
     private void anUnconfirmedDeletion() {

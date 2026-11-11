@@ -16,6 +16,20 @@
     <p id="saved-at"></p>
     <p id="validated-at"></p>
     <p><button id="validate" type="button" hidden>Valider</button></p>
+    <section id="deletion">
+        <p id="deletion-mode"></p>
+        <p id="deletion-state"></p>
+        <p>
+            <button id="delete" type="button" hidden>Supprimer de Vinted</button>
+            <button id="recheck" type="button" hidden>Revérifier sur Vinted</button>
+        </p>
+        <div id="deletion-confirmation" role="dialog" hidden>
+            <p id="deletion-summary"></p>
+            <p>La suppression sur Vinted est irréversible.</p>
+            <button id="confirm-deletion" type="button">Supprimer définitivement</button>
+            <button id="cancel-deletion" type="button">Annuler</button>
+        </div>
+    </section>
     <dl id="content"></dl>
     <div id="photos"></div>
 </section>
@@ -33,6 +47,24 @@
         VERIFICATION_FAILED: 'La vérification a échoué : rien n\'a été validé.'
     };
     const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : rechargez la page.";
+    const DELETION_REFUSALS = {
+        BACKUP_REPLACED: "la sauvegarde a été remplacée depuis l'ouverture de cette page : rechargez-la.",
+        NOT_VALIDATED: "la sauvegarde actuelle n'est pas validée.",
+        ALREADY_DELETED: 'l\'annonce est déjà supprimée de Vinted.',
+        DELETION_UNCONFIRMED: 'la dernière suppression n\'est pas confirmée : revérifiez-la sur Vinted.',
+        NO_UNCONFIRMED_DELETION: 'aucune suppression à revérifier.',
+        BROWSER_BUSY: 'une autre action est en cours dans le navigateur : réessayez quand elle sera finie.',
+        VERIFICATION_FAILED: 'la vérification de la sauvegarde a échoué.',
+        LISTING_CHANGED: 'Vinted montre l\'annonce autrement que sa sauvegarde',
+        BROWSER_UNAVAILABLE: 'le navigateur est indisponible.',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible.',
+        SESSION_DISCONNECTED: 'la session Vinted n\'est pas connectée : connectez-vous depuis la page de session.',
+        LISTING_PAGE_UNREADABLE: 'la page de l\'annonce sur Vinted n\'est pas celle attendue.'
+    };
+    const DELETION_FAILED_MESSAGE = "Échec de la suppression : vérifiez l'annonce sur Vinted (détail dans les logs).";
+    const RECHECK_FAILED_MESSAGE = 'Revérification impossible, le doute reste : ';
+    const DRY_RUN_PASSED = "Dry-run réussi : contrôles réussis, annonce relue sur Vinted, bouton de suppression"
+        + " trouvé. Rien n'a été supprimé.";
 
     const listingId = new URLSearchParams(location.search).get('id');
     const problem = document.getElementById('problem');
@@ -43,6 +75,14 @@
     const validateButton = document.getElementById('validate');
     const content = document.getElementById('content');
     const photos = document.getElementById('photos');
+    const deletionMode = document.getElementById('deletion-mode');
+    const deletionState = document.getElementById('deletion-state');
+    const deleteButton = document.getElementById('delete');
+    const recheckButton = document.getElementById('recheck');
+    const confirmation = document.getElementById('deletion-confirmation');
+    const deletionSummary = document.getElementById('deletion-summary');
+    const confirmButton = document.getElementById('confirm-deletion');
+    const cancelButton = document.getElementById('cancel-deletion');
     let current;
 
     function priceOf(price) {
@@ -118,6 +158,84 @@
         validateButton.disabled = !view.verification.passed;
         showContent(view.content);
         showPhotos(view.photos);
+        showDeletion(view);
+    }
+
+    function showDeletion(view) {
+        deletionMode.textContent = view.deletionDryRun
+            ? 'Dry-run actif : aucune suppression réelle' : 'Suppressions réelles activées';
+        confirmation.hidden = true;
+        const outcome = view.deletion?.outcome;
+        deleteButton.hidden = outcome === 'CONFIRMED';
+        deleteButton.disabled = outcome === 'UNCONFIRMED' || !view.validatedAt || !view.verification.passed;
+        recheckButton.hidden = outcome !== 'UNCONFIRMED';
+        recheckButton.disabled = false;
+        if (outcome === 'CONFIRMED') {
+            deletionState.textContent = 'Supprimée de Vinted le ' + dateOf(view.deletion.settledAt) + '.';
+        } else if (outcome === 'UNCONFIRMED') {
+            deletionState.textContent = 'Suppression non confirmée, vérifier sur Vinted.';
+        } else {
+            deletionState.textContent = view.dryRunPassed ? DRY_RUN_PASSED : '';
+        }
+    }
+
+    function differenceOf(difference) {
+        switch (difference.kind) {
+            case 'NOT_ACTIVE': return 'annonce plus active sur Vinted';
+            case 'TITLE_CHANGED':
+                return `titre « ${difference.savedTitle} » sauvegardé, « ${difference.readTitle} » lu sur Vinted`;
+            case 'PRICE_CHANGED':
+                return `prix ${priceOf(difference.savedPrice)} sauvegardé, ${priceOf(difference.readPrice)} lu sur Vinted`;
+            default: return difference.kind;
+        }
+    }
+
+    function refusalOf(refusal, recheck) {
+        const reason = DELETION_REFUSALS[refusal.reason];
+        if (!reason) {
+            return recheck ? RECHECK_FAILED_MESSAGE + 'échec inattendu (détail dans les logs).' : DELETION_FAILED_MESSAGE;
+        }
+        if (recheck) {
+            return RECHECK_FAILED_MESSAGE + reason;
+        }
+        const differences = (refusal.differences ?? []).map(differenceOf).join(' ; ');
+        return 'Suppression refusée, rien n\'a été supprimé : ' + reason + (differences ? ' : ' + differences + '.' : '');
+    }
+
+    function askConfirmation() {
+        const count = current.photos.length;
+        deletionSummary.textContent = `« ${current.content.title} », ${priceOf(current.content.price)}, `
+            + `${count} photo${count > 1 ? 's' : ''} gardée${count > 1 ? 's' : ''}, sauvegarde validée le `
+            + dateOf(current.validatedAt) + '.';
+        confirmation.hidden = false;
+    }
+
+    async function sendDeletion(path, body) {
+        deleteButton.disabled = true;
+        recheckButton.disabled = true;
+        confirmation.hidden = true;
+        const recheck = body === undefined;
+        let message = APPLICATION_DOWN_MESSAGE;
+        try {
+            const response = await fetch('/api/listings/' + encodeURIComponent(listingId) + path, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: recheck ? undefined : JSON.stringify(body)
+            });
+            if (response.ok) {
+                show(await response.json());
+                return;
+            }
+            const refusal = await response.json().catch(() => null);
+            if (refusal) {
+                message = refusalOf(refusal, recheck);
+            }
+        } catch (unreachable) {
+            // L'application ne répond pas : message par défaut.
+        }
+        // L'état a pu changer côté application (doute enregistré, vérification échouée) : on le relit.
+        await load();
+        tell(message);
     }
 
     function tell(message) {
@@ -169,6 +287,10 @@
     }
 
     validateButton.addEventListener('click', validate);
+    deleteButton.addEventListener('click', askConfirmation);
+    cancelButton.addEventListener('click', () => confirmation.hidden = true);
+    confirmButton.addEventListener('click', () => sendDeletion('/deletion', {savedAt: current.savedAt}));
+    recheckButton.addEventListener('click', () => sendDeletion('/deletion/recheck'));
     load();
 </script>
 </body>

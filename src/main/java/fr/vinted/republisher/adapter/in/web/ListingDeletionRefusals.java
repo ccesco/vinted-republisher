@@ -21,8 +21,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 /**
  * Turns the refusals of the deletion use cases into the statuses and bodies the contract declares. The page only
@@ -100,6 +102,12 @@ public class ListingDeletionRefusals {
     @ExceptionHandler
     ResponseEntity<DeletionRefusalDto> pageUnreadable(ListingPageUnreadable problem) {
         return failed(ReasonEnum.LISTING_PAGE_UNREADABLE, problem);
+    }
+
+    /** Spring's own refusals of a malformed request, which the generic handler below would turn into failures. */
+    @ExceptionHandler({HttpMessageNotReadableException.class, MethodArgumentTypeMismatchException.class})
+    ResponseEntity<Void> invalid(RuntimeException refusal) {
+        return ResponseEntity.badRequest().build();
     }
 
     @ExceptionHandler

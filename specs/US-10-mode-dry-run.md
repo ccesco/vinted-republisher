@@ -119,12 +119,17 @@ Test : manuel (vrai compte, après AT-09-20, avant AT-09-21).
 - Résultat, décidé par l'utilisateur (2026-11-11) : dry-run réussi → « Dry-run réussi : contrôles réussis, annonce relue sur Vinted, bouton de suppression trouvé. Rien n'a été supprimé. » ; échec → même refus qu'une vraie suppression. Rien n'est gardé : résultat renvoyé et affiché seulement, l'annonce reste dans son état d'avant (historique : US-23).
 - Proposés à la rédaction et validés par l'utilisateur avec la spec (2026-11-11) : la valeur est comparée exactement (`False` est invalide) ; une variable vide est invalide ; « Revérifier sur Vinted » fonctionne pareil dans les deux modes (lecture seule) ; contrat d'API ci-dessus (`deletionDryRun`, `dryRunPassed`).
 
+## Avancement (2026-11-11)
+- Fait : réglage, mode affiché, dry-run dans le cas d'usage ; AT-10-01 à AT-10-04 verts.
+- Reste : AT-10-05 avec l'adaptateur navigateur (après AT-09-20), puis AT-10-06 (manuel).
+
 ## Questions ouvertes
 - Aucune.
 
 ## Modèle de domaine
 - `DeletionMode` (mode de suppression) : `DRY_RUN` ou `REAL`, fixé au démarrage.
-- `DeleteListing` (US-09) reçoit le mode ; en `DRY_RUN`, le port `ListingDeleter` est appelé pour relire l'annonce et trouver le bouton, jamais pour supprimer.
+- `DeleteListing` (US-09) reçoit le mode ; en `DRY_RUN`, le port `ListingDeleter` relit l'annonce et trouve le bouton, puis la `DeletionVisit` refuse d'aller plus loin (`agreesToDelete` rend `false`) : aucun clic de suppression.
+- `DeletionReport` porte le mode et `dryRunPassed` ; `DeletionModeConfiguration` lit `deletion.dry-run` (`DELETION_DRY_RUN`, `true` par défaut).
 - Glossaire : ajouter `DeletionMode` (mode de suppression : dry-run ou réel).
 
 ## Tests unitaires et d'intégration attendus

@@ -14,9 +14,10 @@ public interface ListingDeleter {
 
     /**
      * Opens the page of the listing, reads it, makes sure the member is connected and the delete button is there,
-     * then asks {@code visit}, before any click. If it agrees, clicks the delete button and Vinted's confirmation,
-     * then opens the page again. Answers with the listing as Vinted shows it in the end: empty once it no longer shows
-     * it. Lets through what {@code visit} throws.
+     * then asks {@code visit}, before any click. If it agrees, clicks the delete button, waits for Vinted's
+     * confirmation, tells {@code visit} it is about to confirm, clicks the confirmation, then opens the page again.
+     * Answers with the listing as Vinted shows it in the end: empty once it no longer shows it. Lets through what
+     * {@code visit} throws.
      */
     Optional<ScannedListing> delete(ListingLink listing, DeletionVisit visit);
 

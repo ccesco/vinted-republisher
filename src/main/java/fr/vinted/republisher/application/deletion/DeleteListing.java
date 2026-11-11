@@ -76,13 +76,14 @@ public class DeleteListing {
         }
         validations.find(id).filter(validation -> validation.holdsFor(backup))
                 .orElseThrow(() -> new BackupNotValidated(id));
+        // Before the verification: a deleted listing is absent, which must not hide why it cannot be deleted again.
+        deletions.findLatest(id).ifPresent(ListingDeletion::allowNewAttempt);
         Optional<Listing> scanned = listings.find(id);
         BackupVerification verification = BackupVerification.of(backup, scanned, photos);
         if (!verification.passed()) {
             throw new BackupNotVerified(verification);
         }
-        deletions.findLatest(id).ifPresent(ListingDeletion::allowNewAttempt);
-        Listing listing = scanned.orElseThrow(() -> new ListingNotBackedUp(id));
+        Listing listing = scanned.orElseThrow();
         if (!session.start(BrowserAction.DELETING)) {
             throw new BrowserBusy();
         }
@@ -96,7 +97,7 @@ public class DeleteListing {
                 throw failure;
             }
             // Past Vinted's confirmation, trying again blindly could delete twice: the deletion stays in doubt.
-            LOG.warn("Deletion of listing {} left unconfirmed", id.value(), failure);
+            LOG.warn("Deletion of listing {} failed after Vinted's confirmation", id.value(), failure);
         } finally {
             session.finish();
         }
@@ -110,7 +111,7 @@ public class DeleteListing {
         }
     }
 
-    /** Decides on the page of the listing, before any click, and records the attempt right before the click. */
+    /** Decides on the page of the listing before any click, and records the attempt right before the confirmation. */
     private final class Attempt implements DeletionVisit {
 
         private final ListingBackup backup;
@@ -131,10 +132,15 @@ public class DeleteListing {
                 dryRunPassed = true;
                 return false;
             }
+            return true;
+        }
+
+        /** Saved before the click, so that a crash right after it leaves a doubt rather than no trace. */
+        @Override
+        public void aboutToConfirm() {
             ListingDeletion deletion = ListingDeletion.attempted(backup, clock.instant());
             deletions.save(deletion);
             started = Optional.of(deletion);
-            return true;
         }
 
         private Optional<ListingDeletion> started() {

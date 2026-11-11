@@ -29,7 +29,8 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. Le
 | `POST /api/listings/{listingId}/deletion/recheck` | `recheckListingDeletion` | 200 `ListingBackupView` à jour ; 404 sans sauvegarde ; 409 `NO_UNCONFIRMED_DELETION` ou `BROWSER_BUSY` ; 502 comme ci-dessus (le doute reste) ; 403 si la demande vient d'un autre site |
 
 - `ListingBackupView` gagne `deletion` (absent = aucune tentative) : `outcome` (`CONFIRMED`, `UNCONFIRMED`, `NOT_DONE`), `attemptedAt` (clic de confirmation), `settledAt` (preuve ou levée du doute, absent si `UNCONFIRMED`), `backupSavedAt`.
-- `differences` : liste {`kind` : `NOT_ACTIVE`, `TITLE_CHANGED`, `PRICE_CHANGED` ; `saved`, `read`}.
+- `differences` (absent hors `LISTING_CHANGED`) : liste `ListingDifference` {`kind` : `NOT_ACTIVE`, `TITLE_CHANGED`, `PRICE_CHANGED` ; `savedTitle`, `readTitle` ou `savedPrice`, `readPrice`}.
+- 400 aussi pour un corps JSON illisible ou un identifiant d'annonce non numérique.
 - `BrowserAction` gagne `DELETING`.
 - Le dry-run (réponse et réglage) est défini par US-10.
 
@@ -283,6 +284,12 @@ Test : manuel (vrai compte Vinted, action irréversible ; uniquement avec l'acco
 - Persistance, décidé par l'utilisateur (2026-11-11) : table `listing_deletion`, une ligne par tentative arrivée au clic de confirmation dans Vinted : annonce, version de la sauvegarde (`backup_saved_at`), date du clic, issue `CONFIRMED` / `UNCONFIRMED` / `NOT_DONE`, date de la preuve ou de la levée du doute. Jamais supprimée. Au plus une `CONFIRMED` par annonce ; nouvelle tentative refusée tant qu'une `UNCONFIRMED` existe. Refus avant le clic et dry-run : affichés seulement (historique : US-23). Raison : la republication (US-12) ne partira que d'une suppression `CONFIRMED`.
 - Proposés à la rédaction et validés par l'utilisateur avec la spec (2026-11-11) : demandes synchrones (réponse à la fin de l'action) ; `UNCONFIRMED` enregistré juste avant le clic de confirmation, pour qu'un arrêt brutal laisse un doute plutôt qu'aucune trace ; contrat d'API et codes de refus ci-dessus ; « Revérifier » prend aussi le verrou `DELETING`.
 
+- Messages de l'aperçu, proposés à l'implémentation (2026-11-11) : un refus avant tout clic dit « Suppression refusée, rien n'a été supprimé : … » ; un échec de revérification dit « Revérification impossible, le doute reste : … » ; une erreur inattendue (500) dit « Échec de la suppression : vérifiez l'annonce sur Vinted » sans affirmer que rien n'a été supprimé. Après tout échec, l'aperçu est relu pour montrer l'état enregistré.
+
+## Avancement (2026-11-11)
+- Fait : domaine, cas d'usage, base (`008-create-listing-deletion`), API, aperçu ; AT-09-01 à AT-09-15, AT-09-17 à AT-09-19 verts avec un faux navigateur.
+- Reste : l'adaptateur navigateur. En attendant, `UnobservedListingDeleter` refuse toute suppression et toute revérification (`LISTING_PAGE_UNREADABLE`) sans ouvrir Chrome. Il s'écrira après AT-09-20 (observation avec l'utilisateur), avec AT-09-16 ; puis AT-09-21 (manuel).
+
 ## Questions ouvertes
 - Aucune bloquante pour valider la spec. AT-09-20 (observation de la page réelle) est un prérequis de l'adaptateur, pas de la spec.
 
@@ -292,8 +299,10 @@ Test : manuel (vrai compte Vinted, action irréversible ; uniquement avec l'acco
 - `DeletionRefusal` (refus de suppression) : raison, avec les échecs de vérification ou les écarts relus sur Vinted.
 - `ListingDifference` (écart relu sur Vinted) : non active, titre changé, prix changé (valeurs sauvegardée et lue).
 - `BrowserAction` gagne `DELETING`.
-- Ports sortants : `ListingDeleter` (adaptateur navigateur : relire l'annonce et vérifier le bouton, supprimer, revérifier) ; `ListingDeletionRepository` (suppressions).
-- Cas d'usage : `DeleteListing`, `RecheckListingDeletion` ; `ShowListingBackup` ajoute la dernière suppression.
+- Ports sortants : `ListingDeleter` (adaptateur navigateur : `delete` relit l'annonce, demande l'accord de la `DeletionVisit`, clique, la prévient juste avant le clic de confirmation, puis rapporte ce que Vinted montre ensuite ; `show` revérifie sans clic) ; `ListingDeletionRepository` (suppressions).
+- `DeletionVisit` (visite de suppression, rappel du cas d'usage) : `agreesToDelete(annonce relue)` (refus sur écart, `false` en dry-run) et `aboutToConfirm()` (enregistre `UNCONFIRMED`).
+- Cas d'usage : `DeleteListing`, `RecheckListingDeletion` ; `ShowListingDeletion` donne l'aperçu avec la dernière suppression et le mode (`DeletionReport`).
+- Exceptions : `BackupNotValidated`, `ListingChanged`, `ListingAlreadyDeleted`, `DeletionUnconfirmed`, `NoUnconfirmedDeletion`, `ListingPageUnreadable`, `BrowserBusy`.
 - Glossaire : ajouter `ListingDeletion`, `DeletionOutcome`, `DeletionRefusal`, `ListingDifference`, `ListingDeleter`, `ListingDeletionRepository` ; compléter `BrowserAction`, `ListingBackupView`.
 
 ## Tests unitaires et d'intégration attendus

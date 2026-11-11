@@ -19,7 +19,9 @@ public class FakeListingDeleter implements ListingDeleter {
     private boolean goneOnceConfirmed = true;
     private Optional<Supplier<RuntimeException>> failureBeforeAnyClick = Optional.empty();
     private Optional<Supplier<RuntimeException>> failureAfterTheConfirmation = Optional.empty();
+    private boolean confirmationShows = true;
     private int pagesOpened;
+    private int deleteButtonClicks;
     private int confirmationClicks;
 
     public FakeListingDeleter showing(ScannedListing listing) {
@@ -30,6 +32,15 @@ public class FakeListingDeleter implements ListingDeleter {
     public FakeListingDeleter showingNothing() {
         shown = Optional.empty();
         return this;
+    }
+
+    public FakeListingDeleter whereTheConfirmationNeverShows() {
+        confirmationShows = false;
+        return this;
+    }
+
+    public int deleteButtonClicks() {
+        return deleteButtonClicks;
     }
 
     public FakeListingDeleter whereTheListingStaysOnceConfirmed() {
@@ -52,6 +63,10 @@ public class FakeListingDeleter implements ListingDeleter {
 
     public FakeListingDeleter whereVintedRefuses() {
         return failingBeforeAnyClick(() -> new VintedUnreachable("HTTP 403"));
+    }
+
+    public FakeListingDeleter whereBrowserFailsUnexpectedly() {
+        return failingBeforeAnyClick(() -> new IllegalStateException("unexpected browser failure"));
     }
 
     public FakeListingDeleter whereTheDeleteButtonIsMissing() {
@@ -81,6 +96,11 @@ public class FakeListingDeleter implements ListingDeleter {
         if (!visit.agreesToDelete(read)) {
             return shown;
         }
+        deleteButtonClicks++;
+        if (!confirmationShows) {
+            throw new ListingPageUnreadable("no confirmation");
+        }
+        visit.aboutToConfirm();
         confirmationClicks++;
         failureAfterTheConfirmation.ifPresent(failure -> {
             throw failure.get();
