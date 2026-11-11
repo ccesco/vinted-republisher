@@ -196,7 +196,7 @@ Et le nombre et le contenu des annonces correspondent à mon dressing
 Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter le scan après quelques annonces pour vérifier la reprise. Ce test vérifie aussi : la disponibilité affichée pour une annonce réservée, s'il y en a une ; le total de l'en-tête dans le Chrome connecté, y compris avec des annonces masquées. Tout écart se traite par une mise à jour de cette spec.
 Premier essai (2026-11-06, ancienne lecture par l'API, un seul scan) : `wardrobe.html` fonctionne dans l'application lancée, mais Vinted refuse la requête directe de la première tranche (HTTP 403). Scan arrêté sans nouvelle tentative, base inchangée, cause exacte non établie.
 Scan réel avec la lecture annonce par annonce : passé, confirmé par l'utilisateur le 2026-11-07.
-Recette de l'épic 2 (2026-11-11), Chrome connecté : relevé en échec, 147 cartes pour « 144 articles » (annonces vendues, voir Décisions) ; après correctif, relevé complet, reprise vérifiée après deux arrêts de l'application (3 puis 10 annonces lues), scan non mené à son terme. Écart ouvert : deux arrêts « Vinted inaccessible » sur un dépassement du délai de 30 s en attendant l'événement `load` (page du dressing, puis page d'une annonce en US-05), sans erreur HTTP, peut-être quand le Chrome piloté était utilisé en même temps.
+Recette de l'épic 2 (2026-11-11), Chrome connecté : relevé en échec, 147 cartes pour « 144 articles » (annonces vendues, voir Décisions) ; après correctif, relevé complet, reprise vérifiée après deux arrêts de l'application (3 puis 10 annonces lues), scan non mené à son terme. Écart ouvert : deux arrêts « Vinted inaccessible » sur un dépassement du délai de 30 s en attendant l'événement `load` (page du dressing, puis page d'une annonce en US-05), sans erreur HTTP, peut-être quand le Chrome piloté était utilisé en même temps. Traité par AT-04-19 (décision de l'utilisateur du 2026-11-11).
 
 ### AT-04-17 – Annonce disparue pendant une interruption
 ```gherkin
@@ -217,6 +217,16 @@ Et le relevé est complet
 ```
 Test : `PlaywrightWardrobeReaderTest.Reading.ignores_the_cards_of_sold_listings()`
 
+### AT-04-19 – Page lente à charger
+```gherkin
+Étant donné une page d'annonce dont le document n'est pas reçu dans le délai de chargement
+Quand l'adaptateur navigateur l'ouvre
+Alors il la recharge une seule fois
+Et si elle arrive cette fois, la lecture continue
+Et sinon le problème indique que Vinted est inaccessible
+```
+Test : `PlaywrightWardrobeReaderTest.Slow_page`
+
 ## Cas limites et erreurs
 - Annonce connue qui passe à « Vendu » : elle sort du relevé et est marquée absente à la fin du scan, comme une annonce retirée.
 - Page d'annonce sans données `Product`, ou données incomplètes : problème « dressing illisible », le scan s'arrête et reste non terminé.
@@ -225,6 +235,7 @@ Test : `PlaywrightWardrobeReaderTest.Reading.ignores_the_cards_of_sold_listings(
 - Annonce publiée ou retirée pendant le relevé : le total ne correspond plus, le scan échoue et l'utilisateur le relance.
 - Dressing réellement vide : traité comme illisible (zéro annonce se confond avec une page changée, et marquerait tout l'inventaire absent).
 - Erreur HTTP sur une autre ressource de la page (publicité, traceur) : ignorée.
+- Page dont le document n'arrive pas dans le délai de chargement (30 s) : rechargée une fois ; second dépassement → « Vinted inaccessible », arrêt (AT-04-19).
 - Erreur inattendue, ou base indisponible : problème « échec du scan » (détail dans les logs), le verrou est libéré, le scan reste reprenable.
 - Application arrêtée pendant un scan : il reste non terminé et se reprend au scan suivant.
 - `VINTED_WARDROBE_URL` absente : l'application ne démarre pas.
@@ -253,6 +264,7 @@ Test : `PlaywrightWardrobeReaderTest.Reading.ignores_the_cards_of_sold_listings(
 - Le lien d'une annonce doit être en `http` ou `https`, car il finit dans une page. La raison d'un échec est écrite dans les logs.
 - Sécurité : `server.address: 127.0.0.1`, et refus des `POST` dont l'`Origin` diffère de l'application, sur toute l'API.
 - Page `wardrobe.html` avec liste simple. Aucune nouvelle dépendance.
+- Chargement d'une page Vinted, décidé par l'utilisateur le 2026-11-11 après deux dépassements de délai en recette : l'ouverture attend que le document soit lu (`domcontentloaded`) et non plus le chargement de toutes ses ressources (`load`) ; les données lues (JSON-LD, scripts) sont dans le document. Délai de 30 s ; sur dépassement, un seul nouvel essai (après annulation du chargement en cours, sans quoi Chrome met la même adresse en attente derrière lui), puis « Vinted inaccessible ». Une erreur HTTP reste sans nouvel essai. La règle vaut pour toute page Vinted ouverte par l'outil (dressing, annonce, formulaire de modification, paramètres du profil).
 
 ## Questions ouvertes
 - Aucune. Les points inconnus sont vérifiés par AT-04-16.
