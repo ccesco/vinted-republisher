@@ -3,6 +3,7 @@ package fr.vinted.republisher.domain.wardrobe;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
+import java.time.Instant;
 import java.util.List;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aLink;
@@ -11,6 +12,17 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WardrobeListingTest {
+
+    private static final Instant READ_AT = Instant.parse("2026-11-11T10:00:00Z");
+
+    @Test
+    void statistics_shown_on_the_cards_become_readings() {
+        ListingStatistics statistics = new ListingStatistics(12, 3);
+        WardrobeListing wardrobe = new WardrobeListing(2, List.of(aLink(1).showing(statistics), aLink(2)));
+
+        assertThat(wardrobe.statisticsReadAt(READ_AT))
+                .containsExactly(new StatisticsReading(new VintedListingId(1), statistics, READ_AT));
+    }
 
     @Test
     void complete_when_every_listing_announced_was_found() {

@@ -8,6 +8,7 @@ import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
+import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
@@ -43,15 +44,16 @@ public class WardrobeConfiguration {
 
     @Bean
     ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, ListingRepository listings,
-                              WardrobeScanRepository scans) {
-        return new ShowWardrobe(session, lastProblem, listings, scans);
+                              ListingStatisticsRepository statistics, WardrobeScanRepository scans) {
+        return new ShowWardrobe(session, lastProblem, listings, statistics, scans);
     }
 
     @Bean
     ScanWardrobe scanWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeScanRepository scans,
-                              WardrobeReader reader, ListingRepository listings, WardrobeProperties wardrobe,
+                              WardrobeReader reader, ListingRepository listings, ListingStatisticsRepository statistics,
+                              WardrobeProperties wardrobe,
                               Clock clock, @Qualifier("applicationTaskExecutor") Executor background) {
-        return new ScanWardrobe(session, lastProblem, scans, reader, listings, paceOf(wardrobe.scan()), clock,
+        return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, paceOf(wardrobe.scan()), clock,
                 new FailureLoggingExecutor(background));
     }
 

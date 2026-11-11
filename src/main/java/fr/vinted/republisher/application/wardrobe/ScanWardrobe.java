@@ -8,6 +8,7 @@ import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
+import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
@@ -36,18 +37,20 @@ public class ScanWardrobe {
     private final WardrobeScanRepository scans;
     private final WardrobeReader reader;
     private final ListingRepository listings;
+    private final ListingStatisticsRepository statistics;
     private final ScanPace pace;
     private final Clock clock;
     private final Executor background;
 
     public ScanWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeScanRepository scans,
-                        WardrobeReader reader, ListingRepository listings, ScanPace pace, Clock clock,
-                        Executor background) {
+                        WardrobeReader reader, ListingRepository listings, ListingStatisticsRepository statistics,
+                        ScanPace pace, Clock clock, Executor background) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.scans = scans;
         this.reader = reader;
         this.listings = listings;
+        this.statistics = statistics;
         this.pace = pace;
         this.clock = clock;
         this.background = background;
@@ -110,6 +113,7 @@ public class ScanWardrobe {
         @Override
         public List<ListingLink> listingsToOpen(WardrobeListing wardrobe) {
             wardrobe.requireComplete();
+            statistics.addAll(wardrobe.statisticsReadAt(clock.instant()));
             return scan.linksToOpen(wardrobe.links(), listings.findAll());
         }
 

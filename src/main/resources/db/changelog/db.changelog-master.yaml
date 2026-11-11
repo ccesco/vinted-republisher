@@ -10,3 +10,5 @@ databaseChangeLog:
       file: db/changelog/changes/004-create-listing-content.yaml
   - include:
       file: db/changelog/changes/005-create-listing-photo.yaml
+  - include:
+      file: db/changelog/changes/006-create-listing-statistics-reading.yaml

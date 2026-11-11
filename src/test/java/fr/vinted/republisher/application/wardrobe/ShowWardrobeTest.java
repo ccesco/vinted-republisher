@@ -4,11 +4,15 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Listing;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
+import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 
@@ -27,13 +31,25 @@ class ShowWardrobeTest {
     private final VintedSession session = new VintedSession();
     private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
+    private final InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
     private final InMemoryWardrobeScanRepository scans = new InMemoryWardrobeScanRepository();
-    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings, scans);
+    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings, statistics, scans);
 
     @Test
     void nothing_is_known_before_the_first_scan() {
         assertThat(showWardrobe.show())
-                .isEqualTo(new WardrobeOverview(false, Optional.empty(), Optional.empty(), List.of()));
+                .isEqualTo(new WardrobeOverview(false, Optional.empty(), Optional.empty(), List.of(), List.of()));
+    }
+
+    @Test
+    void shows_the_latest_statistics_reading_of_each_listing() {
+        StatisticsReading older =
+                new StatisticsReading(new VintedListingId(1), new ListingStatistics(12, 3), STARTED_AT);
+        StatisticsReading latest =
+                new StatisticsReading(new VintedListingId(1), new ListingStatistics(15, 3), FINISHED_AT);
+        statistics.addAll(List.of(older, latest));
+
+        assertThat(showWardrobe.show().latestStatistics()).containsExactly(latest);
     }
 
     @Test
@@ -79,7 +95,7 @@ class ShowWardrobeTest {
             }
         };
 
-        assertThat(new ShowWardrobe(session, lastProblem, endingTheScan, scans).show().scanInProgress()).isTrue();
+        assertThat(new ShowWardrobe(session, lastProblem, endingTheScan, statistics, scans).show().scanInProgress()).isTrue();
     }
 
     @Test

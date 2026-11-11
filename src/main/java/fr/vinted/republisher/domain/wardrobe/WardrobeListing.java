@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.wardrobe;
 
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,5 +36,12 @@ public record WardrobeListing(int displayedTotal, List<ListingLink> links) {
         if (links.size() != displayedTotal) {
             throw new WardrobeUnreadable(links.size() + " links found, " + displayedTotal + " announced");
         }
+    }
+
+    /** The statistics of every listing whose card showed them, all read at the moment the wardrobe was gone through. */
+    public List<StatisticsReading> statisticsReadAt(Instant readAt) {
+        return links.stream()
+                .flatMap(link -> link.statistics().map(shown -> new StatisticsReading(link.id(), shown, readAt)).stream())
+                .toList();
     }
 }

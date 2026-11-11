@@ -159,6 +159,10 @@ components:
             url: https://www.vinted.fr/items/90000000001-pull-raye
             savedAt: '2026-11-07T10:31:45Z'
             photoCount: 3
+            statistics:
+              viewCount: 12
+              favouriteCount: 3
+              readAt: '2026-11-07T10:05:00Z'
     Listing:
       type: object
       description: Annonce active du dressing.
@@ -187,6 +191,32 @@ components:
           description: >-
             Nombre de photos gardées avec la sauvegarde de l'annonce ; absent si elle n'a jamais été sauvegardée ou
             si sa sauvegarde date d'avant la conservation des photos.
+        statistics:
+          $ref: '#/components/schemas/ListingStatistics'
+    ListingStatistics:
+      type: object
+      description: >-
+        Dernier relevé des vues et favoris de l'annonce, lus sur sa carte du dressing pendant un scan ; absent si
+        l'annonce n'a jamais été relevée (session non connectée, par exemple).
+      required: [viewCount, favouriteCount, readAt]
+      properties:
+        viewCount:
+          type: integer
+          format: int32
+          minimum: 0
+        favouriteCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Nombre de favoris (les « likes » de Vinted).
+        readAt:
+          type: string
+          format: date-time
+          description: Fin du relevé du dressing qui a lu ces nombres.
+      example:
+        viewCount: 12
+        favouriteCount: 3
+        readAt: '2026-11-11T10:05:00Z'
     Price:
       type: object
       description: Prix affiché sur Vinted, hors frais.

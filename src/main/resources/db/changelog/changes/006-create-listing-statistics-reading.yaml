@@ -1,0 +1,28 @@
+# US-07 : relevés des vues et favoris de chaque annonce, à chaque scan ; jamais modifiés ni supprimés.
+databaseChangeLog:
+  - changeSet:
+      id: 006-create-listing-statistics-reading
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_statistics_reading
+            columns:
+              - column: {name: id, type: bigint, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              # Sans clé étrangère vers listing : une annonce non active du relevé a aussi ses statistiques.
+              - column: {name: listing_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: view_count, type: integer, constraints: {nullable: false}}
+              - column: {name: favourite_count, type: integer, constraints: {nullable: false}}
+              - column: {name: read_at, type: timestamptz, constraints: {nullable: false}}
+        # Un relevé par annonce et par relevé du dressing ; sert aussi à trouver le dernier relevé de chaque annonce.
+        - addUniqueConstraint:
+            tableName: listing_statistics_reading
+            columnNames: listing_id, read_at
+            constraintName: listing_statistics_reading_once
+        - sql:
+            sql: >
+              ALTER TABLE listing_statistics_reading
+                ADD CONSTRAINT listing_statistics_reading_counts_not_negative
+                  CHECK (view_count >= 0 AND favourite_count >= 0)
+      rollback:
+        - dropTable:
+            tableName: listing_statistics_reading

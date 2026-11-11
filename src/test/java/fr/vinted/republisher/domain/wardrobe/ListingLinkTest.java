@@ -28,4 +28,16 @@ class ListingLinkTest {
     void refuses_a_relative_link() {
         assertThatThrownBy(() -> new ListingLink(ID, URI.create("/items/1"))).isInstanceOf(InvalidListing.class);
     }
+
+    @Test
+    void link_found_without_statistics_has_none() {
+        assertThat(new ListingLink(ID, URI.create("https://vinted.test/items/1")).statistics()).isEmpty();
+    }
+
+    @Test
+    void link_keeps_the_statistics_shown_on_its_card() {
+        ListingLink link = new ListingLink(ID, URI.create("https://vinted.test/items/1"));
+
+        assertThat(link.showing(new ListingStatistics(12, 3)).statistics()).contains(new ListingStatistics(12, 3));
+    }
 }

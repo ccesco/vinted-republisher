@@ -86,6 +86,14 @@
         return `${saved} · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}`;
     }
 
+    function statisticsOf(listing) {
+        if (!listing.statistics) {
+            return '';
+        }
+        const {viewCount, favouriteCount} = listing.statistics;
+        return `${viewCount} ${viewCount > 1 ? 'vues' : 'vue'} · ${favouriteCount} ${favouriteCount > 1 ? 'favoris' : 'favori'} – `;
+    }
+
     // Titres et liens viennent de Vinted : jamais d'innerHTML.
     function rowOf(listing) {
         const link = document.createElement('a');
@@ -95,7 +103,7 @@
         const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
             .format(listing.price.amount);
         const row = document.createElement('li');
-        row.append(link, ' – ' + price + ' – ' + backupStateOf(listing));
+        row.append(link, ' – ' + price + ' – ' + statisticsOf(listing) + backupStateOf(listing));
         return row;
     }
 

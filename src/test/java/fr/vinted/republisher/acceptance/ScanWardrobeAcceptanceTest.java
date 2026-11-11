@@ -7,15 +7,18 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Listing;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
+import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeVintedAccount;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 
@@ -44,13 +47,14 @@ class ScanWardrobeAcceptanceTest {
     private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryWardrobeScanRepository scans = new InMemoryWardrobeScanRepository();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
+    private final InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final ScanPace pace = new ScanPace(new PauseRange(Duration.ofSeconds(3), Duration.ofSeconds(6)),
             new PauseRange(MINIMUM_PAUSE, MAXIMUM_PAUSE), new Random(42));
     private final ScanWardrobe scanWardrobe =
-            new ScanWardrobe(session, lastProblem, scans, reader, listings, pace, clock, RIGHT_AWAY);
-    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings, scans);
+            new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, pace, clock, RIGHT_AWAY);
+    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings, statistics, scans);
 
     @Test
     void scan_records_every_active_listing() {
@@ -238,6 +242,89 @@ class ScanWardrobeAcceptanceTest {
         // Alors chaque pause dure entre 10 et 15 secondes
         assertThat(reader.pausesBetweenListings()).hasSize(99)
                 .allSatisfy(pause -> assertThat(pause).isBetween(MINIMUM_PAUSE, MAXIMUM_PAUSE));
+    }
+
+    @Test
+    void scan_records_the_statistics_of_each_listing() {
+        // Étant donné un dressing dont la carte de l'annonce A affiche « 12 vues » et « 3 favoris »
+        reader.holding(anActiveListing(1), anActiveListing(2)).showing(1, new ListingStatistics(12, 3));
+
+        // Quand je lance le scan
+        scanWardrobe.scan();
+
+        // Alors l'annonce A a un relevé de 12 vues et 3 favoris, daté de la fin du relevé du dressing
+        assertThat(statistics.readings()).containsExactly(aReading(1, 12, 3, NOW));
+    }
+
+    @Test
+    void each_scan_adds_a_statistics_reading() {
+        // Étant donné une annonce A relevée à 12 vues et 3 favoris par un premier scan
+        reader.holding(anActiveListing(1)).showing(1, new ListingStatistics(12, 3));
+        scanWardrobe.scan();
+        clock.advance(Duration.ofDays(1));
+        // Et sa carte affiche maintenant « 15 vues » et « 3 favoris »
+        reader.holding(anActiveListing(1)).showing(1, new ListingStatistics(15, 3));
+
+        // Quand je lance un nouveau scan
+        scanWardrobe.scan();
+
+        // Alors l'annonce A a deux relevés : 12 / 3 puis 15 / 3
+        // Et la page du dressing affiche « 15 vues · 3 favoris »
+        Instant nextDay = NOW.plus(Duration.ofDays(1));
+        assertThat(statistics.readings()).containsExactly(aReading(1, 12, 3, NOW), aReading(1, 15, 3, nextDay));
+        assertThat(showWardrobe.show().latestStatistics()).containsExactly(aReading(1, 15, 3, nextDay));
+    }
+
+    @Test
+    void listing_without_statistics_keeps_its_readings() {
+        // Étant donné une annonce A déjà relevée à 12 vues et 3 favoris
+        statistics.addAll(List.of(aReading(1, 12, 3, EARLIER)));
+        // Et sa carte n'affiche plus ses vues et ses favoris (session non connectée)
+        reader.holding(anActiveListing(1));
+
+        // Quand je lance le scan
+        scanWardrobe.scan();
+
+        // Alors le scan se termine normalement
+        // Et l'annonce A a toujours un seul relevé, 12 / 3
+        assertThat(showWardrobe.show().problem()).isEmpty();
+        assertThat(showWardrobe.show().lastScanAt()).contains(NOW);
+        assertThat(statistics.readings()).containsExactly(aReading(1, 12, 3, EARLIER));
+    }
+
+    @Test
+    void incomplete_wardrobe_records_no_statistics() {
+        // Étant donné un dressing dont le nombre de liens relevés diffère du total affiché
+        reader.announcing(3, anActiveListing(1), anActiveListing(2)).showing(1, new ListingStatistics(12, 3));
+
+        // Quand je lance le scan
+        scanWardrobe.scan();
+
+        // Alors le scan s'arrête avec le problème « dressing illisible »
+        // Et aucun relevé de statistiques n'est enregistré
+        assertThat(showWardrobe.show().problem()).contains(ScanProblem.WARDROBE_UNREADABLE);
+        assertThat(statistics.readings()).isEmpty();
+    }
+
+    @Test
+    void statistics_stay_recorded_when_the_scan_fails_afterwards() {
+        // Étant donné un relevé du dressing complet avec ses statistiques
+        reader.holding(anActiveListing(1), anActiveListing(2)).showing(2, new ListingStatistics(4, 1));
+        // Et la lecture d'une annonce qui échoue ensuite (Vinted inaccessible)
+        reader.whereVintedRefuses(1);
+
+        // Quand je lance le scan
+        scanWardrobe.scan();
+
+        // Alors le scan s'arrête et reste non terminé
+        // Et les relevés de statistiques sont enregistrés
+        assertThat(showWardrobe.show().problem()).contains(ScanProblem.VINTED_UNREACHABLE);
+        assertThat(showWardrobe.show().lastScanAt()).isEmpty();
+        assertThat(statistics.readings()).containsExactly(aReading(2, 4, 1, NOW));
+    }
+
+    private static StatisticsReading aReading(long listing, int views, int favourites, Instant readAt) {
+        return new StatisticsReading(new VintedListingId(listing), new ListingStatistics(views, favourites), readAt);
     }
 
     private Listing anInventoryOfOneListing() {

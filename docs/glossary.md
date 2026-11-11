@@ -23,7 +23,10 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `Price` | Prix | Montant décimal et devise d'une annonce. |
 | `WardrobeScan` (`ScanWardrobe`) | Scan du dressing | Parcours du dressing et lecture de chaque annonce par le Chrome piloté, uniquement sur demande ; persisté avec ses dates de début et de fin, il reste non terminé après un échec et se reprend au scan suivant. |
 | `WardrobeListing` | Relevé du dressing | Résultat du parcours du dressing : total affiché et liens des annonces. |
-| `ListingLink` | Lien d'annonce | Identifiant et adresse d'une annonce, relevés sur le dressing. |
+| `ListingLink` | Lien d'annonce | Identifiant et adresse d'une annonce, relevés sur le dressing, avec les statistiques que montre sa carte, s'il y en a. |
+| `ListingStatistics` | Statistiques d'une annonce (vues et favoris) | Nombre de vues et de favoris (les « likes » de Vinted) d'une annonce, lus sur sa carte du dressing, que Vinted ne montre qu'au membre connecté ; les deux ensemble ou aucun. |
+| `StatisticsReading` | Relevé des statistiques | Statistiques d'une annonce à la fin d'un relevé du dressing, datées ; jamais modifié ni supprimé, un par scan qui les lit. |
+| `ListingStatisticsRepository` | Historique des statistiques | Tous les relevés de statistiques, y compris des annonces absentes ou non actives ; donne le dernier relevé de chaque annonce. |
 | `WardrobeVisit` | Visite du dressing | Ce que le scan fait de ce que le lecteur trouve : choisir les annonces à ouvrir, enregistrer chaque annonce lue. |
 | `LastScanProblem` | Problème du dernier scan | Problème affiché jusqu'au scan suivant, conservé en mémoire seulement. |
 | `ScanProblem` | Problème de scan | Raison affichée quand un scan n'a pas abouti : navigateur indisponible, Vinted inaccessible, dressing illisible, échec du scan. |
@@ -31,7 +34,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ScannedListing` | Annonce lue | Annonce telle que lue sur sa page lors d'un scan, active si sa disponibilité est `InStock`. |
 | `InvalidListing` | Annonce invalide | Annonce lue dont une valeur est inacceptable (identifiant, titre, lien, prix). |
 | `ScanPace` (`PauseRange`) | Rythme du scan | Pauses aléatoires entre deux défilements et entre deux annonces, chacune dans ses bornes configurées. |
-| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date de fin du dernier scan terminé, problème éventuel et annonces présentes, tels qu'affichés. |
+| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date de fin du dernier scan terminé, problème éventuel, annonces présentes et dernier relevé des statistiques de chaque annonce, tels qu'affichés. |
 | `ListingContent` | Contenu d'une annonce | Tous les champs du formulaire de mise en vente sauf les photos, tels que lus sur Vinted : de quoi republier l'annonce sans rien ressaisir. |
 | `FormOption` / `FormOptions` | Option du formulaire | Choix unique (catégorie, marque, état, taille, format du colis) ou multiple (couleurs, matières) : identifiant Vinted, qui sert à republier, et libellé affiché, vide si le formulaire ne l'affiche pas. |
 | `CategoryDetails` | Détails propres à la catégorie | Champs que le formulaire ne demande que dans certaines catégories : ISBN, titre du livre, auteur, fabricant, modèle, mesures. |
