@@ -196,6 +196,7 @@ Et le nombre et le contenu des annonces correspondent à mon dressing
 Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter le scan après quelques annonces pour vérifier la reprise. Ce test vérifie aussi : la disponibilité affichée pour une annonce réservée, s'il y en a une ; le total de l'en-tête dans le Chrome connecté, y compris avec des annonces masquées. Tout écart se traite par une mise à jour de cette spec.
 Premier essai (2026-11-06, ancienne lecture par l'API, un seul scan) : `wardrobe.html` fonctionne dans l'application lancée, mais Vinted refuse la requête directe de la première tranche (HTTP 403). Scan arrêté sans nouvelle tentative, base inchangée, cause exacte non établie.
 Scan réel avec la lecture annonce par annonce : passé, confirmé par l'utilisateur le 2026-11-07.
+Recette de l'épic 2 (2026-11-11), Chrome connecté : relevé en échec, 147 cartes pour « 144 articles » (annonces vendues, voir Décisions) ; après correctif, relevé complet, reprise vérifiée après deux arrêts de l'application (3 puis 10 annonces lues), scan non mené à son terme. Écart ouvert : deux arrêts « Vinted inaccessible » sur un dépassement du délai de 30 s en attendant l'événement `load` (page du dressing, puis page d'une annonce en US-05), sans erreur HTTP, peut-être quand le Chrome piloté était utilisé en même temps.
 
 ### AT-04-17 – Annonce disparue pendant une interruption
 ```gherkin
