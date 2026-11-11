@@ -80,10 +80,11 @@
             return 'non sauvegardée';
         }
         const saved = 'sauvegardée le ' + new Date(listing.savedAt).toLocaleString('fr-FR');
-        if (!listing.photoCount) {
-            return saved;
-        }
-        return `${saved} · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}`;
+        const photos = listing.photoCount
+            ? ` · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}` : '';
+        const validated = listing.validatedAt
+            ? ' · validée le ' + new Date(listing.validatedAt).toLocaleString('fr-FR') : '';
+        return saved + photos + validated;
     }
 
     function statisticsOf(listing) {
@@ -104,6 +105,12 @@
             .format(listing.price.amount);
         const row = document.createElement('li');
         row.append(link, ' – ' + price + ' – ' + statisticsOf(listing) + backupStateOf(listing));
+        if (listing.savedAt) {
+            const preview = document.createElement('a');
+            preview.href = 'listing-backup.html?id=' + encodeURIComponent(listing.vintedId);
+            preview.textContent = 'Voir la sauvegarde';
+            row.append(' – ', preview);
+        }
         return row;
     }
 

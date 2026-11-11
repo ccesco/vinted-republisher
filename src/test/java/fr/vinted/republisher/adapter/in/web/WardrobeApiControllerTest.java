@@ -3,9 +3,11 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.domain.backup.BackupProblem;
+import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
+import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
@@ -87,6 +89,9 @@ class WardrobeApiControllerTest {
 
     @Autowired
     private InMemoryListingBackupRepository listingBackups;
+
+    @Autowired
+    private InMemoryBackupValidationRepository validations;
 
     @Test
     void empty_wardrobe_has_no_date_and_no_problem() {
@@ -214,6 +219,17 @@ class WardrobeApiControllerTest {
     }
 
     @Test
+    void shows_the_validation_date_of_each_validated_listing() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+        listingBackups.save(aBackup(17, SAVED_AT));
+        validations.save(BackupValidation.of(aBackup(17, SAVED_AT), SAVED_AT.plusSeconds(3600)));
+
+        assertThat(mvc.get().uri("/api/wardrobe"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listings[0].validatedAt").isEqualTo("2026-11-07T11:00:00Z");
+    }
+
+    @Test
     void shows_the_problem_of_the_last_backup() {
         lastBackupProblem.report(BackupProblem.SESSION_DISCONNECTED);
 
@@ -336,9 +352,15 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
+        InMemoryBackupValidationRepository validations() {
+            return new InMemoryBackupValidationRepository();
+        }
+
+        @Bean
         ShowBackup showBackup(VintedSession session, LastBackupProblem lastBackupProblem,
-                              InMemoryWardrobeBackupRepository backups, InMemoryListingBackupRepository listingBackups) {
-            return new ShowBackup(session, lastBackupProblem, backups, listingBackups);
+                              InMemoryWardrobeBackupRepository backups, InMemoryListingBackupRepository listingBackups,
+                              InMemoryBackupValidationRepository validations) {
+            return new ShowBackup(session, lastBackupProblem, backups, listingBackups, validations);
         }
 
         @Bean

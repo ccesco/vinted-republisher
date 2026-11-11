@@ -81,6 +81,15 @@ class JpaListingBackupRepositoryTest {
     }
 
     @Test
+    void finds_the_backup_of_a_listing() {
+        ListingBackup backup = ListingBackup.of(new ListingReading(aContent(1), List.of(aPhoto("front"))), SAVED_AT);
+        backups.save(backup);
+
+        assertThat(backups.find(new VintedListingId(1))).contains(backup);
+        assertThat(backups.find(new VintedListingId(2))).isEmpty();
+    }
+
+    @Test
     void a_new_backup_of_a_listing_replaces_the_previous_one() {
         backups.save(ListingBackup.of(new ListingReading(aContent(1, "Pull rayé", "Porté deux fois"),
                 List.of(aPhoto("A"), aPhoto("B"))), SAVED_AT));

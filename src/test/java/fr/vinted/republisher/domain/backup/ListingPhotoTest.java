@@ -33,4 +33,10 @@ class ListingPhotoTest {
     void extension_is_one_of_an_image() {
         assertThatThrownBy(() -> new ListingPhoto(0, SHA256, "html")).isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void knows_the_type_its_file_was_served_with() {
+        assertThat(new ListingPhoto(0, "a".repeat(64), "jpg").mediaType()).isEqualTo("image/jpeg");
+        assertThat(new ListingPhoto(0, "a".repeat(64), "webp").mediaType()).isEqualTo("image/webp");
+    }
 }

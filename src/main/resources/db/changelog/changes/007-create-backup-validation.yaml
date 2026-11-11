@@ -1,0 +1,24 @@
+# US-08 : dernière validation de la sauvegarde de chaque annonce par le membre ; elle ne vaut que pour la version
+# de la sauvegarde dont elle garde la date.
+databaseChangeLog:
+  - changeSet:
+      id: 007-create-backup-validation
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: backup_validation
+            columns:
+              - column: {name: listing_id, type: bigint, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: backup_saved_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: validated_at, type: timestamptz, constraints: {nullable: false}}
+        # Une validation sans sauvegarde n'a pas de sens ; remplacer la sauvegarde ne la supprime pas (date différente).
+        - addForeignKeyConstraint:
+            baseTableName: backup_validation
+            baseColumnNames: listing_id
+            constraintName: backup_validation_listing_content_fk
+            referencedTableName: listing_content
+            referencedColumnNames: listing_id
+            onDelete: CASCADE
+      rollback:
+        - dropTable:
+            tableName: backup_validation

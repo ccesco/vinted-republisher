@@ -81,6 +81,22 @@ class FilePhotoStorageTest {
         assertThat(fileOf("")).doesNotExist();
     }
 
+    @Test
+    void reads_a_kept_photo_byte_for_byte() {
+        storage().store(LISTING, aPhoto("front"));
+
+        assertThat(storage().read(LISTING, ListingPhoto.at(0, aPhoto("front")))).hasValueSatisfying(
+                content -> assertThat(content).isEqualTo(aPhoto("front").content()));
+    }
+
+    @Test
+    void missing_photo_reads_as_nothing() {
+        storage().store(LISTING, aPhoto("front"));
+
+        assertThat(storage().read(LISTING, ListingPhoto.at(0, aPhoto("back")))).isEmpty();
+        assertThat(storage().read(new VintedListingId(1), ListingPhoto.at(0, aPhoto("front")))).isEmpty();
+    }
+
     /** Closed at once: an open listing would keep the folder locked on Windows. */
     private static List<Path> filesIn(Path folder) throws IOException {
         try (Stream<Path> files = Files.list(folder)) {

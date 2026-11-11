@@ -12,6 +12,8 @@ tags:
     description: Session Vinted (US-03)
   - name: wardrobe
     description: Dressing (US-04)
+  - name: listing-backup
+    description: Sauvegarde d'une annonce et sa validation (US-08)
 paths:
   /api/vinted-session:
     get:
@@ -115,7 +117,113 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WardrobeOverview'
+  /api/listings/{listingId}/backup:
+    get:
+      tags: [listing-backup]
+      operationId: showListingBackup
+      summary: Voir la sauvegarde d'une annonce
+      description: >
+        Sauvegarde de l'annonce (contenu par ses libellés, photos gardées dans l'ordre), vérifiée à chaque demande :
+        photos présentes et intactes, annonce présente dans le dressing, titre et prix identiques au dernier scan.
+        Ne contacte pas Vinted.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      responses:
+        '200':
+          description: Sauvegarde de l'annonce et résultat de sa vérification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+  /api/listings/{listingId}/backup/photos/{rank}:
+    get:
+      tags: [listing-backup]
+      operationId: showListingBackupPhoto
+      summary: Voir une photo gardée
+      description: Le fichier gardé de la photo, tel qu'il est sur le disque, à l'octet près.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+        - name: rank
+          in: path
+          required: true
+          description: Rang de la photo dans l'annonce, 0 pour la couverture.
+          schema:
+            type: integer
+            format: int32
+            minimum: 0
+      responses:
+        '200':
+          description: Le fichier de la photo, avec le type sous lequel Vinted l'a servi.
+          content:
+            image/webp:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+            image/png:
+              schema:
+                type: string
+                format: binary
+        '404':
+          description: Pas de sauvegarde, pas de photo à ce rang, ou fichier manquant.
+  /api/listings/{listingId}/backup/validation:
+    put:
+      tags: [listing-backup]
+      operationId: validateListingBackup
+      summary: Valider la sauvegarde d'une annonce
+      description: >
+        Le membre confirme la version de la sauvegarde qu'il a vue (savedAt). La vérification est refaite d'abord.
+        Valider de nouveau la même version garde la première date de validation. Remplacer la sauvegarde annule
+        la validation.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackupValidationRequest'
+      responses:
+        '200':
+          description: Sauvegarde validée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '400':
+          description: Corps de la demande invalide.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: La sauvegarde a été remplacée depuis l'aperçu ; rouvrir l'aperçu et la revoir.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationRefusal'
+        '422':
+          description: La vérification échoue ; rien n'est validé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationRefusal'
 components:
+  parameters:
+    ListingId:
+      name: listingId
+      in: path
+      required: true
+      description: Identifiant de l'annonce sur Vinted.
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
   schemas:
     WardrobeOverview:
       type: object
@@ -193,6 +301,10 @@ components:
             si sa sauvegarde date d'avant la conservation des photos.
         statistics:
           $ref: '#/components/schemas/ListingStatistics'
+        validatedAt:
+          type: string
+          format: date-time
+          description: Date de validation de la sauvegarde actuelle par le membre ; absente si elle n'est pas validée.
     ListingStatistics:
       type: object
       description: >-
@@ -260,3 +372,157 @@ components:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.
       enum: [MANUAL_LOGIN_NOT_COMPLETED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE]
+    ListingBackupView:
+      type: object
+      description: Ce que le membre voit de la sauvegarde d'une annonce avant de la valider.
+      required: [vintedId, savedAt, verification, content, photos]
+      properties:
+        vintedId:
+          type: integer
+          format: int64
+        savedAt:
+          type: string
+          format: date-time
+          description: Date de la sauvegarde ; à renvoyer pour la valider.
+        validatedAt:
+          type: string
+          format: date-time
+          description: Date de validation de cette version de la sauvegarde ; absente si elle n'est pas validée.
+        verification:
+          $ref: '#/components/schemas/BackupVerification'
+        content:
+          $ref: '#/components/schemas/ListingBackupContent'
+        photos:
+          type: array
+          description: Photos gardées, dans l'ordre de l'annonce (la première est la couverture).
+          items:
+            $ref: '#/components/schemas/KeptPhoto'
+      example:
+        vintedId: 10208778166
+        savedAt: '2026-11-10T10:00:00Z'
+        verification:
+          passed: true
+          failures: []
+        content:
+          title: Pull rayé
+          description: Porté deux fois
+          price: {amount: 12.50, currency: EUR}
+          category: Pulls
+          brand: Kiabi
+          condition: Très bon état
+          size: M
+          colors: Blanc
+          packageSize: Petit
+        photos:
+          - rank: 0
+            url: /api/listings/10208778166/backup/photos/0
+    BackupVerification:
+      type: object
+      description: Vérification de la sauvegarde, refaite à chaque demande ; réussie si aucun échec.
+      required: [passed, failures]
+      properties:
+        passed:
+          type: boolean
+        failures:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationFailure'
+    VerificationFailure:
+      type: object
+      description: >
+        Raison pour laquelle la sauvegarde ne permet pas de republier l'annonce : aucune photo, photo manquante,
+        photo modifiée, annonce absente du dressing, titre ou prix différent du dernier scan.
+      required: [kind]
+      properties:
+        kind:
+          $ref: '#/components/schemas/VerificationFailureKind'
+        rank:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Rang de la photo, pour PHOTO_MISSING et PHOTO_ALTERED.
+        savedTitle:
+          type: string
+          description: Titre sauvegardé, pour TITLE_CHANGED.
+        scannedTitle:
+          type: string
+          description: Titre lu au dernier scan, pour TITLE_CHANGED.
+        savedPrice:
+          $ref: '#/components/schemas/Price'
+        scannedPrice:
+          $ref: '#/components/schemas/Price'
+    VerificationFailureKind:
+      type: string
+      enum: [NO_PHOTO, PHOTO_MISSING, PHOTO_ALTERED, LISTING_ABSENT, TITLE_CHANGED, PRICE_CHANGED]
+    ListingBackupContent:
+      type: object
+      description: Contenu sauvegardé de l'annonce, par ses libellés ; un champ absent n'est pas renseigné.
+      required: [title, description, price, category, condition, packageSize]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          $ref: '#/components/schemas/Price'
+        category:
+          type: string
+        brand:
+          type: string
+        condition:
+          type: string
+        size:
+          type: string
+        colors:
+          type: string
+        materials:
+          type: string
+        packageSize:
+          type: string
+        isbn:
+          type: string
+        bookTitle:
+          type: string
+        author:
+          type: string
+        manufacturer:
+          type: string
+        manufacturerLabel:
+          type: string
+        model:
+          type: string
+        measurementWidth:
+          type: number
+        measurementLength:
+          type: number
+        measurementUnit:
+          type: string
+    KeptPhoto:
+      type: object
+      required: [rank, url]
+      properties:
+        rank:
+          type: integer
+          format: int32
+          minimum: 0
+        url:
+          type: string
+          description: Adresse du fichier gardé dans l'API.
+    BackupValidationRequest:
+      type: object
+      required: [savedAt]
+      properties:
+        savedAt:
+          type: string
+          format: date-time
+          description: Date de la sauvegarde que le membre a vue.
+    ValidationRefusal:
+      type: object
+      description: Raison pour laquelle la validation est refusée ; rien n'est validé.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [BACKUP_REPLACED, VERIFICATION_FAILED]
+        verification:
+          $ref: '#/components/schemas/BackupVerification'

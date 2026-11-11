@@ -2,6 +2,7 @@ package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
@@ -58,6 +59,15 @@ class JpaListingRepositoryTest {
         listings.saveAll(List.of(listing));
 
         assertThat(listings.findAll()).containsExactly(listing);
+    }
+
+    @Test
+    void finds_a_listing_by_its_identifier() {
+        Listing listing = Listing.seen(aListing(1, "Pull rayé", "1.5", ACTIVE), SCANNED_AT);
+        listings.saveAll(List.of(listing));
+
+        assertThat(listings.find(new VintedListingId(1))).contains(listing);
+        assertThat(listings.find(new VintedListingId(2))).isEmpty();
     }
 
     @Test
