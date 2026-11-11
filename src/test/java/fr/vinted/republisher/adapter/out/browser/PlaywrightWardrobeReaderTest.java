@@ -37,6 +37,8 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.UnaryOperator;
 import java.util.stream.LongStream;
@@ -101,7 +103,9 @@ class PlaywrightWardrobeReaderTest {
             <!DOCTYPE html><html><head>
             <script type="application/ld+json">{"@type": "BreadcrumbList", "itemListElement": []}</script>
             %s
-            </head><body><h1>Annonce</h1><img src="/missing-photo"></body></html>""";
+            </head><body><h1>Annonce</h1><img src="%s"></body></html>""";
+    private static final Duration LOAD_TIMEOUT = Duration.ofSeconds(1);
+    private static final String STALLED_PHOTO = "/stalled-photo";
 
     @TempDir
     Path profileDirectory;
@@ -118,6 +122,10 @@ class PlaywrightWardrobeReaderTest {
     private int listingsOnVinted = 45;
     private boolean statisticsShown = true;
     private int wardrobeStatus = 200;
+    private String photo = "/missing-photo";
+    private final Map<Long, Integer> slowAnswers = new ConcurrentHashMap<>();
+    // Several threads: a stalled answer must not hold up the next request.
+    private final ExecutorService fakeVintedThreads = Executors.newCachedThreadPool();
 
     @BeforeEach
     void startFakeVinted() throws IOException {
@@ -131,8 +139,14 @@ class PlaywrightWardrobeReaderTest {
             record(exchange);
             listingRequestTimes.add(System.nanoTime());
             long id = Long.parseLong(exchange.getRequestURI().getPath().replaceFirst("/items/(\\d+).*", "$1"));
+            if (slowAnswers.getOrDefault(id, 0) > 0) {
+                slowAnswers.merge(id, -1, Integer::sum);
+                stall();
+            }
             respond(exchange, listingStatus.getOrDefault(id, 200), listingPage(id));
         });
+        fakeVinted.createContext(STALLED_PHOTO, exchange -> stall());
+        fakeVinted.setExecutor(fakeVintedThreads);
         fakeVinted.start();
         try (ServerSocket socket = new ServerSocket(0)) {
             debugPort = socket.getLocalPort();
@@ -153,6 +167,7 @@ class PlaywrightWardrobeReaderTest {
             chromeProcesses.forEach(process -> process.onExit().orTimeout(10, TimeUnit.SECONDS).join());
         }
         fakeVinted.stop(0);
+        fakeVintedThreads.shutdownNow();
     }
 
     @Nested
@@ -405,6 +420,40 @@ class PlaywrightWardrobeReaderTest {
     }
 
     @Nested
+    class Slow_page {
+
+        @BeforeEach
+        void oneListing() {
+            listingsOnVinted = 1;
+            header = "1 article";
+        }
+
+        @Test
+        void reads_a_listing_whose_photos_never_finish_loading() {
+            photo = STALLED_PHOTO;
+
+            assertThat(readEverything().read).extracting(listing -> listing.id().value()).containsExactly(1L);
+        }
+
+        @Test
+        void reads_a_listing_that_loads_on_the_second_attempt() {
+            slowAnswers.put(1L, 1);
+
+            assertThat(readEverything().read).extracting(listing -> listing.id().value()).containsExactly(1L);
+            assertThat(requests).filteredOn(request -> request.contains(ITEMS)).hasSize(2);
+        }
+
+        @Test
+        void a_listing_slow_twice_means_vinted_is_unreachable() {
+            slowAnswers.put(1L, 2);
+
+            assertThatThrownBy(PlaywrightWardrobeReaderTest.this::readEverything)
+                    .isInstanceOf(VintedUnreachable.class);
+            assertThat(requests).filteredOn(request -> request.contains(ITEMS)).hasSize(2);
+        }
+    }
+
+    @Nested
     class Unexpected_page {
 
         @Test
@@ -470,7 +519,7 @@ class PlaywrightWardrobeReaderTest {
     }
 
     private WardrobeListing read(Visit visit, ScanPace pace) {
-        ChromeTabs tabs = new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort));
+        ChromeTabs tabs = new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort), LOAD_TIMEOUT);
         return new PlaywrightWardrobeReader(URI.create(address(MEMBER)), Duration.ofSeconds(2), tabs, Clock.systemUTC())
                 .read(pace, visit);
     }
@@ -501,7 +550,17 @@ class PlaywrightWardrobeReaderTest {
                 <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Product",
                   "name": "Pull %d", "offers": {"@type": "Offer", "price": "12.50", "priceCurrency": "EUR",
                   "url": "%s", "availability": "%s"}}</script>"""
-                .formatted(id, address(ITEMS + id), availability.getOrDefault(id, "https://schema.org/InStock"))));
+                .formatted(id, address(ITEMS + id), availability.getOrDefault(id, "https://schema.org/InStock"))),
+                photo);
+    }
+
+    /** Answers well after the load timeout: the browser has given up waiting by then. */
+    private static void stall() {
+        try {
+            Thread.sleep(LOAD_TIMEOUT.multipliedBy(3));
+        } catch (InterruptedException stopped) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private static void respond(HttpExchange exchange, int status, String body) throws IOException {

@@ -5,6 +5,8 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.PlaywrightException;
 import com.microsoft.playwright.Response;
+import com.microsoft.playwright.TimeoutError;
+import com.microsoft.playwright.options.WaitUntilState;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
 import org.slf4j.Logger;
@@ -27,10 +29,20 @@ public class ChromeTabs {
     private static final Playwright.CreateOptions NO_BROWSER_DOWNLOAD =
             new Playwright.CreateOptions().setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"));
 
+    private static final Duration LOAD_TIMEOUT = Duration.ofSeconds(30);
+    private static final Page.NavigateOptions DOCUMENT_READ =
+            new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED);
+
     private final Chrome chrome;
+    private final Duration loadTimeout;
 
     public ChromeTabs(Chrome chrome) {
+        this(chrome, LOAD_TIMEOUT);
+    }
+
+    ChromeTabs(Chrome chrome, Duration loadTimeout) {
         this.chrome = chrome;
+        this.loadTimeout = loadTimeout;
     }
 
     /** The page only says the browser is unavailable: the reason goes to the logs. */
@@ -57,11 +69,22 @@ public class ChromeTabs {
                 new Page.WaitForConditionOptions().setTimeout(pause.toMillis() + SAFETY_MARGIN_MILLIS));
     }
 
-    /** An HTTP error is expected to be Vinted's anti-bot block page: it must not pass for a displayed page. */
+    /**
+     * The data read is in the document itself: waiting for every photo or tracker to load only risks a timeout.
+     * A page that does not arrive in time is loaded once more, but an HTTP error is expected to be Vinted's
+     * anti-bot block page: it is never tried again and must not pass for a displayed page.
+     */
     static void open(Page page, URI url) {
         Response response;
         try {
-            response = page.navigate(url.toString());
+            try {
+                response = page.navigate(url.toString(), DOCUMENT_READ);
+            } catch (TimeoutError slow) {
+                LOG.warn("{} did not load in time, loading it once more", url);
+                // Playwright stops waiting but Chrome keeps the request: the same URL would queue behind it.
+                page.navigate("about:blank");
+                response = page.navigate(url.toString(), DOCUMENT_READ);
+            }
         } catch (PlaywrightException noAnswer) {
             throw new VintedUnreachable(noAnswer.getMessage(), noAnswer);
         }
@@ -71,10 +94,11 @@ public class ChromeTabs {
     }
 
     /** Closing Playwright only detaches from Chrome, which stays open. */
-    private static <T> T inNewTab(URI endpoint, Function<Page, T> action) {
+    private <T> T inNewTab(URI endpoint, Function<Page, T> action) {
         try (Playwright playwright = Playwright.create(NO_BROWSER_DOWNLOAD)) {
             Browser browser = playwright.chromium().connectOverCDP(endpoint.toString());
             Page page = browser.contexts().getFirst().newPage();
+            page.setDefaultNavigationTimeout(loadTimeout.toMillis());
             try {
                 return action.apply(page);
             } finally {

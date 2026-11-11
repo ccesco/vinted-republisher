@@ -203,6 +203,7 @@ Recette du 2026-11-11 (10 annonces présentes, scan partiel) : sauvegarde termin
 - Champ facultatif non renseigné (taille, matière, marque…) : enregistré nul, avec un libellé nul.
 - Annonce vendue ou retirée entre le scan et la sauvegarde (HTTP 404) : « Vinted inaccessible », arrêt ; un nouveau scan la marquera absente.
 - Annonce marquée absente par un scan pendant une interruption de la sauvegarde : elle n'est plus traitée à la reprise ; sa sauvegarde existante est conservée.
+- Formulaire ou page publique dont le document n'arrive pas dans le délai de chargement : rechargé une fois, puis « Vinted inaccessible » (règle d'US-04, AT-04-19).
 - Erreur HTTP sur une ressource tierce de la page : ignorée.
 - Erreur inattendue, ou base indisponible : « échec de la sauvegarde » (détail dans les logs), verrou libéré, sauvegarde reprenable.
 - Application arrêtée pendant une sauvegarde : elle reste non terminée et se reprend à la suivante.
