@@ -150,6 +150,7 @@ Et aucune annonce n'a été modifiée sur Vinted
 Test : manuel (vrai compte Vinted, non automatisable). Vérifie aussi une annonce à plusieurs photos (ordre) et la page publique d'une annonce réservée.
 Non fait à la clôture (2026-11-11) : l'utilisateur a choisi de passer l'US en « implémentée » avec ce test encore ouvert. Tout écart constaté se traite par une mise à jour de cette spec.
 Recette du 2026-11-11 (10 annonces, 17 photos) : pour chacune, autant de fichiers dans `data/photos/<id>/` que de photos en base, fichiers en WebP (octets servis par Vinted). Reste ouvert : nombre et ordre des photos comparés à Vinted par l'utilisateur.
+Contrôles restants : passé, confirmé par l'utilisateur le 2026-11-11, sur les 10 annonces de la recette (scan et sauvegarde du dressing complet non menés à terme).
 
 ## Cas limites et erreurs
 - Aucune photo sur la page publique, ou photo non téléchargée (réponse autre que 200, fichier vide, type servi qui n'est pas une image, délai dépassé) : « annonce illisible », la sauvegarde s'arrête (règle d'US-05).

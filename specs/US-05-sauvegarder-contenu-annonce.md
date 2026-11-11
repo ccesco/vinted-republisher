@@ -196,6 +196,7 @@ Et aucune annonce n'a été modifiée sur Vinted
 Test : manuel (vrai compte Vinted, non automatisable). Commencer par arrêter la sauvegarde après quelques annonces pour vérifier la reprise. Tout attribut inconnu rencontré se traite par une mise à jour de cette spec. Ce test vérifie aussi : une description longue sauvegardée en entier ; le comportement d'une annonce non modifiable (vendue, réservée) sur `/items/<id>/edit` (aujourd'hui, toute redirection hors du formulaire est traitée en « session non connectée ») ; le libellé du format du colis.
 Non fait à la clôture (2026-11-11) : l'utilisateur a choisi de passer l'US en « implémentée » avec ce test encore ouvert. Tout écart constaté se traite par une mise à jour de cette spec.
 Recette du 2026-11-11 (10 annonces présentes, scan partiel) : sauvegarde terminée deux fois ; la seconde, arrêtée par un dépassement de délai de chargement (« Vinted inaccessible », voir US-04), a repris sans refaire les annonces déjà sauvegardées. Reste ouvert : comparaison du contenu au formulaire de modification par l'utilisateur, et sauvegarde du dressing complet.
+Contrôles restants : passé, confirmé par l'utilisateur le 2026-11-11, sur les 10 annonces de la recette (scan et sauvegarde du dressing complet non menés à terme).
 
 ## Cas limites et erreurs
 - Objet de l'annonce absent des scripts, `id` différent de l'annonce ouverte, champ obligatoire absent ou invalide : « annonce illisible », la sauvegarde s'arrête.
