@@ -4,12 +4,15 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.TimeoutError;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeUnreadable;
 
 import java.net.URI;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -23,9 +26,14 @@ final class WardrobePage {
             Pattern.compile("^(\\d[\\d\\s\\u00A0]*?)[\\s\\u00A0]+articles?$");
     // Only the listings of the grid: the rest of the page may suggest others. Seen as "grid-item" on Vinted,
     // whose markup is not stable: both a test identifier and a class are accepted.
-    private static final String LISTING_LINKS =
-            "[data-testid='grid-item'] a[href*='/items/'], .grid-item a[href*='/items/']";
-    private static final String HREFS = "links => links.map(link => link.href)";
+    private static final String LISTING_CARDS = "[data-testid='grid-item'], .grid-item";
+    // Each link of a card, with every text the card shows: its views and favourites are among them, for the member.
+    private static final String LINKS_AND_TEXTS = """
+            cards => cards.flatMap(card => {
+              const texts = [...card.querySelectorAll('*')]
+                .filter(element => element.children.length === 0).map(element => element.textContent);
+              return [...card.querySelectorAll("a[href*='/items/']")].map(link => ({href: link.href, texts}));
+            })""";
     private static final int WHEEL_STEP_PIXELS = 2500;
     private static final int POINTER_X = 400;
     private static final int POINTER_Y = 400;
@@ -79,12 +87,18 @@ final class WardrobePage {
 
     /** Anything else is left out: the count against the total then tells something is wrong. */
     List<ListingLink> listingLinks() {
-        List<?> hrefs = (List<?>) page.locator(LISTING_LINKS).evaluateAll(HREFS);
-        return hrefs.stream().map(String::valueOf).map(listingAddress::matcher).filter(Matcher::matches)
-                .map(WardrobePage::link).toList();
+        List<?> cards = (List<?>) page.locator(LISTING_CARDS).evaluateAll(LINKS_AND_TEXTS);
+        return cards.stream().map(card -> (Map<?, ?>) card).flatMap(card -> linkOn(card).stream()).toList();
     }
 
-    private static ListingLink link(Matcher address) {
-        return new ListingLink(new VintedListingId(Long.parseLong(address.group(2))), URI.create(address.group(1)));
+    private Optional<ListingLink> linkOn(Map<?, ?> card) {
+        Matcher address = listingAddress.matcher(String.valueOf(card.get("href")));
+        if (!address.matches()) {
+            return Optional.empty();
+        }
+        ListingLink link =
+                new ListingLink(new VintedListingId(Long.parseLong(address.group(2))), URI.create(address.group(1)));
+        List<String> texts = ((List<?>) card.get("texts")).stream().map(String::valueOf).toList();
+        return Optional.of(ListingStatistics.shownBy(texts).map(link::showing).orElse(link));
     }
 }

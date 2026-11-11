@@ -245,6 +245,33 @@ class WardrobePageTest {
     }
 
     @Test
+    void shows_statistics() {
+        // Étant donné une annonce dont le dernier relevé est 12 vues et 3 favoris, et une annonce jamais relevée
+        overview.set("""
+                {"scanInProgress": false, "backupInProgress": false,
+                 "listings": [
+                  {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                   "url": "https://vinted.test/items/3",
+                   "statistics": {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-07T10:05:00Z"}},
+                  {"vintedId": 2, "title": "Jupe", "price": {"amount": 4, "currency": "EUR"},
+                   "url": "https://vinted.test/items/2",
+                   "statistics": {"viewCount": 1, "favouriteCount": 1, "readAt": "2026-11-07T10:05:00Z"}},
+                  {"vintedId": 4, "title": "Robe", "price": {"amount": 6, "currency": "EUR"},
+                   "url": "https://vinted.test/items/4",
+                   "statistics": {"viewCount": 0, "favouriteCount": 0, "readAt": "2026-11-07T10:05:00Z"}},
+                  {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                   "url": "https://vinted.test/items/1"}]}""");
+        // Quand j'ouvre la page du dressing
+        open();
+        // Alors je vois « 12 vues · 3 favoris » pour la première, et rien pour la seconde
+        assertThat(rows().nth(0)).containsText("12 vues · 3 favoris");
+        assertThat(rows().nth(1)).containsText("1 vue · 1 favori");
+        assertThat(rows().nth(2)).containsText("0 vue · 0 favori –");
+        assertThat(rows().nth(3)).not().containsText("vue");
+        assertThat(rows().nth(3)).not().containsText("favori");
+    }
+
+    @Test
     void says_when_no_backup_has_finished_yet() {
         open();
 

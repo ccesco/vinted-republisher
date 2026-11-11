@@ -14,11 +14,15 @@ import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
+import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -62,6 +66,9 @@ class WardrobeApiControllerTest {
 
     @Autowired
     private InMemoryListingRepository listings;
+
+    @Autowired
+    private InMemoryListingStatisticsRepository statistics;
 
     @Autowired
     private InMemoryWardrobeScanRepository scans;
@@ -164,6 +171,28 @@ class WardrobeApiControllerTest {
     }
 
     @Test
+    void shows_the_latest_statistics_of_each_listing() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
+                Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
+        statistics.addAll(List.of(
+                new StatisticsReading(new VintedListingId(17), new ListingStatistics(12, 3), SCANNED_AT.minusSeconds(60)),
+                new StatisticsReading(new VintedListingId(17), new ListingStatistics(15, 4), SCANNED_AT)));
+
+        assertThat(mvc.get().uri("/api/wardrobe"))
+                .hasStatusOk()
+                .bodyJson().isStrictlyEqualTo("""
+                        {"scanInProgress": false, "backupInProgress": false,
+                         "listings": [{"vintedId": 18, "title": "Jupe",
+                                       "price": {"amount": 3.00, "currency": "EUR"},
+                                       "url": "https://vinted.test/items/18"},
+                                      {"vintedId": 17, "title": "Pull rayé",
+                                       "price": {"amount": 1.50, "currency": "EUR"},
+                                       "url": "https://vinted.test/items/17",
+                                       "statistics": {"viewCount": 15, "favouriteCount": 4,
+                                                      "readAt": "%s"}}]}""".formatted(SCANNED_AT));
+    }
+
+    @Test
     void shows_the_backup_date_of_each_listing_and_of_the_last_backup() {
         listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
                 Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
@@ -257,6 +286,11 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
+        InMemoryListingStatisticsRepository listingStatistics() {
+            return new InMemoryListingStatisticsRepository();
+        }
+
+        @Bean
         InMemoryWardrobeScanRepository scans() {
             return new InMemoryWardrobeScanRepository();
         }
@@ -273,15 +307,16 @@ class WardrobeApiControllerTest {
 
         @Bean
         ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryListingRepository listings,
-                                  InMemoryWardrobeScanRepository scans) {
-            return new ShowWardrobe(session, lastProblem, listings, scans);
+                                  InMemoryListingStatisticsRepository statistics, InMemoryWardrobeScanRepository scans) {
+            return new ShowWardrobe(session, lastProblem, listings, statistics, scans);
         }
 
         @Bean
         ScanWardrobe scanWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryWardrobeScanRepository scans,
                                   FakeWardrobeReader reader,
-                                  InMemoryListingRepository listings, Background background) {
-            return new ScanWardrobe(session, lastProblem, scans, reader, listings, noPause(),
+                                  InMemoryListingRepository listings, InMemoryListingStatisticsRepository statistics,
+                                  Background background) {
+            return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(),
                     Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background);
         }
 

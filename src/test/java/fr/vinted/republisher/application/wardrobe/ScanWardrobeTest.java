@@ -6,12 +6,15 @@ import fr.vinted.republisher.domain.session.SessionStatus;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Listing;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
+import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -41,6 +44,7 @@ class ScanWardrobeTest {
     private final LastScanProblem lastProblem = new LastScanProblem();
     private final InMemoryWardrobeScanRepository scans = new InMemoryWardrobeScanRepository();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
+    private final InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final List<Runnable> background = new ArrayList<>();
@@ -79,7 +83,32 @@ class ScanWardrobeTest {
         scan();
 
         assertThat(listings.findAll()).extracting(Listing::lastSeenAt)
-                .containsExactlyInAnyOrder(NOW.plusSeconds(10), NOW.plusSeconds(20));
+                .containsExactlyInAnyOrder(NOW.plusSeconds(20), NOW.plusSeconds(30));
+    }
+
+    @Test
+    void statistics_are_dated_by_the_end_of_the_wardrobe_listing() {
+        clock.advancingAtEachReadingBy(Duration.ofSeconds(10));
+        reader.holding(anActiveListing(1)).showing(1, new ListingStatistics(12, 3));
+
+        scan();
+
+        assertThat(statistics.readings()).extracting(StatisticsReading::readAt).containsExactly(NOW.plusSeconds(10));
+        assertThat(listings.findAll().getFirst().lastSeenAt()).isEqualTo(NOW.plusSeconds(20));
+    }
+
+    @Test
+    void resumed_scan_adds_a_new_statistics_reading() {
+        reader.holding(anActiveListing(1), anActiveListing(2)).showing(1, new ListingStatistics(12, 3))
+                .whereVintedRefuses(2);
+        scan();
+        clock.advance(Duration.ofHours(1));
+        reader.holding(anActiveListing(1), anActiveListing(2)).showing(1, new ListingStatistics(13, 3));
+
+        scan();
+
+        assertThat(statistics.readings()).extracting(StatisticsReading::statistics)
+                .containsExactly(new ListingStatistics(12, 3), new ListingStatistics(13, 3));
     }
 
     @Test
@@ -91,8 +120,8 @@ class ScanWardrobeTest {
 
         WardrobeScan scan = scans.findLastFinished().orElseThrow();
         assertThat(scan.startedAt()).isEqualTo(NOW);
-        assertThat(listings.findAll().getFirst().lastSeenAt()).isEqualTo(NOW.plusSeconds(10));
-        assertThat(scan.finishedAt()).contains(NOW.plusSeconds(20));
+        assertThat(listings.findAll().getFirst().lastSeenAt()).isEqualTo(NOW.plusSeconds(20));
+        assertThat(scan.finishedAt()).contains(NOW.plusSeconds(30));
     }
 
     @Test
@@ -220,6 +249,6 @@ class ScanWardrobeTest {
     }
 
     private ScanWardrobe scanWardrobe(Executor executor) {
-        return new ScanWardrobe(session, lastProblem, scans, reader, listings, noPause(), clock, executor);
+        return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(), clock, executor);
     }
 }

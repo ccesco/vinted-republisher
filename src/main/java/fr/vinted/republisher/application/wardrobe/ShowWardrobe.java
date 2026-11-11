@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
+import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScanRepository;
@@ -20,13 +21,15 @@ public class ShowWardrobe {
     private final VintedSession session;
     private final LastScanProblem lastProblem;
     private final ListingRepository listings;
+    private final ListingStatisticsRepository statistics;
     private final WardrobeScanRepository scans;
 
     public ShowWardrobe(VintedSession session, LastScanProblem lastProblem, ListingRepository listings,
-                        WardrobeScanRepository scans) {
+                        ListingStatisticsRepository statistics, WardrobeScanRepository scans) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.listings = listings;
+        this.statistics = statistics;
         this.scans = scans;
     }
 
@@ -37,6 +40,7 @@ public class ShowWardrobe {
                 scanInProgress,
                 scans.findLastFinished().flatMap(WardrobeScan::finishedAt),
                 lastProblem.current(),
-                listings.findAll().stream().filter(Listing::present).sorted(MOST_RECENT_FIRST).toList());
+                listings.findAll().stream().filter(Listing::present).sorted(MOST_RECENT_FIRST).toList(),
+                statistics.findLatest());
     }
 }

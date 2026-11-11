@@ -9,11 +9,13 @@ public record WardrobeOverview(
         boolean scanInProgress,
         Optional<Instant> lastScanAt,
         Optional<ScanProblem> problem,
-        List<Listing> listings) {
+        List<Listing> listings,
+        List<StatisticsReading> latestStatistics) {
 
     public WardrobeOverview {
         Objects.requireNonNull(lastScanAt);
         Objects.requireNonNull(problem);
         listings = List.copyOf(listings);
+        latestStatistics = List.copyOf(latestStatistics);
     }
 }

@@ -3,6 +3,7 @@ package fr.vinted.republisher.fakes;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -20,7 +21,8 @@ import java.util.Optional;
 
 public class FakeWardrobeReader implements WardrobeReader {
 
-    private final Map<ListingLink, ScannedListing> wardrobe = new LinkedHashMap<>();
+    private final Map<VintedListingId, ScannedListing> wardrobe = new LinkedHashMap<>();
+    private final Map<VintedListingId, ListingStatistics> statistics = new LinkedHashMap<>();
     private final List<VintedListingId> opened = new ArrayList<>();
     private final List<Duration> pausesBetweenListings = new ArrayList<>();
     private int displayedTotal;
@@ -36,11 +38,18 @@ public class FakeWardrobeReader implements WardrobeReader {
     /** A new wardrobe: what was opened or refused so far is forgotten. */
     public FakeWardrobeReader announcing(int total, ScannedListing... listings) {
         wardrobe.clear();
-        List.of(listings).forEach(listing -> wardrobe.put(listing.link(), listing));
+        List.of(listings).forEach(listing -> wardrobe.put(listing.id(), listing));
+        statistics.clear();
         displayedTotal = total;
         opened.clear();
         failure = Optional.empty();
         refused = Optional.empty();
+        return this;
+    }
+
+    /** The card of this listing shows its statistics, as it does to the connected member. */
+    public FakeWardrobeReader showing(long listing, ListingStatistics shown) {
+        statistics.put(new VintedListingId(listing), shown);
         return this;
     }
 
@@ -88,7 +97,7 @@ public class FakeWardrobeReader implements WardrobeReader {
         failure.ifPresent(reason -> {
             throw reason;
         });
-        WardrobeListing found = new WardrobeListing(displayedTotal, List.copyOf(wardrobe.keySet()));
+        WardrobeListing found = new WardrobeListing(displayedTotal, wardrobe.values().stream().map(this::cardOf).toList());
         Iterator<ListingLink> toOpen = visit.listingsToOpen(found).iterator();
         while (toOpen.hasNext()) {
             visit.record(open(toOpen.next()));
@@ -99,11 +108,15 @@ public class FakeWardrobeReader implements WardrobeReader {
         return found;
     }
 
+    private ListingLink cardOf(ScannedListing listing) {
+        return Optional.ofNullable(statistics.get(listing.id())).map(listing.link()::showing).orElse(listing.link());
+    }
+
     private ScannedListing open(ListingLink link) {
         opened.add(link.id());
         if (refused.filter(link.id()::equals).isPresent()) {
             throw new VintedUnreachable("HTTP 403");
         }
-        return wardrobe.get(link);
+        return wardrobe.get(link.id());
     }
 }

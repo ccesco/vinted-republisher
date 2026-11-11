@@ -7,6 +7,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.ScanPace;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
@@ -66,6 +67,7 @@ class PlaywrightWardrobeReaderTest {
             <div id="end" style="margin-top: 3000px">fin</div>
             <script>
               const onVinted = %d;
+              const statisticsShown = %b;
               let shown = 0;
               function showNextListings() {
                 const grid = document.getElementById('grid');
@@ -78,6 +80,11 @@ class PlaywrightWardrobeReaderTest {
                   link.href = '/items/' + shown + '-pull-raye?referrer=catalog';
                   link.textContent = 'Pull ' + shown;
                   item.append(link);
+                  if (statisticsShown) {
+                    item.insertAdjacentHTML('beforeend', `<div data-testid="product-item-id-${shown}--description">`
+                      + `<p data-testid="product-item-id-${shown}--description-title">${shown * 10} vues</p>`
+                      + `<p data-testid="product-item-id-${shown}--description-subtitle">${shown %% 4} favoris</p></div>`);
+                  }
                   grid.append(item);
                 }
               }
@@ -109,6 +116,7 @@ class PlaywrightWardrobeReaderTest {
     private String header = "45 articles";
     private String strayLinks = "";
     private int listingsOnVinted = 45;
+    private boolean statisticsShown = true;
     private int wardrobeStatus = 200;
 
     @BeforeEach
@@ -116,7 +124,8 @@ class PlaywrightWardrobeReaderTest {
         fakeVinted = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         fakeVinted.createContext(MEMBER, exchange -> {
             record(exchange);
-            respond(exchange, wardrobeStatus, WARDROBE_PAGE.formatted(header, strayLinks, listingsOnVinted));
+            respond(exchange, wardrobeStatus,
+                    WARDROBE_PAGE.formatted(header, strayLinks, listingsOnVinted, statisticsShown));
         });
         fakeVinted.createContext(ITEMS, exchange -> {
             record(exchange);
@@ -299,6 +308,23 @@ class PlaywrightWardrobeReaderTest {
             readEverything();
 
             assertThat(tabsOnFakeVinted()).isZero();
+        }
+    }
+
+    @Nested
+    class Statistics {
+
+        @Test
+        void reads_the_views_and_favourites_shown_on_each_card() {
+            assertThat(goThrough().links()).hasSize(45).allSatisfy(link -> assertThat(link.statistics()).contains(
+                    new ListingStatistics((int) link.id().value() * 10, (int) link.id().value() % 4)));
+        }
+
+        @Test
+        void cards_without_statistics_give_links_without_statistics() {
+            statisticsShown = false;
+
+            assertThat(goThrough().links()).hasSize(45).allSatisfy(link -> assertThat(link.statistics()).isEmpty());
         }
     }
 
