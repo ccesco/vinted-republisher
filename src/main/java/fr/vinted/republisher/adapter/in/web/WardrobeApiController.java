@@ -75,7 +75,8 @@ public class WardrobeApiController implements WardrobeApi {
                 .title(listing.title())
                 .price(new PriceDto().amount(listing.price().amount()).currency(listing.price().currency()))
                 .url(listing.url())
-                .savedAt(dateOf(Optional.ofNullable(backup.savedAt().get(listing.id()))));
+                .savedAt(dateOf(Optional.ofNullable(backup.savedAt().get(listing.id()))))
+                .photoCount(backup.photoCount().get(listing.id()));
     }
 
     private static OffsetDateTime dateOf(Optional<Instant> instant) {

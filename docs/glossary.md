@@ -36,10 +36,15 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `FormOption` / `FormOptions` | Option du formulaire | Choix unique (catégorie, marque, état, taille, format du colis) ou multiple (couleurs, matières) : identifiant Vinted, qui sert à republier, et libellé affiché, vide si le formulaire ne l'affiche pas. |
 | `CategoryDetails` | Détails propres à la catégorie | Champs que le formulaire ne demande que dans certaines catégories : ISBN, titre du livre, auteur, fabricant, modèle, mesures. |
 | `ListingEditForm` | Formulaire de modification | Page `/items/<id>/edit` de Vinted, réservée au membre connecté ; l'outil ne fait que la lire, sans rien cliquer, saisir ni soumettre. |
-| `ListingBackup` | Sauvegarde d'une annonce | Contenu d'une annonce et sa date de sauvegarde ; une seule par annonce, remplacée seulement par une lecture complète. |
-| `WardrobeBackup` (`BackUpWardrobe`) | Sauvegarde du dressing | Lecture du formulaire de chaque annonce présente, uniquement sur demande ; persistée avec ses dates de début et de fin, elle reste non terminée après un échec et se reprend à la sauvegarde suivante. |
-| `BackupPace` | Rythme de la sauvegarde | Pause aléatoire entre deux annonces, dans ses bornes configurées. |
-| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée, problème éventuel et date de sauvegarde de chaque annonce. |
+| `ListingBackup` | Sauvegarde d'une annonce | Contenu d'une annonce, ses photos gardées dans leur ordre et sa date de sauvegarde ; une seule par annonce, remplacée seulement par une lecture complète. Une sauvegarde faite avant la conservation des photos n'en a aucune. |
+| `ListingReading` | Lecture d'une annonce | Ce qu'une visite d'une annonce lit : son contenu (formulaire de modification) et ses photos téléchargées (page publique), au moins une. |
+| `DownloadedPhoto` | Photo téléchargée | Fichier d'une photo tel que Vinted l'a servi, à l'octet près, avec son type ; jamais réencodé. |
+| `ListingPhoto` | Photo gardée | Photo d'une sauvegarde : son rang dans l'annonce (0 = couverture), l'empreinte SHA-256 et l'extension de son fichier. |
+| `ListingGallery` | Galerie de l'annonce | Liste ordonnée des photos pleine taille que donne la page publique d'une annonce ; la page les télécharge elle-même. |
+| `PhotoStorage` | Rangement des photos | Fichiers des photos sous `APP_DATA_DIR/photos/<annonce>/<SHA-256>.<extension>`, écrits une fois et jamais modifiés. |
+| `WardrobeBackup` (`BackUpWardrobe`) | Sauvegarde du dressing | Lecture du formulaire de modification et des photos de la page publique de chaque annonce présente, uniquement sur demande ; persistée avec ses dates de début et de fin, elle reste non terminée après un échec et se reprend à la sauvegarde suivante. |
+| `BackupPace` | Rythme de la sauvegarde | Pause aléatoire entre deux pages ouvertes par la sauvegarde, dans ses bornes configurées. |
+| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée, problème éventuel, date de sauvegarde et nombre de photos gardées de chaque annonce. |
 | `BackupProblem` | Problème de sauvegarde | Raison affichée quand une sauvegarde n'a pas abouti : navigateur indisponible, Vinted inaccessible, session non connectée, annonce illisible, échec de la sauvegarde. |
 | `LastBackupProblem` | Problème de la dernière sauvegarde | Problème affiché jusqu'à la sauvegarde suivante, conservé en mémoire seulement. |
 | `ListingUnreadable` | Annonce illisible | Formulaire sans données de l'annonce, champ obligatoire absent ou invalide, ou attribut de code inconnu. |

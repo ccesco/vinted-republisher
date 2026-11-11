@@ -45,13 +45,16 @@ vinted:
     min-listing-pause: 10s
     max-listing-pause: 15s
     stall-timeout: 30s
-  # Sauvegarde (US-05) : formulaire de modification de chaque annonce, lu sans rien cliquer ni soumettre,
-  # avec une pause aléatoire entre deux annonces ; un libellé encore non affiché après label-timeout est vide.
+  # Sauvegarde (US-05, US-06) : formulaire de modification puis page publique de chaque annonce, lus sans rien
+  # cliquer ni soumettre, avec une pause aléatoire entre deux pages ; un libellé encore non affiché après
+  # label-timeout est vide ; une photo non téléchargée après photo-timeout rend l'annonce illisible.
   backup:
     edit-form-url: https://www.vinted.fr/items/{id}/edit
-    min-listing-pause: 10s
-    max-listing-pause: 15s
+    listing-page-url: https://www.vinted.fr/items/{id}
+    min-page-pause: 10s
+    max-page-pause: 15s
     label-timeout: 10s
+    photo-timeout: 30s
 
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:

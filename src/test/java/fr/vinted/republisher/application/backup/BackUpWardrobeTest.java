@@ -5,6 +5,8 @@ import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingPhoto;
+import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionOverview;
 import fr.vinted.republisher.domain.session.SessionStatus;
@@ -15,21 +17,26 @@ import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.io.UncheckedIOException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Random;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.stream.LongStream;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -49,6 +56,7 @@ class BackUpWardrobeTest {
     private final InMemoryListingBackupRepository listingBackups = new InMemoryListingBackupRepository();
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final FakeListingContentReader reader = new FakeListingContentReader();
+    private final InMemoryPhotoStorage photos = new InMemoryPhotoStorage();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final List<Runnable> background = new ArrayList<>();
 
@@ -119,7 +127,7 @@ class BackUpWardrobeTest {
         backUp();
 
         assertThat(reader.opened()).hasSize(1);
-        assertThat(listingBackups.findAll()).containsExactly(new ListingBackup(aContent(1), NOW.plus(Duration.ofHours(1))));
+        assertThat(listingBackups.findAll()).containsExactly(aBackup(1, NOW.plus(Duration.ofHours(1))));
     }
 
     @Test
@@ -190,6 +198,59 @@ class BackUpWardrobeTest {
         assertThat(backups.findUnfinished()).isPresent();
     }
 
+    @Test
+    void photos_are_written_before_the_backup_that_points_at_them() {
+        anInventoryOf(1);
+        reader.showing(new ListingReading(aContent(1), List.of(aPhoto("A"), aPhoto("B"))));
+        List<Set<String>> filesWhenSaving = new ArrayList<>();
+        listingBackups.whenSaving(backup -> filesWhenSaving.add(photos.files(1).keySet()));
+
+        backUp();
+
+        assertThat(filesWhenSaving).containsExactly(Set.of(aPhoto("A").fileName(), aPhoto("B").fileName()));
+    }
+
+    @Test
+    void previous_photos_are_removed_only_once_the_new_backup_is_saved() {
+        anInventoryOf(1);
+        reader.showing(new ListingReading(aContent(1), List.of(aPhoto("A"))));
+        backUp();
+        clock.advance(Duration.ofHours(1));
+        reader.afresh().showing(new ListingReading(aContent(1), List.of(aPhoto("B"))));
+        listingBackups.whereDatabaseIsDown();
+
+        catchThrowable(this::backUp);
+
+        assertThat(photos.files(1)).containsKey(aPhoto("A").fileName());
+        assertThat(listingBackups.find(1).orElseThrow().photos()).containsExactly(ListingPhoto.at(0, aPhoto("A")));
+    }
+
+    @Test
+    void same_photo_twice_in_a_listing_is_one_file_kept_at_both_ranks() {
+        anInventoryOf(1);
+        reader.showing(new ListingReading(aContent(1), List.of(aPhoto("A"), aPhoto("A"))));
+
+        backUp();
+
+        assertThat(photos.files(1)).containsOnlyKeys(aPhoto("A").fileName());
+        assertThat(listingBackups.find(1).orElseThrow().photos())
+                .containsExactly(ListingPhoto.at(0, aPhoto("A")), ListingPhoto.at(1, aPhoto("A")));
+    }
+
+    @Test
+    void failed_write_fails_the_backup_and_saves_nothing() {
+        anInventoryOf(1);
+        reader.showing(aContent(1));
+        photos.whereWritingFails();
+
+        Throwable failure = catchThrowable(this::backUp);
+
+        assertThat(failure).isInstanceOf(UncheckedIOException.class);
+        assertThat(lastProblem.current()).contains(BackupProblem.BACKUP_FAILED);
+        assertThat(listingBackups.findAll()).isEmpty();
+        assertThat(backups.findUnfinished()).isPresent();
+    }
+
     private void anInventoryOf(long... ids) {
         listings.saveAll(LongStream.of(ids).mapToObj(id -> Listing.seen(anActiveListing(id), EARLIER)).toList());
     }
@@ -199,6 +260,7 @@ class BackUpWardrobeTest {
     }
 
     private BackUpWardrobe backUpWardrobe(Executor executor, BackupPace pace) {
-        return new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, pace, clock, executor);
+        return new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, photos, pace, clock,
+                executor);
     }
 }

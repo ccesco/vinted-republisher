@@ -228,7 +228,8 @@ class WardrobePageTest {
                 {"scanInProgress": false, "backupInProgress": false, "lastBackupAt": "2026-11-07T11:02:10Z",
                  "listings": [
                   {"vintedId": 2, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
-                   "url": "https://vinted.test/items/2", "savedAt": "2026-11-07T10:31:45Z"},
+                   "url": "https://vinted.test/items/2", "savedAt": "2026-11-07T10:31:45Z",
+                   "photoCount": 3},
                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
                    "url": "https://vinted.test/items/1"}]}""");
         // Quand j'ouvre la page du dressing
@@ -236,6 +237,8 @@ class WardrobePageTest {
         // Alors je vois la date de sauvegarde de la première et « non sauvegardée » pour la seconde
         // Et je vois la date de la dernière sauvegarde terminée et le bouton « Sauvegarder »
         assertThat(rows().nth(0)).containsText("sauvegardée le 07/11/2026");
+        // Et le nombre de photos gardées de la première (AT-06-11)
+        assertThat(rows().nth(0)).containsText("· 3 photos");
         assertThat(rows().nth(1)).containsText("non sauvegardée");
         assertThat(backupSummary()).containsText("Dernière sauvegarde terminée le 07/11/2026");
         assertThat(backupButton()).isVisible();

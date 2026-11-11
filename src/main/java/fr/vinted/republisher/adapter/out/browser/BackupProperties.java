@@ -7,9 +7,10 @@ import org.springframework.validation.annotation.Validated;
 
 import java.time.Duration;
 
-/** Where the edit form of a listing is, and the pace at which the backup reads them. */
+/** Where the edit form and the public page of a listing are, and the pace at which the backup reads them. */
 @Validated
 @ConfigurationProperties("vinted.backup")
-public record BackupProperties(@NotBlank String editFormUrl, @NotNull Duration minListingPause,
-                               @NotNull Duration maxListingPause, @NotNull Duration labelTimeout) {
+public record BackupProperties(@NotBlank String editFormUrl, @NotBlank String listingPageUrl,
+                               @NotNull Duration minPagePause, @NotNull Duration maxPagePause,
+                               @NotNull Duration labelTimeout, @NotNull Duration photoTimeout) {
 }

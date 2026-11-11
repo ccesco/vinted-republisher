@@ -158,6 +158,7 @@ components:
               currency: EUR
             url: https://www.vinted.fr/items/90000000001-pull-raye
             savedAt: '2026-11-07T10:31:45Z'
+            photoCount: 3
     Listing:
       type: object
       description: Annonce active du dressing.
@@ -179,6 +180,13 @@ components:
           type: string
           format: date-time
           description: Date de la sauvegarde du contenu de l'annonce ; absente si elle n'a jamais été sauvegardée.
+        photoCount:
+          type: integer
+          format: int32
+          minimum: 1
+          description: >-
+            Nombre de photos gardées avec la sauvegarde de l'annonce ; absent si elle n'a jamais été sauvegardée ou
+            si sa sauvegarde date d'avant la conservation des photos.
     Price:
       type: object
       description: Prix affiché sur Vinted, hors frais.

@@ -7,19 +7,28 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import jakarta.persistence.CollectionTable;
 import jakarta.persistence.Column;
+import jakarta.persistence.ElementCollection;
 import jakarta.persistence.Entity;
+import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.OrderColumn;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.Fetch;
+import org.hibernate.annotations.FetchMode;
 import org.hibernate.annotations.JdbcTypeCode;
 import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.IntStream;
 
-/** One column per value of the listing form, so that each keeps its own type. */
+/** One column per value of the listing form, so that each keeps its own type, and the photos kept in their order. */
 @Entity
 @Table(name = "listing_content")
 class ListingBackupJpaEntity {
@@ -111,6 +120,13 @@ class ListingBackupJpaEntity {
     @Column(name = "measurement_unit")
     private String measurementUnit;
 
+    // Fetched with the backups in one more query, not one per listing: the dressing page reads them all often.
+    @ElementCollection(fetch = FetchType.EAGER)
+    @Fetch(FetchMode.SUBSELECT)
+    @CollectionTable(name = "listing_photo", joinColumns = @JoinColumn(name = "listing_id"))
+    @OrderColumn(name = "photo_rank")
+    private List<ListingPhotoJpaEmbeddable> photos = new ArrayList<>();
+
     protected ListingBackupJpaEntity() {
     }
 
@@ -118,6 +134,7 @@ class ListingBackupJpaEntity {
         ListingContent content = backup.content();
         listingId = content.id().value();
         savedAt = backup.savedAt();
+        photos = new ArrayList<>(backup.photos().stream().map(ListingPhotoJpaEmbeddable::new).toList());
         title = content.title();
         description = content.description();
         price = content.price().amount();
@@ -163,7 +180,8 @@ class ListingBackupJpaEntity {
                         Optional.ofNullable(manufacturerLabel), Optional.ofNullable(model),
                         Optional.ofNullable(measurementWidth), Optional.ofNullable(measurementLength),
                         Optional.ofNullable(measurementUnit)));
-        return new ListingBackup(content, savedAt);
+        return new ListingBackup(content, IntStream.range(0, photos.size())
+                .mapToObj(rank -> photos.get(rank).toListingPhoto(rank)).toList(), savedAt);
     }
 
     private static Optional<FormOption> option(Long id, String label) {

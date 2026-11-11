@@ -19,7 +19,7 @@ class BackupPaceTest {
     void pauses_between_listings_stay_within_their_bounds_and_vary() {
         BackupPace pace = new BackupPace(new PauseRange(MINIMUM, MAXIMUM), new Random(42));
 
-        List<Duration> pauses = Stream.generate(pace::nextPauseBetweenListings).limit(200).toList();
+        List<Duration> pauses = Stream.generate(pace::nextPauseBetweenPages).limit(200).toList();
 
         assertThat(pauses).allSatisfy(pause -> assertThat(pause).isBetween(MINIMUM, MAXIMUM));
         assertThat(pauses.stream().distinct().count()).isGreaterThan(100);

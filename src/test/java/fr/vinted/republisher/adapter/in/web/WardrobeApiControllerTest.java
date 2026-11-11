@@ -4,10 +4,10 @@ import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
-import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
@@ -167,7 +167,7 @@ class WardrobeApiControllerTest {
     void shows_the_backup_date_of_each_listing_and_of_the_last_backup() {
         listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
                 Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
-        listingBackups.save(new ListingBackup(aContent(17), SAVED_AT));
+        listingBackups.save(aBackup(17, SAVED_AT));
         backups.save(WardrobeBackup.startedAt(SAVED_AT).finished(SAVED_AT.plusSeconds(60)));
 
         assertThat(mvc.get().uri("/api/wardrobe"))
@@ -181,7 +181,7 @@ class WardrobeApiControllerTest {
                                       {"vintedId": 17, "title": "Pull rayé",
                                        "price": {"amount": 1.50, "currency": "EUR"},
                                        "url": "https://vinted.test/items/17",
-                                       "savedAt": "2026-11-07T10:00:00Z"}]}""");
+                                       "savedAt": "2026-11-07T10:00:00Z", "photoCount": 1}]}""");
     }
 
     @Test
@@ -311,7 +311,8 @@ class WardrobeApiControllerTest {
                                       InMemoryWardrobeBackupRepository backups, InMemoryListingRepository listings,
                                       InMemoryListingBackupRepository listingBackups, Background background) {
             return new BackUpWardrobe(session, lastBackupProblem, backups, new FakeListingContentReader(), listings,
-                    listingBackups, noBackupPause(), Clock.fixed(SAVED_AT, ZoneOffset.UTC), background);
+                    listingBackups, new InMemoryPhotoStorage(), noBackupPause(), Clock.fixed(SAVED_AT, ZoneOffset.UTC),
+                    background);
         }
     }
 }

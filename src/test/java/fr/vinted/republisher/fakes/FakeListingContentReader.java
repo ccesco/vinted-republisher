@@ -1,8 +1,10 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.backup.BackupFixtures;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
+import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
@@ -21,7 +23,7 @@ import java.util.function.Supplier;
 
 public class FakeListingContentReader implements ListingContentReader {
 
-    private final Map<VintedListingId, ListingContent> forms = new HashMap<>();
+    private final Map<VintedListingId, ListingReading> readings = new HashMap<>();
     private final Map<VintedListingId, Supplier<RuntimeException>> failures = new HashMap<>();
     private final List<VintedListingId> opened = new ArrayList<>();
     private final List<Duration> pausesBetweenListings = new ArrayList<>();
@@ -30,7 +32,13 @@ public class FakeListingContentReader implements ListingContentReader {
     private Runnable duringTheReading = () -> { };
 
     public FakeListingContentReader showing(ListingContent... contents) {
-        List.of(contents).forEach(content -> forms.put(content.id(), content));
+        List.of(contents).forEach(content -> readings.put(content.id(),
+                new ListingReading(content, List.of(BackupFixtures.aPhoto("of " + content.id().value())))));
+        return this;
+    }
+
+    public FakeListingContentReader showing(ListingReading... visits) {
+        List.of(visits).forEach(reading -> readings.put(reading.id(), reading));
         return this;
     }
 
@@ -82,7 +90,7 @@ public class FakeListingContentReader implements ListingContentReader {
     }
 
     @Override
-    public void read(List<VintedListingId> listings, BackupPace pace, Consumer<ListingContent> record) {
+    public void read(List<VintedListingId> listings, BackupPace pace, Consumer<ListingReading> record) {
         tabs++;
         duringTheReading.run();
         browserFailure.ifPresent(reason -> {
@@ -92,18 +100,18 @@ public class FakeListingContentReader implements ListingContentReader {
         while (toOpen.hasNext()) {
             record.accept(open(toOpen.next()));
             if (toOpen.hasNext()) {
-                pausesBetweenListings.add(pace.nextPauseBetweenListings());
+                pausesBetweenListings.add(pace.nextPauseBetweenPages());
             }
         }
     }
 
-    private ListingContent open(VintedListingId listing) {
+    private ListingReading open(VintedListingId listing) {
         opened.add(listing);
         Supplier<RuntimeException> failure = failures.get(listing);
         if (failure != null) {
             throw failure.get();
         }
-        return forms.get(listing);
+        return readings.get(listing);
     }
 
     private FakeListingContentReader failingOn(long listing, Supplier<RuntimeException> failure) {

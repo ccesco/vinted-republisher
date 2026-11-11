@@ -45,6 +45,24 @@ final class EditFormFixtures {
         return List.of("console.log('unrelated')", push(payload.substring(0, middle)), push(payload.substring(middle)));
     }
 
+    /**
+     * The photo gallery of a public listing page, as observed on 2026-11-11, nested in a component: each photo has
+     * its full size address, and others the tool does not read.
+     */
+    static String galleryRow(long id, String... fullSizeUrls) {
+        StringBuilder photos = new StringBuilder();
+        for (int index = 0; index < fullSizeUrls.length; index++) {
+            photos.append(index == 0 ? "" : ",").append("""
+                    {"id":%d,"image_no":%d,"width":600,"height":800,"url":"%s/f800","is_main":%b,\
+                    "thumbnails":[],"high_resolution":{"id":"05_x","timestamp":1,"orientation":null},\
+                    "full_size_url":"%s","is_hidden":false,"extra":{}}""".formatted(
+                    1000 + index, index + 1, fullSizeUrls[index], index == 0, fullSizeUrls[index]));
+        }
+        return """
+                c8:["$","$L163",null,{"children":["$","$L165",null,{"data":{"name":"gallery","type":"gallery",\
+                "section":"content","data":{"item_id":%d,"seller_id":3,"photos":[%s]}}}]}]""".formatted(id, photos);
+    }
+
     static String itemRow(String item) {
         return "5:[\"$\",\"div\",null,{\"children\":[\"$\",\"$L6\",null,{\"item\":" + item + "}]}]";
     }

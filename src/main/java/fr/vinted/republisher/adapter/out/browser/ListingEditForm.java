@@ -106,7 +106,7 @@ final class ListingEditForm {
         });
     }
 
-    private static <T> T unexpectedDataIsUnreadable(VintedListingId id, Supplier<T> reading) {
+    static <T> T unexpectedDataIsUnreadable(VintedListingId id, Supplier<T> reading) {
         try {
             return reading.get();
         } catch (JacksonException | IllegalArgumentException unexpected) {
@@ -172,21 +172,10 @@ final class ListingEditForm {
     }
 
     private static Set<JsonNode> objects(FlightPayload payload, Predicate<JsonNode> wanted) {
-        Set<JsonNode> found = new LinkedHashSet<>();
-        payload.jsonRows().forEach(row -> collect(row, wanted, found));
-        return found;
+        return payload.objects(wanted);
     }
 
-    private static void collect(JsonNode node, Predicate<JsonNode> wanted, Set<JsonNode> found) {
-        if (node.isObject() && wanted.test(node)) {
-            found.add(node);
-        }
-        if (node.isContainer()) {
-            node.valueStream().forEach(child -> collect(child, wanted, found));
-        }
-    }
-
-    private static boolean isNumber(JsonNode node, long value) {
+    static boolean isNumber(JsonNode node, long value) {
         return node.isIntegralNumber() && node.longValue() == value;
     }
 

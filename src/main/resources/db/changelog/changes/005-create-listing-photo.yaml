@@ -1,0 +1,34 @@
+# US-06 : photos gardées de chaque annonce, dans leur ordre ; le fichier est sur disque, nommé par son empreinte.
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-listing-photo
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_photo
+            columns:
+              - column: {name: listing_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: photo_rank, type: integer, constraints: {nullable: false}}
+              - column: {name: sha256, type: char(64), constraints: {nullable: false}}
+              - column: {name: extension, type: varchar(4), constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: listing_photo
+            columnNames: listing_id, photo_rank
+            constraintName: listing_photo_pk
+        # Les photos font partie de la sauvegarde de l'annonce : elles sont remplacées avec elle.
+        - addForeignKeyConstraint:
+            baseTableName: listing_photo
+            baseColumnNames: listing_id
+            constraintName: listing_photo_listing_content_fk
+            referencedTableName: listing_content
+            referencedColumnNames: listing_id
+            onDelete: CASCADE
+        - sql:
+            sql: >
+              ALTER TABLE listing_photo
+                ADD CONSTRAINT listing_photo_rank_not_negative CHECK (photo_rank >= 0),
+                ADD CONSTRAINT listing_photo_sha256_hexadecimal CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+                ADD CONSTRAINT listing_photo_extension_image CHECK (extension IN ('webp', 'jpg', 'png'))
+      rollback:
+        - dropTable:
+            tableName: listing_photo
