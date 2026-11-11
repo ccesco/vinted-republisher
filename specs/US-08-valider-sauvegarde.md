@@ -178,6 +178,7 @@ Et je peux valider l'une d'elles
 ```
 Test : manuel (vraies données, contrôle visuel ; aucun accès à Vinted).
 Non fait à la clôture (2026-11-11) : l'utilisateur a choisi de passer l'US en « implémentée » avec ce test encore ouvert. À vérifier en priorité : titre du scan identique à celui du formulaire, sinon toute vérification échoue (décision « comparaison exacte » à rouvrir). Tout écart constaté se traite par une mise à jour de cette spec.
+Recette du 2026-11-11 (10 annonces sauvegardées) : vérification réussie pour les 10, la comparaison exacte des titres tient ; validation d'une annonce affichée dans le dressing ; un fichier photo retiré donne « photo 2 manquante », remis, la vérification repasse ; une nouvelle sauvegarde annule la validation. Reste ouvert : contrôle visuel des photos et du contenu par l'utilisateur.
 
 ## Cas limites et erreurs
 - Sauvegarde faite avant la conservation des photos (aucune photo) : échec « aucune photo », à refaire.

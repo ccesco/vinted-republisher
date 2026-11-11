@@ -127,6 +127,7 @@ Et aucune annonce n'a été modifiée sur Vinted
 ```
 Test : manuel (vrai compte Vinted, non automatisable).
 Non fait à la clôture (2026-11-11) : l'utilisateur a choisi de passer l'US en « implémentée » avec ce test encore ouvert. Tout écart constaté se traite par une mise à jour de cette spec.
+Recette du 2026-11-11 : vues et favoris relevés sur les 144 cartes non vendues à chaque relevé du dressing. Reste ouvert : comparaison avec la page Vinted par l'utilisateur.
 
 ## Cas limites et erreurs
 - Session non connectée : les cartes n'affichent pas les nombres, le scan se fait comme en US-04 sans relevé de statistiques.
