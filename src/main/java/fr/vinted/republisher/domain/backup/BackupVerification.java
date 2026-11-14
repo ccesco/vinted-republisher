@@ -33,6 +33,11 @@ public record BackupVerification(List<VerificationFailure> failures) {
         return new BackupVerification(failures);
     }
 
+    /** Photos only: once the listing is deleted, its absence from the wardrobe is expected. */
+    public static BackupVerification ofPhotos(ListingBackup backup, PhotoStorage storage) {
+        return new BackupVerification(photoFailures(backup, storage));
+    }
+
     public boolean passed() {
         return failures.isEmpty();
     }

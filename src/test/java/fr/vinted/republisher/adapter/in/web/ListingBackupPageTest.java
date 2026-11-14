@@ -2,6 +2,7 @@ package fr.vinted.republisher.adapter.in.web;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Clock;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
@@ -72,6 +73,9 @@ class ListingBackupPageTest {
     private final AtomicInteger recheckStatus = new AtomicInteger(200);
     private final AtomicReference<String> recheckAnswer = new AtomicReference<>(VALIDATED);
     private final List<String> deletions = new CopyOnWriteArrayList<>();
+    private final AtomicInteger republicationStatus = new AtomicInteger(200);
+    private final AtomicReference<String> republicationAnswer = new AtomicReference<>(VALIDATED);
+    private final List<String> republications = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -111,8 +115,13 @@ class ListingBackupPageTest {
             respond(exchange, recheck ? recheckStatus.get() : deletionStatus.get(), "application/json",
                     bytes(recheck ? recheckAnswer.get() : deletionAnswer.get()));
         });
+        fakeApi.createContext("/api/listings/3/republication", exchange -> {
+            republications.add(exchange.getRequestMethod() + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, republicationStatus.get(), "application/json", bytes(republicationAnswer.get()));
+        });
         fakeApi.start();
-        page = chrome.newPage();
+        page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
     }
 
     @AfterEach
@@ -244,6 +253,9 @@ class ListingBackupPageTest {
                 "\"deletionDryRun\": false, \"deletion\": {\"outcome\": \"CONFIRMED\","
                         + " \"attemptedAt\": \"2026-11-11T10:00:00Z\", \"settledAt\": \"2026-11-11T10:00:05Z\","
                         + " \"backupSavedAt\": \"2026-11-10T10:00:00Z\"},");
+        private static final String REPUBLISHABLE_AT_10_05_05 = CONFIRMED.replace(
+                "\"backupSavedAt\": \"2026-11-10T10:00:00Z\"},",
+                "\"backupSavedAt\": \"2026-11-10T10:00:00Z\", \"republishableAt\": \"2026-11-11T10:05:05Z\"},");
 
         @Test
         void shows_the_mode_deletions_run_in() {
@@ -380,6 +392,45 @@ class ListingBackupPageTest {
             assertThat(recheckButton()).isHidden();
         }
 
+        @Test
+        void showsRemainingTimeUntilRepublication() {
+            // Étant donné un aperçu dont la suppression est republiable dans 2 secondes
+            backup.set(REPUBLISHABLE_AT_10_05_05);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
+            // Quand la page est ouverte
+            open();
+            // Alors elle affiche « Republication possible dans 0 min 2 s (à 11:05) », heure de Paris
+            assertThat(republicationState()).hasText("Republication possible dans 0 min 2 s (à 11:05).");
+            // Et après 2 secondes, sans recharger, elle affiche « Republication possible »
+            page.clock().runFor(2000);
+            assertThat(republicationState()).hasText("Republication possible.");
+        }
+
+        @Test
+        void showsRepublicationPossibleOnceDelayElapsed() {
+            // Et une suppression republiable depuis 10 minutes affiche directement « Republication possible »
+            backup.set(REPUBLISHABLE_AT_10_05_05);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:15:05Z"));
+
+            open();
+
+            assertThat(republicationState()).hasText("Republication possible.");
+        }
+
+        @Test
+        void says_nothing_about_republication_without_a_confirmed_deletion() {
+            backup.set(UNCONFIRMED);
+
+            open();
+
+            assertThat(deletionState()).containsText("non confirmée");
+            assertThat(republicationState()).isEmpty();
+        }
+
+        private Locator republicationState() {
+            return page.locator("#republication-state");
+        }
+
         private Locator mode() {
             return page.locator("#deletion-mode");
         }
@@ -402,6 +453,153 @@ class ListingBackupPageTest {
 
         private Locator recheckButton() {
             return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Revérifier sur Vinted"));
+        }
+    }
+
+    @Nested
+    class Republication {
+
+        private static final String REPUBLISHABLE = VALIDATED.replace("\"deletionDryRun\": true,",
+                "\"deletionDryRun\": false, \"republicationDryRun\": false, \"deletion\": {\"outcome\": \"CONFIRMED\","
+                        + " \"attemptedAt\": \"2026-11-11T10:00:00Z\", \"settledAt\": \"2026-11-11T10:00:05Z\","
+                        + " \"backupSavedAt\": \"2026-11-10T10:00:00Z\", \"republishableAt\": \"2026-11-11T10:05:05Z\"},");
+        private static final String PUBLISHED = REPUBLISHABLE.replace("\"republicationDryRun\": false,",
+                "\"republicationDryRun\": false, \"republication\": {\"outcome\": \"PUBLISHED\","
+                        + " \"attemptedAt\": \"2026-11-11T10:06:00Z\", \"publishedAt\": \"2026-11-11T10:06:20Z\","
+                        + " \"newListingId\": 10300000001,"
+                        + " \"newListingUrl\": \"https://www.vinted.fr/items/10300000001-pull\","
+                        + " \"backupSavedAt\": \"2026-11-10T10:00:00Z\"},");
+        private static final String FAILED = PUBLISHED.replace("\"outcome\": \"PUBLISHED\"", "\"outcome\": \"FAILED\"")
+                .replace(" \"publishedAt\": \"2026-11-11T10:06:20Z\", \"newListingId\": 10300000001,"
+                        + " \"newListingUrl\": \"https://www.vinted.fr/items/10300000001-pull\",", "");
+
+        @Test
+        void shows_the_mode_republications_run_in() {
+            backup.set(REPUBLISHABLE.replace("\"republicationDryRun\": false", "\"republicationDryRun\": true"));
+            open();
+            assertThat(mode()).hasText("Dry-run actif : aucune republication réelle");
+
+            backup.set(REPUBLISHABLE);
+            open();
+            assertThat(mode()).hasText("Republications réelles activées");
+        }
+
+        @Test
+        void republish_is_offered_only_from_the_republication_date() {
+            backup.set(VALIDATED);
+            open();
+            assertThat(republishButton()).isHidden();
+
+            backup.set(REPUBLISHABLE);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
+            open();
+            assertThat(republishButton()).isDisabled();
+            page.clock().runFor(2000);
+            assertThat(republishButton()).isEnabled();
+        }
+
+        @Test
+        void pageShowsRepublicationFlow() {
+            // Étant donné une annonce supprimée, republiable
+            backup.set(REPUBLISHABLE);
+            republicationAnswer.set(PUBLISHED);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+            // Quand le membre clique « Republier sur Vinted »
+            republishButton().click();
+            // Alors la confirmation montre titre, prix, nombre de photos et date de suppression
+            assertThat(confirmation()).isVisible();
+            assertThat(confirmation()).containsText("Pull <b>rayé</b>");
+            assertThat(confirmation()).containsText("12,50");
+            assertThat(confirmation()).containsText("2 photos");
+            assertThat(confirmation()).containsText("supprimée de Vinted le 11/11/2026");
+            assertThat(republications).isEmpty();
+            // Et « Republier maintenant » envoie la demande avec la version vue, puis affiche l'issue
+            confirmButton().click();
+            assertThat(outcome()).containsText("Republiée sur Vinted le 11/11/2026");
+            assertThat(outcome().getByRole(AriaRole.LINK)).hasAttribute("href",
+                    "https://www.vinted.fr/items/10300000001-pull");
+            assertThat(republications).containsExactly("POST {\"savedAt\":\"2026-11-10T10:00:00Z\"}");
+            assertThat(republishButton()).isHidden();
+            // Et l'état du dry-run est affiché en permanence
+            assertThat(mode()).hasText("Republications réelles activées");
+        }
+
+        @Test
+        void republication_in_error_asks_to_check_on_vinted() {
+            backup.set(FAILED);
+
+            open();
+
+            assertThat(outcome()).hasText("Erreur de republication, vérifier sur Vinted.");
+            assertThat(republishButton()).isHidden();
+            assertThat(page.locator("#republication-state")).isEmpty();
+        }
+
+        @Test
+        void dry_run_says_nothing_was_published() {
+            backup.set(REPUBLISHABLE);
+            republicationAnswer.set(REPUBLISHABLE.replace("\"republicationDryRun\": false,",
+                    "\"republicationDryRun\": true, \"republicationDryRunPassed\": true,"));
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+
+            republishButton().click();
+            confirmButton().click();
+
+            assertThat(outcome()).containsText("Dry-run réussi");
+            assertThat(outcome()).containsText("Rien n'a été publié.");
+        }
+
+        @Test
+        void field_not_fillable_names_the_field() {
+            backup.set(REPUBLISHABLE);
+            republicationStatus.set(422);
+            republicationAnswer.set("{\"reason\": \"FIELD_NOT_FILLABLE\", \"field\": \"SIZE\", \"optionId\": 588}");
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+
+            republishButton().click();
+            confirmButton().click();
+
+            assertThat(problem()).hasText(
+                    "Republication refusée, rien n'a été publié : Taille impossible à remplir (identifiant 588).");
+            assertThat(republishButton()).isEnabled();
+        }
+
+        @Test
+        void unexpected_failure_asks_to_check_on_vinted_without_claiming_nothing_was_published() {
+            backup.set(REPUBLISHABLE);
+            republicationStatus.set(500);
+            republicationAnswer.set("{\"reason\": \"REPUBLICATION_FAILED\"}");
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+
+            republishButton().click();
+            confirmButton().click();
+
+            assertThat(problem()).containsText("vérifiez sur Vinted avant de relancer");
+            assertThat(problem()).not().containsText("rien n'a été publié");
+        }
+
+        private Locator mode() {
+            return page.locator("#republication-mode");
+        }
+
+        private Locator outcome() {
+            return page.locator("#republication-outcome");
+        }
+
+        private Locator confirmation() {
+            return page.locator("#republication-confirmation");
+        }
+
+        private Locator republishButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Republier sur Vinted"));
+        }
+
+        private Locator confirmButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Republier maintenant"));
         }
     }
 

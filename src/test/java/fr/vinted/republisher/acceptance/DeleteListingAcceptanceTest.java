@@ -15,6 +15,7 @@ import fr.vinted.republisher.domain.deletion.ListingDifference;
 import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
 import fr.vinted.republisher.domain.deletion.NoUnconfirmedDeletion;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
@@ -405,7 +406,8 @@ class DeleteListingAcceptanceTest {
         // Alors l'annonce est marquée absente
         // Et la suppression reste non confirmée
         assertThat(new ShowListingDeletion(listings, listingBackups, photos, validations, deletions,
-                DeletionMode.REAL).show(LISTING).lastDeletion()).map(ListingDeletion::outcome)
+                DeletionMode.REAL, new RepublicationDelay(Duration.ofMinutes(5))).show(LISTING).lastDeletion())
+                .map(ListingDeletion::outcome)
                 .contains(DeletionOutcome.UNCONFIRMED);
         assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT)))
                 .isInstanceOf(DeletionUnconfirmed.class);
@@ -432,12 +434,12 @@ class DeleteListingAcceptanceTest {
 
     private RecheckListingDeletion recheckListingDeletion() {
         return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions, vinted,
-                DeletionMode.REAL, clock);
+                DeletionMode.REAL, new RepublicationDelay(Duration.ofMinutes(5)), clock);
     }
 
     private DeleteListing deleteListing(DeletionMode mode) {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted, mode,
-                clock);
+                new RepublicationDelay(Duration.ofMinutes(5)), clock);
     }
 
     /** Present, scanned, backed up with its photo kept, and validated by the member. */

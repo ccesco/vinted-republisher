@@ -1,0 +1,48 @@
+# US-12 : chaque republication d'une annonce supprimée arrivée au clic sur « Publier », jamais supprimée.
+# Une seule par annonce : réussie, elle ne se refait pas ; en erreur, elle bloque toute relance jusqu'à US-13.
+# Réussie, elle porte le lien de l'ancienne annonce vers la nouvelle (cumul des statistiques d'US-07).
+databaseChangeLog:
+  - changeSet:
+      id: 009-create-listing-republication
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_republication
+            columns:
+              - column: {name: id, type: uuid, constraints: {primaryKey: true, nullable: false}}
+              - column:
+                  name: listing_id
+                  type: bigint
+                  constraints: {nullable: false, unique: true, uniqueConstraintName: listing_republication_one_per_listing}
+              - column: {name: backup_saved_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: attempted_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: outcome, type: text, constraints: {nullable: false}}
+              - column: {name: published_at, type: timestamptz}
+              - column:
+                  name: new_listing_id
+                  type: bigint
+                  constraints: {unique: true, uniqueConstraintName: listing_republication_one_new_listing}
+        # La republication s'appuie sur une sauvegarde : la sauvegarde ne peut plus disparaître.
+        - addForeignKeyConstraint:
+            baseTableName: listing_republication
+            baseColumnNames: listing_id
+            constraintName: listing_republication_listing_content_fk
+            referencedTableName: listing_content
+            referencedColumnNames: listing_id
+            onDelete: RESTRICT
+        - addForeignKeyConstraint:
+            baseTableName: listing_republication
+            baseColumnNames: new_listing_id
+            constraintName: listing_republication_new_listing_fk
+            referencedTableName: listing
+            referencedColumnNames: vinted_id
+            onDelete: RESTRICT
+        - sql:
+            sql: >
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_outcome_check
+                CHECK (outcome IN ('PUBLISHED', 'FAILED')
+                       AND (outcome = 'PUBLISHED') = (published_at IS NOT NULL)
+                       AND (outcome = 'PUBLISHED') = (new_listing_id IS NOT NULL));
+      rollback:
+        - dropTable:
+            tableName: listing_republication

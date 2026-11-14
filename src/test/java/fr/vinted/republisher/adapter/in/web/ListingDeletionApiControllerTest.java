@@ -2,11 +2,16 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
+import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -26,6 +31,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Duration;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -170,7 +176,7 @@ class ListingDeletionApiControllerTest {
                 .hasStatusOk()
                 .bodyJson().extractingPath("$.deletion").isEqualTo(Map.of("outcome", "CONFIRMED",
                         "attemptedAt", "2026-11-11T10:00:00Z", "settledAt", "2026-11-11T10:00:00Z",
-                        "backupSavedAt", "2026-11-10T10:00:00Z"));
+                        "backupSavedAt", "2026-11-10T10:00:00Z", "republishableAt", "2026-11-11T10:05:00Z"));
     }
 
     @Test
@@ -324,7 +330,19 @@ class ListingDeletionApiControllerTest {
                                     InMemoryBackupValidationRepository validations,
                                     InMemoryListingDeletionRepository deletions, FakeListingDeleter vinted) {
             return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
-                    DeletionMode.DRY_RUN, Clock.fixed(NOW, ZoneOffset.UTC));
+                    DeletionMode.DRY_RUN,
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
+        }
+
+        @Bean
+        ShowListingRepublication showListingRepublication(InMemoryListingRepository listings,
+                                                          InMemoryListingBackupRepository listingBackups,
+                                                          InMemoryPhotoStorage photos,
+                                                          InMemoryBackupValidationRepository validations,
+                                                          InMemoryListingDeletionRepository deletions) {
+            return new ShowListingRepublication(new ShowListingDeletion(listings, listingBackups, photos, validations,
+                    deletions, DeletionMode.DRY_RUN, new RepublicationDelay(Duration.ofMinutes(5))),
+                    new InMemoryListingRepublicationRepository(), listings, RepublicationMode.DRY_RUN);
         }
 
         @Bean
@@ -335,7 +353,8 @@ class ListingDeletionApiControllerTest {
                                                       InMemoryListingDeletionRepository deletions,
                                                       FakeListingDeleter vinted) {
             return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions,
-                    vinted, DeletionMode.DRY_RUN, Clock.fixed(NOW, ZoneOffset.UTC));
+                    vinted, DeletionMode.DRY_RUN,
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
         }
     }
 }

@@ -57,7 +57,7 @@ public class WardrobeConfiguration {
                 new FailureLoggingExecutor(background));
     }
 
-    private static ScanPace paceOf(WardrobeProperties.Scan scan) {
+    static ScanPace paceOf(WardrobeProperties.Scan scan) {
         return new ScanPace(new PauseRange(scan.minScrollPause(), scan.maxScrollPause()),
                 new PauseRange(scan.minListingPause(), scan.maxListingPause()), new Random());
     }

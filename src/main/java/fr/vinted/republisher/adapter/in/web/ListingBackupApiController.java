@@ -8,12 +8,15 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingDeletionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.KeptPhotoDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupContentDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupViewDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ListingRepublicationDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RepublicationOutcomeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.VerificationFailureDto;
 import fr.vinted.republisher.adapter.in.web.api.model.VerificationFailureKindDto;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupVerification;
 import fr.vinted.republisher.domain.backup.CategoryDetails;
 import fr.vinted.republisher.domain.backup.FormOption;
@@ -25,6 +28,10 @@ import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
+import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.domain.republication.RepublicationReport;
+import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.core.io.ByteArrayResource;
@@ -33,27 +40,32 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Optional;
 
 /** Implements the contract-first API of a listing's backup: it reads the database and the kept files only. */
 @RestController
 public class ListingBackupApiController implements ListingBackupApi {
 
     private final ShowListingDeletion showListingDeletion;
+    private final ShowListingRepublication showListingRepublication;
     private final ValidateListingBackup validateListingBackup;
     private final ShowListingBackupPhoto showListingBackupPhoto;
 
     public ListingBackupApiController(ShowListingDeletion showListingDeletion,
+                                      ShowListingRepublication showListingRepublication,
                                       ValidateListingBackup validateListingBackup,
                                       ShowListingBackupPhoto showListingBackupPhoto) {
         this.showListingDeletion = showListingDeletion;
+        this.showListingRepublication = showListingRepublication;
         this.validateListingBackup = validateListingBackup;
         this.showListingBackupPhoto = showListingBackupPhoto;
     }
 
     @Override
     public ResponseEntity<ListingBackupViewDto> showListingBackup(Long listingId) {
-        return ResponseEntity.ok(toDto(showListingDeletion.show(new VintedListingId(listingId))));
+        return ResponseEntity.ok(toDto(showListingRepublication.show(new VintedListingId(listingId))));
     }
 
     @Override
@@ -67,18 +79,23 @@ public class ListingBackupApiController implements ListingBackupApi {
     @Override
     public ResponseEntity<ListingBackupViewDto> validateListingBackup(Long listingId,
                                                                       BackupValidationRequestDto request) {
-        return ResponseEntity.ok(toDto(showListingDeletion.around(validateListingBackup.validate(
-                new VintedListingId(listingId), request.getSavedAt().toInstant()))));
+        return ResponseEntity.ok(toDto(showListingRepublication.around(showListingDeletion.around(
+                validateListingBackup.validate(new VintedListingId(listingId), request.getSavedAt().toInstant())))));
     }
 
-    static ListingBackupViewDto toDto(DeletionReport report) {
+    static ListingBackupViewDto toDto(RepublicationReport republicationReport) {
+        DeletionReport report = republicationReport.deletion();
         ListingBackupView view = report.backup();
         long id = view.backup().id().value();
         return new ListingBackupViewDto()
                 .vintedId(id)
                 .deletionDryRun(report.mode() == DeletionMode.DRY_RUN)
                 .dryRunPassed(report.dryRunPassed() ? Boolean.TRUE : null)
-                .deletion(report.lastDeletion().map(ListingBackupApiController::toDto).orElse(null))
+                .deletion(report.lastDeletion().map(deletion -> toDto(deletion, report.republishableAt())).orElse(null))
+                .republicationDryRun(republicationReport.mode() == RepublicationMode.DRY_RUN)
+                .republicationDryRunPassed(republicationReport.dryRunPassed() ? Boolean.TRUE : null)
+                .republication(republicationReport.lastRepublication()
+                        .map(republication -> toDto(republication, republicationReport.newListing())).orElse(null))
                 .savedAt(view.backup().savedAt().atOffset(ZoneOffset.UTC))
                 .validatedAt(view.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .verification(toDto(view.verification()))
@@ -86,12 +103,23 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .photos(view.backup().photos().stream().map(photo -> toDto(id, photo)).toList());
     }
 
-    private static ListingDeletionDto toDto(ListingDeletion deletion) {
+    private static ListingDeletionDto toDto(ListingDeletion deletion, Optional<Instant> republishableAt) {
         return new ListingDeletionDto()
                 .outcome(DeletionOutcomeDto.valueOf(deletion.outcome().name()))
                 .attemptedAt(deletion.attemptedAt().atOffset(ZoneOffset.UTC))
                 .settledAt(deletion.settledAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
-                .backupSavedAt(deletion.backupSavedAt().atOffset(ZoneOffset.UTC));
+                .backupSavedAt(deletion.backupSavedAt().atOffset(ZoneOffset.UTC))
+                .republishableAt(republishableAt.map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null));
+    }
+
+    private static ListingRepublicationDto toDto(ListingRepublication republication, Optional<Listing> newListing) {
+        return new ListingRepublicationDto()
+                .outcome(RepublicationOutcomeDto.valueOf(republication.outcome().name()))
+                .attemptedAt(republication.attemptedAt().atOffset(ZoneOffset.UTC))
+                .publishedAt(republication.publishedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
+                .newListingId(republication.newListingId().map(VintedListingId::value).orElse(null))
+                .newListingUrl(newListing.map(Listing::url).orElse(null))
+                .backupSavedAt(republication.backupSavedAt().atOffset(ZoneOffset.UTC));
     }
 
     static BackupVerificationDto toDto(BackupVerification verification) {

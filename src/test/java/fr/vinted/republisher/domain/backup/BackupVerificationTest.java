@@ -41,6 +41,25 @@ class BackupVerificationTest {
     }
 
     @Test
+    void photos_alone_pass_without_the_listing_in_the_wardrobe() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"));
+
+        BackupVerification verification = BackupVerification.ofPhotos(backup, photos);
+
+        assertThat(verification.failures()).isEmpty();
+    }
+
+    @Test
+    void photos_alone_fail_on_a_missing_file() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"), aPhoto("back"));
+        photos.lose(1, backup.photos().get(1));
+
+        BackupVerification verification = BackupVerification.ofPhotos(backup, photos);
+
+        assertThat(verification.failures()).containsExactly(new PhotoMissing(1));
+    }
+
+    @Test
     void backup_without_photo_fails() {
         ListingBackup backup = new ListingBackup(aContent(1), List.of(), SAVED_AT);
 
