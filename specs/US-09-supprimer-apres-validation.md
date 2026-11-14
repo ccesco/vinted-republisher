@@ -1,5 +1,5 @@
 # US-09 – Supprimer uniquement après sauvegarde validée
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-03 (session), US-04 (scan), US-05 et US-06 (sauvegarde), US-08 (validation) ; livrée avec US-10 (dry-run)
 
@@ -35,16 +35,16 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. Le
 - Le dry-run (réponse et réglage) est défini par US-10.
 
 ## Critères d'acceptation
-- [ ] Une annonce ne se supprime que si sa sauvegarde actuelle est validée, sur la version vue par le membre, et que la vérification d'US-08 refaite réussit ; sinon Chrome n'est pas ouvert.
-- [ ] Juste avant de cliquer, l'annonce est relue sur Vinted : non active, titre ou prix différent de la sauvegarde → refus sans aucun clic.
-- [ ] Toute erreur avant le clic de confirmation dans Vinted refuse la suppression sans rien toucher sur Vinted.
-- [ ] Une suppression n'est confirmée que si Vinted ne montre plus l'annonce ; elle passe alors absente.
-- [ ] Après le clic de confirmation, tout doute est enregistré, sans nouvel essai, et bloque une nouvelle suppression jusqu'à « Revérifier sur Vinted ».
-- [ ] Sauvegarde, photos et validation restent intactes après une suppression.
-- [ ] Une seule action navigateur à la fois ; le verrou est toujours libéré.
-- [ ] Les suppressions restent en base après un redémarrage.
-- [ ] Un autre site ouvert dans le navigateur ne peut pas demander une suppression.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] Une annonce ne se supprime que si sa sauvegarde actuelle est validée, sur la version vue par le membre, et que la vérification d'US-08 refaite réussit ; sinon Chrome n'est pas ouvert.
+- [x] Juste avant de cliquer, l'annonce est relue sur Vinted : non active, titre ou prix différent de la sauvegarde → refus sans aucun clic.
+- [x] Toute erreur avant le clic de confirmation dans Vinted refuse la suppression sans rien toucher sur Vinted.
+- [x] Une suppression n'est confirmée que si Vinted ne montre plus l'annonce ; elle passe alors absente.
+- [x] Après le clic de confirmation, tout doute est enregistré, sans nouvel essai, et bloque une nouvelle suppression jusqu'à « Revérifier sur Vinted ».
+- [x] Sauvegarde, photos et validation restent intactes après une suppression.
+- [x] Une seule action navigateur à la fois ; le verrou est toujours libéré.
+- [x] Les suppressions restent en base après un redémarrage.
+- [x] Un autre site ouvert dans le navigateur ne peut pas demander une suppression.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 ### AT-09-01 – Suppression d'une annonce validée
@@ -291,7 +291,7 @@ Test : manuel (vrai compte Vinted, action irréversible ; uniquement avec l'acco
 - Fait le 2026-11-14 : adaptateur navigateur `PlaywrightListingDeleter`, écrit d'après AT-09-20 ; AT-09-16 vert (`PlaywrightListingDeleterTest`, page locale). Il remplace `UnobservedListingDeleter`. Délai d'apparition du bouton, de la fenêtre puis de sa fermeture : 10 s. Après le clic de confirmation, il attend que la fenêtre se ferme, puis rouvre l'adresse de l'annonce : HTTP 404 → supprimée ; annonce encore lue → non confirmée ; toute autre page (« introuvable » en HTTP 200 par exemple) → page illisible, donc doute, réglé par « Revérifier sur Vinted ».
 - Premier essai du dry-run réel (AT-10-06, 2026-11-14, annonce 10208799832) : refusé avant tout clic, avec « session non connectée ». Observation avec l'accord de l'utilisateur, en lecture seule : une session ancienne fait passer l'annonce par `https://www.vinted.fr/session-refresh?ref_url=%2Fitems%2F…` (HTTP 200). Cette page renvoie d'elle-même vers l'annonce en environ 1,3 s, et la page finale a son bouton de suppression. Correctif : `ChromeTabs` attend la fin du renouvellement, puis recharge l'adresse demandée pour en lire le vrai statut HTTP (404 compris). Un renouvellement qui ne finit pas laisse « session non connectée ».
 - Premier essai d'AT-09-21 (2026-11-14, annonce 10208799832, mode réel) : refusé avec « no confirmation of the deletion ». Le bouton a été cliqué, mais la fenêtre ne s'est pas ouverte, donc rien n'a été supprimé et aucune suppression n'est enregistrée. Observation en lecture seule, avec l'accord de l'utilisateur : le bouton est affiché dès DOMContentLoaded (1,3 s), mais React ne lui attache son action qu'à 3,9 s, avant l'événement `load` (4,9 s). Le clic, fait juste après DOMContentLoaded, ne faisait rien. Correctif : l'adaptateur attend l'événement `load` avant de chercher le bouton.
-- Reste : AT-09-21 (manuel, première vraie suppression), qui relèvera la vraie réponse après suppression.
+- AT-09-21 fait le 2026-11-14 (annonce 10208799832, « Bonnet 1-3 mois du pareil au même », choisie par l'utilisateur). L'application était lancée avec `DELETION_DRY_RUN=false`, et l'utilisateur a cliqué lui-même « Supprimer définitivement ». Suppression `CONFIRMED` : tentée à 22:48:20 UTC, prouvée à 22:48:22 UTC. La réponse de Vinted après suppression est donc HTTP 404 sur l'adresse de l'annonce, seul cas que l'outil compte comme une preuve. Aucun avertissement dans les logs : la page a fini ses échanges avant d'être rouverte. Sauvegarde intacte, rattachée à la version du 2026-11-11T18:20:59Z. L'application a ensuite été remise en dry-run.
 - AT-09-20 fait le 2026-11-14 (annonce 10208778166, session connectée, Chrome piloté, lecture seule, aucun clic) : `/items/10208778166` redirige vers `/items/10208778166-paire-chaussure-style-converse-9-12-mois` ; titre dans le `h1`. Pour le propriétaire, la page montre `<button type="button" data-testid="item-delete-button">Supprimer</button>`, à côté de `item-edit-button` (« Modifier l'annonce »), `item-hide-button` (« Masquer »), et des liens `mark-as-reserved-button` et `mark-as-sold-button`. Puis, à la demande de l'utilisateur, il a cliqué lui-même « Supprimer » et a annulé (Claude n'a rien cliqué) : la confirmation est `<div role="dialog" data-testid="item-delete-modal">` « Supprimer l'article ? En supprimant l'article, tu confirmes que tu ne l'as pas vendu sur Vinted. », avec `<button type="button" data-testid="item-delete-cancelation-button">Annuler</button>` et `<button type="button" data-testid="item-delete-confirmation-button">Supprimer</button>`. La réponse après suppression (404 ou page « introuvable ») reste à relever à AT-09-21.
 
 ## Questions ouvertes
