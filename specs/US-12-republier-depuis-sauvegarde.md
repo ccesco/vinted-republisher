@@ -17,7 +17,7 @@ En tant que membre, je veux republier une annonce supprimée à partir de sa sau
 ## Comportement attendu
 1. **Aperçu** : une annonce dont la suppression est confirmée montre « Republier sur Vinted », actif à partir de sa date de republication (US-11), et l'état du mode : « Dry-run actif : aucune republication réelle » ou « Republications réelles activées ».
 2. **Confirmation** : le bouton ouvre une confirmation dans l'outil (titre, prix, nombre de photos gardées, date de suppression) ; « Republier maintenant » envoie la demande avec la version de la sauvegarde vue.
-3. **Contrôles**, avant d'ouvrir Chrome, l'un en échec = refus sans rien toucher sur Vinted : sauvegarde vue = sauvegarde actuelle ; dernière suppression confirmée, de cette version ; date de republication atteinte ; sauvegarde toujours validée ; photos gardées présentes, intactes et au moins une ; aucune republication réussie ni en erreur pour l'annonce.
+3. **Contrôles**, avant d'ouvrir Chrome, dans cet ordre, l'un en échec = refus sans rien toucher sur Vinted : sauvegarde vue = sauvegarde actuelle ; aucune republication réussie ni en erreur pour l'annonce ; dernière suppression confirmée, de cette version ; date de republication atteinte ; sauvegarde toujours validée ; photos gardées présentes, intactes et au moins une.
 4. **Remplissage** : action navigateur `REPUBLISHING` (verrou d'US-03) ; formulaire de mise en vente ouvert dans le Chrome piloté ; photos originales dans l'ordre, puis titre, description, prix, catégorie, options et champs propres à la catégorie. Champ impossible à remplir → abandon, rien publié.
 5. **Dry-run** : arrêt ici, sans clic sur « Publier » ni enregistrement ; la réponse dit que tout a pu être rempli.
 6. **Publication** : la tentative est enregistrée « erreur de republication » juste avant le clic sur « Publier », puis l'outil clique.
@@ -31,8 +31,9 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. De
 | --- | --- | --- |
 | `POST /api/listings/{listingId}/republication` | `republishListing` | corps `RepublicationRequest` {`savedAt`} ; 200 `ListingBackupView` à jour (avec `republication`), y compris en erreur de republication, ou dry-run réussi (`republicationDryRunPassed`) ; 400 sans `savedAt` ; 404 sans sauvegarde ; 409 `RepublicationRefusal` (`BACKUP_REPLACED`, `NOT_VALIDATED`, `NOT_DELETED`, `TOO_EARLY` avec `republishableAt`, `ALREADY_REPUBLISHED`, `REPUBLICATION_IN_ERROR`, `BROWSER_BUSY`) ; 422 `RepublicationRefusal` (`PHOTOS_NOT_VERIFIED` avec `verification`, `FIELD_NOT_FILLABLE` avec `field`) ; 502 `RepublicationRefusal` (`BROWSER_UNAVAILABLE`, `VINTED_UNREACHABLE`, `SESSION_DISCONNECTED`, `FORM_UNREADABLE`) ; 500 `RepublicationRefusal` (`REPUBLICATION_FAILED`) ; 403 si la demande vient d'un autre site |
 
-- `ListingBackupView` gagne `republication` (absent = aucune tentative) : `outcome` (`PUBLISHED`, `FAILED`), `attemptedAt` (clic sur « Publier »), `publishedAt` et `newListingId` (présents si `PUBLISHED`), `backupSavedAt` ; `republicationDryRun` (vrai tant que le dry-run est actif) ; `republicationDryRunPassed` en réponse d'un dry-run.
+- `ListingBackupView` gagne `republication` (absent = aucune tentative) : `outcome` (`PUBLISHED`, `FAILED`), `attemptedAt` (clic sur « Publier »), `publishedAt`, `newListingId` et `newListingUrl` (présents si `PUBLISHED`), `backupSavedAt` ; `republicationDryRun` (vrai tant que le dry-run est actif) ; `republicationDryRunPassed` en réponse d'un dry-run.
 - `BrowserAction` gagne `REPUBLISHING`.
+- `FIELD_NOT_FILLABLE` porte `field` (`ListingFormField` : `PHOTOS`, `TITLE`, … `SIZE`, …) et, s'il y en a une, `optionId` (identifiant Vinted de l'option introuvable).
 
 ## Critères d'acceptation
 - [ ] Une annonce ne se republie que si sa dernière suppression est confirmée, sur la version de la sauvegarde vue, après sa date de republication, avec une sauvegarde toujours validée et des photos présentes et intactes ; sinon Chrome n'est pas ouvert.
@@ -167,7 +168,7 @@ Exemples :
 | oui     | refus de démarrer (true ou false attendu) |
 | (vide)  | refus de démarrer (true ou false attendu) |
 ```
-Test : `RepublicationPropertiesTest.dryRunSetting()`
+Test : `RepublicationModeConfigurationTest` (`dryRunSetting()` et suivants)
 
 ### AT-12-13 – Une seule action navigateur à la fois
 ```gherkin
@@ -192,7 +193,7 @@ Test : `PlaywrightListingPublisherTest` (`@Tag("browser")`, pages locales)
 Quand l'outil redémarre
 Alors les deux sont relues à l'identique, avec le lien entre ancienne et nouvelle annonce
 ```
-Test : `JpaListingRepublicationRepositoryTest` (`@Tag("docker")`)
+Test : `JpaListingRepublicationRepositoryTest.republicationsSurviveRestart()` (`@Tag("docker")`)
 
 ### AT-12-16 – Page de l'aperçu
 ```gherkin
@@ -202,14 +203,14 @@ Alors la confirmation montre titre, prix, nombre de photos et date de suppressio
 Et « Republier maintenant » envoie la demande avec la version vue, puis affiche l'issue
 Et l'état du dry-run est affiché en permanence
 ```
-Test : `ListingBackupPageTest` (`@Tag("browser")`, API simulée)
+Test : `ListingBackupPageTest.Republication.pageShowsRepublicationFlow()` (`@Tag("browser")`, API simulée)
 
 ### AT-12-17 – Demande venue d'un autre site
 ```gherkin
 Étant donné une demande de republication dont l'origine n'est pas l'outil
 Alors elle est refusée (403)
 ```
-Test : `RepublishListingWebTest.refusesCrossSiteRequest()`
+Test : `ListingRepublicationApiControllerTest.refusesCrossSiteRequest()`
 
 ### AT-12-18 – Observation du formulaire réel
 ```gherkin
@@ -256,6 +257,15 @@ Test : manuel (vrai compte Vinted, avec l'accord de l'utilisateur ; sert de base
 
 - Nouvelle annonce, décidé par l'utilisateur (2026-11-11) : après une republication réussie, la nouvelle annonce est une annonce à part dans l'outil, présente, sous son nouvel identifiant Vinted, reliée à l'ancienne (« republiée depuis », pour le cumul des statistiques d'US-07), sans sauvegarde : nouvelle sauvegarde et validation avant toute future suppression. L'ancienne reste absente avec sa sauvegarde, ses photos, sa validation et sa suppression.
 
+- Lien entre ancienne et nouvelle annonce, décidé par l'utilisateur (2026-11-14) : porté par la republication réussie (ancien et nouvel identifiant), pas par une colonne sur les annonces, que chaque scan réécrit. La nouvelle annonce est une annonce ordinaire de l'outil.
+- Ordre de travail, décidé par l'utilisateur (2026-11-14) : comme pour US-09, tout sauf l'adaptateur navigateur d'abord, avec un publieur « non observé » qui n'ouvre jamais Chrome ; l'observation AT-12-18 et l'adaptateur Playwright (AT-12-14) viennent ensuite.
+
+- Messages de l'aperçu, proposés à l'implémentation (2026-11-14) : un refus dit « Republication refusée, rien n'a été publié : … » (ex. « Taille impossible à remplir (identifiant 588). ») ; une erreur inattendue (500) dit « Échec de la republication : vérifiez sur Vinted avant de relancer », sans affirmer que rien n'a été publié (elle peut survenir après le clic, si la base tombe pendant la réponse) ; un dry-run réussi dit « Dry-run réussi : contrôles réussis, formulaire de mise en vente entièrement rempli. Rien n'a été publié. » ; une republication réussie montre sa date et le lien vers la nouvelle annonce. Le compte à rebours d'US-11 active le bouton à la date de republication et disparaît dès qu'une republication existe.
+
+## Avancement (2026-11-14)
+- Fait : domaine, cas d'usage (`RepublishListing`, découpé en `RepublicationChecks` et `NewListingSearch`), base (`009-create-listing-republication`), API, réglage du dry-run, aperçu ; AT-12-01 à AT-12-13, AT-12-15 à AT-12-17 verts avec un faux navigateur.
+- Reste : l'adaptateur navigateur. En attendant, `UnobservedListingPublisher` refuse toute republication (`FORM_UNREADABLE`) sans ouvrir Chrome. Il s'écrira après AT-12-18 (observation du formulaire réel avec l'utilisateur), avec AT-12-14.
+
 ## Questions ouvertes
 - Aucune bloquant la spec. L'observation du formulaire réel (AT-12-18) précède l'adaptateur ; un brouillon gardé par Vinted, s'il existe, sera soumis à l'utilisateur.
 
@@ -268,11 +278,12 @@ Termes à ajouter au glossaire :
 - `ListingForm` | Formulaire de mise en vente | Page de Vinted pour créer une annonce.
 - `FieldNotFillable` | Champ impossible à remplir | Option introuvable par identifiant et libellé, ou champ absent ; rien publié.
 - `ListingNotDeleted`, `RepublicationTooEarly`, `ListingAlreadyRepublished`, `RepublicationInError` | Refus | Annonce sans suppression confirmée, date de republication non atteinte, déjà republiée, erreur de republication en cours.
-- `Listing.republishedFrom` | Republiée depuis | Lien d'une annonce vers celle qu'elle remplace.
+- `ListingRepublication.newListingId` | Republiée depuis | Lien de l'ancienne annonce vers celle qui la remplace, porté par la republication réussie (voir Décisions).
+- `ListingFormUnreadable` | Formulaire de mise en vente illisible | Formulaire introuvable ou pas celui attendu ; rien publié.
 - `BrowserAction` gagne `REPUBLISHING`.
-- Persistance (Liquibase) : table des republications ; colonne « republiée depuis » sur les annonces.
+- Persistance (Liquibase) : table des republications, avec le nouvel identifiant unique et lié à la table des annonces.
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : `ListingRepublicationTest` (erreur à la création, réussite une seule fois, refus d'une seconde tentative) ; contrôles avant republication (`RepublicationVisit` ou équivalent) ; reconnaissance de la nouvelle annonce (une, aucune, plusieurs, identifiants connus ignorés) ; `PhotosVerification` partielle.
 - Application : `RepublishListing` avec ports simulés (ordre : enregistrement avant le clic, verrou libéré, dry-run sans enregistrement).
-- Adapters : `PlaywrightListingPublisherTest` (pages locales), `JpaListingRepublicationRepositoryTest` (`@Tag("docker")`), contrôleur `republishListing` (codes et refus), `ListingBackupPageTest`, `RepublicationPropertiesTest`.
+- Adapters : `PlaywrightListingPublisherTest` (pages locales), `JpaListingRepublicationRepositoryTest` (`@Tag("docker")`), contrôleur `republishListing` (codes et refus), `ListingBackupPageTest`, `RepublicationModeConfigurationTest`.

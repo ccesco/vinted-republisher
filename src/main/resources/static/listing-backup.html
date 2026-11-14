@@ -31,6 +31,16 @@
             <button id="cancel-deletion" type="button">Annuler</button>
         </div>
     </section>
+    <section id="republication">
+        <p id="republication-mode"></p>
+        <p id="republication-outcome"></p>
+        <p><button id="republish" type="button" hidden>Republier sur Vinted</button></p>
+        <div id="republication-confirmation" role="dialog" hidden>
+            <p id="republication-summary"></p>
+            <button id="confirm-republication" type="button">Republier maintenant</button>
+            <button id="cancel-republication" type="button">Annuler</button>
+        </div>
+    </section>
     <dl id="content"></dl>
     <div id="photos"></div>
 </section>
@@ -66,6 +76,32 @@
     const RECHECK_FAILED_MESSAGE = 'Revérification impossible, le doute reste : ';
     const DRY_RUN_PASSED = "Dry-run réussi : contrôles réussis, annonce relue sur Vinted, bouton de suppression"
         + " trouvé. Rien n'a été supprimé.";
+    const REPUBLICATION_REFUSALS = {
+        BACKUP_REPLACED: "la sauvegarde a été remplacée depuis l'ouverture de cette page : rechargez-la.",
+        NOT_VALIDATED: "la sauvegarde actuelle n'est pas validée.",
+        NOT_DELETED: "l'annonce n'a pas de suppression confirmée de cette sauvegarde.",
+        TOO_EARLY: "la date de republication n'est pas atteinte",
+        ALREADY_REPUBLISHED: "l'annonce est déjà republiée.",
+        REPUBLICATION_IN_ERROR: 'la republication précédente est en erreur : vérifiez sur Vinted.',
+        BROWSER_BUSY: 'une autre action est en cours dans le navigateur : réessayez quand elle sera finie.',
+        PHOTOS_NOT_VERIFIED: 'les photos gardées ne sont pas intactes',
+        FIELD_NOT_FILLABLE: 'champ impossible à remplir',
+        BROWSER_UNAVAILABLE: 'le navigateur est indisponible.',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible.',
+        SESSION_DISCONNECTED: 'la session Vinted n\'est pas connectée : connectez-vous depuis la page de session.',
+        FORM_UNREADABLE: "le formulaire de mise en vente de Vinted n'est pas celui attendu."
+    };
+    const FORM_FIELDS = {
+        PHOTOS: 'Photos', TITLE: 'Titre', DESCRIPTION: 'Description', PRICE: 'Prix', CATEGORY: 'Catégorie',
+        BRAND: 'Marque', CONDITION: 'État', SIZE: 'Taille', COLORS: 'Couleurs', MATERIALS: 'Matières',
+        PACKAGE_SIZE: 'Format du colis', ISBN: 'ISBN', BOOK_TITLE: 'Titre du livre', AUTHOR: 'Auteur',
+        MANUFACTURER: 'Fabricant', MODEL: 'Modèle', MEASUREMENTS: 'Mesures'
+    };
+    // Un échec inattendu peut survenir après le clic sur « Publier » (base tombée pendant la réponse) : ne rien affirmer.
+    const REPUBLICATION_FAILED_MESSAGE = 'Échec de la republication : vérifiez sur Vinted avant de relancer'
+        + ' (détail dans les logs).';
+    const REPUBLICATION_DRY_RUN_PASSED = "Dry-run réussi : contrôles réussis, formulaire de mise en vente entièrement"
+        + " rempli. Rien n'a été publié.";
 
     const listingId = new URLSearchParams(location.search).get('id');
     const problem = document.getElementById('problem');
@@ -85,6 +121,13 @@
     const confirmButton = document.getElementById('confirm-deletion');
     const cancelButton = document.getElementById('cancel-deletion');
     const republicationState = document.getElementById('republication-state');
+    const republicationMode = document.getElementById('republication-mode');
+    const republicationOutcome = document.getElementById('republication-outcome');
+    const republishButton = document.getElementById('republish');
+    const republicationConfirmation = document.getElementById('republication-confirmation');
+    const republicationSummary = document.getElementById('republication-summary');
+    const confirmRepublicationButton = document.getElementById('confirm-republication');
+    const cancelRepublicationButton = document.getElementById('cancel-republication');
     let current;
     let republicationTimer;
 
@@ -180,11 +223,37 @@
         } else {
             deletionState.textContent = view.dryRunPassed ? DRY_RUN_PASSED : '';
         }
-        showRepublication(view.deletion?.republishableAt);
+        showRepublication(view);
+    }
+
+    function showRepublication(view) {
+        republicationMode.textContent = view.republicationDryRun
+            ? 'Dry-run actif : aucune republication réelle' : 'Republications réelles activées';
+        republicationConfirmation.hidden = true;
+        const republication = view.republication;
+        republishButton.hidden = !view.deletion?.republishableAt || Boolean(republication);
+        republicationOutcome.replaceChildren();
+        if (republication?.outcome === 'PUBLISHED') {
+            showRepublished(republication);
+        } else if (republication?.outcome === 'FAILED') {
+            republicationOutcome.textContent = 'Erreur de republication, vérifier sur Vinted.';
+        } else if (view.republicationDryRunPassed) {
+            republicationOutcome.textContent = REPUBLICATION_DRY_RUN_PASSED;
+        }
+        showRepublicationDate(republication ? undefined : view.deletion?.republishableAt);
+    }
+
+    // Les textes viennent de Vinted : jamais d'innerHTML.
+    function showRepublished(republication) {
+        const link = document.createElement('a');
+        link.href = republication.newListingUrl;
+        link.textContent = 'nouvelle annonce ' + republication.newListingId;
+        republicationOutcome.replaceChildren('Republiée sur Vinted le ' + dateOf(republication.publishedAt) + ' : ',
+            link, '.');
     }
 
     // L'heure du navigateur suffit : l'application n'écoute que sur 127.0.0.1, même machine que le serveur.
-    function showRepublication(republishableAt) {
+    function showRepublicationDate(republishableAt) {
         clearInterval(republicationTimer);
         republicationState.textContent = '';
         if (!republishableAt) {
@@ -193,6 +262,7 @@
         const date = new Date(republishableAt);
         const update = () => {
             const seconds = Math.ceil((date - Date.now()) / 1000);
+            republishButton.disabled = seconds > 0;
             if (seconds <= 0) {
                 clearInterval(republicationTimer);
                 republicationState.textContent = 'Republication possible.';
@@ -237,17 +307,42 @@
         confirmation.hidden = false;
     }
 
-    async function sendDeletion(path, body) {
+    function republicationRefusalOf(refusal) {
+        let reason = REPUBLICATION_REFUSALS[refusal.reason];
+        if (!reason) {
+            return REPUBLICATION_FAILED_MESSAGE;
+        }
+        if (refusal.reason === 'TOO_EARLY') {
+            reason += ' (à partir du ' + dateOf(refusal.republishableAt) + ').';
+        } else if (refusal.reason === 'FIELD_NOT_FILLABLE') {
+            reason = (FORM_FIELDS[refusal.field] ?? refusal.field) + ' impossible à remplir'
+                + (refusal.optionId ? ` (identifiant ${refusal.optionId})` : '') + '.';
+        } else if (refusal.reason === 'PHOTOS_NOT_VERIFIED') {
+            reason += ' : ' + (refusal.verification?.failures ?? []).map(failureOf).join(' ; ') + '.';
+        }
+        return "Republication refusée, rien n'a été publié : " + reason;
+    }
+
+    function askRepublicationConfirmation() {
+        const count = current.photos.length;
+        republicationSummary.textContent = `« ${current.content.title} », ${priceOf(current.content.price)}, `
+            + `${count} photo${count > 1 ? 's' : ''} gardée${count > 1 ? 's' : ''}, supprimée de Vinted le `
+            + dateOf(current.deletion.settledAt) + '.';
+        republicationConfirmation.hidden = false;
+    }
+
+    async function send(path, body, refusalMessageOf) {
         deleteButton.disabled = true;
         recheckButton.disabled = true;
+        republishButton.disabled = true;
         confirmation.hidden = true;
-        const recheck = body === undefined;
+        republicationConfirmation.hidden = true;
         let message = APPLICATION_DOWN_MESSAGE;
         try {
             const response = await fetch('/api/listings/' + encodeURIComponent(listingId) + path, {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: recheck ? undefined : JSON.stringify(body)
+                body: body === undefined ? undefined : JSON.stringify(body)
             });
             if (response.ok) {
                 show(await response.json());
@@ -255,7 +350,7 @@
             }
             const refusal = await response.json().catch(() => null);
             if (refusal) {
-                message = refusalOf(refusal, recheck);
+                message = refusalMessageOf(refusal);
             }
         } catch (unreachable) {
             // L'application ne répond pas : message par défaut.
@@ -316,8 +411,14 @@
     validateButton.addEventListener('click', validate);
     deleteButton.addEventListener('click', askConfirmation);
     cancelButton.addEventListener('click', () => confirmation.hidden = true);
-    confirmButton.addEventListener('click', () => sendDeletion('/deletion', {savedAt: current.savedAt}));
-    recheckButton.addEventListener('click', () => sendDeletion('/deletion/recheck'));
+    confirmButton.addEventListener('click', () =>
+        send('/deletion', {savedAt: current.savedAt}, refusal => refusalOf(refusal, false)));
+    recheckButton.addEventListener('click', () =>
+        send('/deletion/recheck', undefined, refusal => refusalOf(refusal, true)));
+    republishButton.addEventListener('click', askRepublicationConfirmation);
+    cancelRepublicationButton.addEventListener('click', () => republicationConfirmation.hidden = true);
+    confirmRepublicationButton.addEventListener('click', () =>
+        send('/republication', {savedAt: current.savedAt}, republicationRefusalOf));
     load();
 </script>
 </body>

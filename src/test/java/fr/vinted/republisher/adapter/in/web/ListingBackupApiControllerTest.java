@@ -3,6 +3,9 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -63,6 +66,7 @@ class ListingBackupApiControllerTest {
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
                         {"vintedId": 1, "savedAt": "2026-11-10T10:00:00Z", "deletionDryRun": true,
+                         "republicationDryRun": true,
                          "verification": {"passed": true, "failures": []},
                          "content": {"title": "Pull rayé 1", "description": "Porté deux fois",
                                      "price": {"amount": 12.50, "currency": "EUR"},
@@ -206,6 +210,13 @@ class ListingBackupApiControllerTest {
             return new ShowListingDeletion(listings, listingBackups, photos, validations,
                     new InMemoryListingDeletionRepository(), DeletionMode.DRY_RUN,
                     new RepublicationDelay(Duration.ofMinutes(5)));
+        }
+
+        @Bean
+        ShowListingRepublication showListingRepublication(ShowListingDeletion showListingDeletion,
+                                                          InMemoryListingRepository listings) {
+            return new ShowListingRepublication(showListingDeletion, new InMemoryListingRepublicationRepository(),
+                    listings, RepublicationMode.DRY_RUN);
         }
 
         @Bean

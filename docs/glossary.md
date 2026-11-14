@@ -9,7 +9,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `VintedAccount` | Compte Vinted | Compte du membre sur Vinted, atteint par un navigateur piloté (port sortant). |
 | `VintedSession` | Session Vinted | Connexion de l'outil au compte Vinted, conservée dans le profil navigateur d'un lancement à l'autre. |
 | `SessionStatus` (`CONNECTED` / `DISCONNECTED`) | État de session (connecté / non connecté) | Connecté si la page des paramètres du profil s'affiche, non connecté si Vinted redirige vers la connexion. Absent tant qu'aucune vérification n'a eu lieu (« non vérifié »). |
-| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP` / `DELETING`) | Action navigateur (vérification / connexion / scan / sauvegarde / suppression) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
+| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP` / `DELETING` / `REPUBLISHING`) | Action navigateur (vérification / connexion / scan / sauvegarde / suppression / republication) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
 | `SessionCheck` (`checkSession`) | Vérification de session | Ouverture de la page des paramètres du profil dans un onglet de Chrome pour connaître l'état de session ; uniquement sur demande. |
 | `ProfileSettings` | Paramètres du profil | Page `/settings/profile` de Vinted, réservée au membre connecté (un visiteur est redirigé vers la connexion). |
 | `ManualLogin` (`awaitManualLogin`, `LogInToVinted`) | Connexion manuelle | Connexion faite par le membre lui-même dans le Chrome piloté ; l'outil ne saisit jamais d'identifiants. |
@@ -72,6 +72,22 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `DeletionReport` (`ShowListingDeletion`) | Aperçu de la suppression | Aperçu de la sauvegarde d'une annonce avec sa dernière suppression, sa date de republication (suppression confirmée seulement), le mode de suppression et, en réponse d'un dry-run, sa réussite. |
 | `RepublicationDelay` | Délai avant republication | Durée minimale entre la preuve d'une suppression et la republication de l'annonce (`republication.minimum-delay`, 5 minutes, strictement positive) ; date de republication calculée depuis la preuve gardée en base, donc inchangée après un redémarrage, et sans attente une fois écoulée. |
 | `InvalidRepublicationDelay` | Délai avant republication invalide | Délai nul ou négatif : refusé ; dans la configuration, l'application ne démarre pas. |
+| `ListingRepublication` (`RepublishListing`) | Republication d'une annonce | Tentative de remettre en vente une annonce supprimée, arrivée au clic sur « Publier » : annonce, version de la sauvegarde, date du clic, issue, nouvel identifiant et date de preuve. Enregistrée en erreur juste avant le clic, réussie une fois la nouvelle annonce retrouvée ; une seule par annonce, jamais supprimée. Réussie, elle relie l'ancienne annonce à la nouvelle (« republiée depuis »). |
+| `RepublicationOutcome` (`PUBLISHED` / `FAILED`) | Issue de la republication (réussie / erreur de republication) | Réussie : nouvelle annonce retrouvée seule dans le dressing. Erreur : tout le reste après le clic ; bloque une nouvelle republication jusqu'à la vérification (US-13). |
+| `RepublicationMode` (`DRY_RUN` / `REAL`) | Mode de republication (dry-run / réel) | Fixé au démarrage par `REPUBLICATION_DRY_RUN`, indépendant du mode de suppression ; en dry-run, tout est contrôlé et le formulaire entièrement rempli, mais « Publier » n'est pas cliqué et rien n'est enregistré. |
+| `RepublicationChecks` | Contrôles avant republication | Sauvegarde vue = sauvegarde actuelle, aucune republication, dernière suppression confirmée de cette version, date de republication atteinte, sauvegarde validée, photos présentes et intactes ; tous avant d'ouvrir Chrome. |
+| `ListingPublisher` | Publieur d'annonce | Port sortant : remplit le formulaire de mise en vente et publie comme le membre, dans le Chrome piloté, sans appel direct à l'API de Vinted. |
+| `RepublicationVisit` | Décision de publication | Ce que la republication décide une fois le formulaire rempli : dry-run, ou enregistrement de la tentative puis clic sur « Publier ». |
+| `ListingForm` | Formulaire de mise en vente | Page de Vinted pour créer une annonce. |
+| `ListingFormField` | Champ du formulaire de mise en vente | Photos, titre, description, prix, catégorie, marque, état, taille, couleurs, matières, format du colis, champs propres à la catégorie. |
+| `FieldNotFillable` | Champ impossible à remplir | Option introuvable par son identifiant comme par son libellé, ou champ absent du formulaire ; rien publié. |
+| `ListingFormUnreadable` | Formulaire de mise en vente illisible | Le formulaire n'est pas celui attendu ; rien publié. |
+| `NewListingSearch` | Recherche de la nouvelle annonce | Une lecture du dressing juste après « Publier », qui n'ouvre que les annonces inconnues de l'outil : la nouvelle annonce est la seule au titre et au prix de la sauvegarde. |
+| `RepublicationReport` (`ShowListingRepublication`) | Aperçu de la republication | Aperçu de la suppression avec la republication, la nouvelle annonce une fois republiée, le mode de republication et, en réponse d'un dry-run, sa réussite. |
+| `ListingNotDeleted` | Annonce non supprimée | Refus de republication : la dernière suppression n'est pas confirmée, ou pas sur la sauvegarde actuelle. |
+| `RepublicationTooEarly` | Trop tôt pour republier | Refus de republication : la date de republication n'est pas atteinte. |
+| `ListingAlreadyRepublished` | Annonce déjà republiée | Refus de republication : une republication réussie existe. |
+| `RepublicationInError` | Erreur de republication en cours | Refus de republication : la tentative précédente est en erreur, à vérifier sur Vinted. |
 | `BackupNotValidated` | Sauvegarde non validée | Refus de suppression : la sauvegarde actuelle n'est pas validée par le membre. |
 | `ListingAlreadyDeleted` | Annonce déjà supprimée | Refus de suppression : une suppression confirmée existe déjà. |
 | `DeletionUnconfirmed` | Suppression non confirmée | Refus d'une nouvelle suppression tant que la dernière reste dans le doute. |

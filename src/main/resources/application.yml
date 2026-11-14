@@ -63,8 +63,11 @@ deletion:
 
 # Republication (US-11) : délai minimal entre la preuve d'une suppression et la republication de l'annonce.
 # Même valeur partout ; absent, nul, négatif ou illisible, l'application ne démarre pas.
+# Republication (US-12) : dry-run par défaut, indépendant de celui de la suppression ; seule la valeur exacte false
+# active les republications réelles, toute autre valeur empêche l'application de démarrer.
 republication:
   minimum-delay: 5m
+  dry-run: ${REPUBLICATION_DRY_RUN:true}
 
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:

@@ -16,6 +16,8 @@ tags:
     description: Sauvegarde d'une annonce et sa validation (US-08)
   - name: listing-deletion
     description: Suppression d'une annonce sur Vinted et mode dry-run (US-09, US-10)
+  - name: listing-republication
+    description: Republication d'une annonce supprimée depuis sa sauvegarde, et son dry-run (US-12)
 paths:
   /api/vinted-session:
     get:
@@ -317,6 +319,75 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeletionRefusal'
+  /api/listings/{listingId}/republication:
+    post:
+      tags: [listing-republication]
+      operationId: republishListing
+      summary: Republier sur Vinted une annonce supprimée, depuis sa sauvegarde
+      description: >
+        Remplit le formulaire de mise en vente dans le Chrome piloté, comme le membre, avec le contenu sauvegardé et
+        les photos gardées dans l'ordre, puis publie et retrouve la nouvelle annonce dans le dressing. Seulement si la
+        version de la sauvegarde vue (savedAt) est la sauvegarde actuelle, toujours validée, si la dernière suppression
+        de l'annonce est confirmée sur cette version, si sa date de republication est atteinte, si les photos gardées
+        sont présentes et intactes, et si l'annonce n'a jamais été republiée. Tout refus survient avant d'ouvrir
+        Chrome, ou avant le clic sur « Publier ». En dry-run (par défaut), remplit tout le formulaire sans publier ni
+        rien garder. Répond une fois l'action finie.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepublicationRequest'
+      responses:
+        '200':
+          description: >
+            Republication réussie (republication.outcome PUBLISHED), en erreur de republication après le clic sur
+            « Publier » (FAILED), ou dry-run réussi (republicationDryRunPassed) ; aperçu à jour.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '400':
+          description: Corps de la demande invalide.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: >
+            Sauvegarde remplacée depuis l'aperçu, non validée, annonce sans suppression confirmée de cette version,
+            date de republication non atteinte, déjà republiée, en erreur de republication, ou autre action
+            navigateur en cours. Chrome n'est pas ouvert.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '422':
+          description: >
+            Photos gardées absentes, manquantes ou modifiées (Chrome n'est pas ouvert), ou champ impossible à remplir
+            (rien n'est publié).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '500':
+          description: >
+            Échec inattendu (détail dans les logs). Avant le clic sur « Publier », rien n'est publié ; après, la
+            republication reste en erreur et l'annonce est à vérifier sur Vinted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée ou formulaire de mise en vente
+            illisible, avant le clic sur « Publier » ; rien n'est publié.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
 components:
   parameters:
     ListingId:
@@ -471,7 +542,7 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING]
+      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING, REPUBLISHING]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.
@@ -479,7 +550,7 @@ components:
     ListingBackupView:
       type: object
       description: Ce que le membre voit de la sauvegarde d'une annonce avant de la valider.
-      required: [vintedId, savedAt, verification, content, photos, deletionDryRun]
+      required: [vintedId, savedAt, verification, content, photos, deletionDryRun, republicationDryRun]
       properties:
         vintedId:
           type: integer
@@ -492,6 +563,18 @@ components:
           description: Présent et vrai seulement dans la réponse d'un dry-run réussi ; rien n'a été supprimé.
         deletion:
           $ref: '#/components/schemas/ListingDeletion'
+        republicationDryRun:
+          type: boolean
+          description: >
+            Vrai tant que le dry-run de la republication est actif (aucune republication réelle) ; se règle par
+            REPUBLICATION_DRY_RUN.
+        republicationDryRunPassed:
+          type: boolean
+          description: >
+            Présent et vrai seulement dans la réponse d'un dry-run de republication réussi : tout a pu être rempli,
+            rien n'a été publié.
+        republication:
+          $ref: '#/components/schemas/ListingRepublication'
         savedAt:
           type: string
           format: date-time
@@ -724,3 +807,83 @@ components:
           $ref: '#/components/schemas/Price'
         readPrice:
           $ref: '#/components/schemas/Price'
+    RepublicationRequest:
+      type: object
+      required: [savedAt]
+      properties:
+        savedAt:
+          type: string
+          format: date-time
+          description: Date de la sauvegarde que le membre a vue.
+    ListingRepublication:
+      type: object
+      description: >
+        Republication de l'annonce, arrivée au clic sur « Publier » ; absente si aucune tentative n'y est arrivée.
+      required: [outcome, attemptedAt, backupSavedAt]
+      properties:
+        outcome:
+          $ref: '#/components/schemas/RepublicationOutcome'
+        attemptedAt:
+          type: string
+          format: date-time
+          description: Date du clic sur « Publier ».
+        publishedAt:
+          type: string
+          format: date-time
+          description: Date à laquelle la nouvelle annonce a été retrouvée dans le dressing ; présente si PUBLISHED.
+        newListingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de la nouvelle annonce ; présent si PUBLISHED.
+        newListingUrl:
+          type: string
+          format: uri
+          description: Adresse de la nouvelle annonce sur Vinted ; présente si PUBLISHED.
+        backupSavedAt:
+          type: string
+          format: date-time
+          description: Version de la sauvegarde republiée.
+      example:
+        outcome: PUBLISHED
+        attemptedAt: '2026-11-11T10:06:00Z'
+        publishedAt: '2026-11-11T10:06:20Z'
+        newListingId: 10300000001
+        newListingUrl: https://www.vinted.fr/items/10300000001-robe-bleue
+        backupSavedAt: '2026-11-10T10:00:00Z'
+    RepublicationOutcome:
+      type: string
+      description: >
+        PUBLISHED : la nouvelle annonce a été retrouvée, seule, dans le dressing. FAILED : erreur de republication,
+        à vérifier sur Vinted ; bloque toute nouvelle republication de l'annonce.
+      enum: [PUBLISHED, FAILED]
+    RepublicationRefusal:
+      type: object
+      description: Raison pour laquelle la republication n'a pas eu lieu ; rien n'est publié ni enregistré.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, TOO_EARLY, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
+                 BROWSER_BUSY, PHOTOS_NOT_VERIFIED, FIELD_NOT_FILLABLE, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
+                 SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED]
+        republishableAt:
+          type: string
+          format: date-time
+          description: Date de republication de l'annonce ; présente pour TOO_EARLY.
+        verification:
+          $ref: '#/components/schemas/BackupVerification'
+        field:
+          $ref: '#/components/schemas/ListingFormField'
+        optionId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'option introuvable, pour FIELD_NOT_FILLABLE quand il y en a une.
+      example:
+        reason: FIELD_NOT_FILLABLE
+        field: SIZE
+        optionId: 588
+    ListingFormField:
+      type: string
+      description: Champ du formulaire de mise en vente impossible à remplir.
+      enum: [PHOTOS, TITLE, DESCRIPTION, PRICE, CATEGORY, BRAND, CONDITION, SIZE, COLORS, MATERIALS, PACKAGE_SIZE,
+             ISBN, BOOK_TITLE, AUTHOR, MANUFACTURER, MODEL, MEASUREMENTS]

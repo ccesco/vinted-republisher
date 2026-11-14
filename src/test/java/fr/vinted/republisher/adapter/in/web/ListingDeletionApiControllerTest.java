@@ -2,6 +2,10 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
+import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
@@ -328,6 +332,17 @@ class ListingDeletionApiControllerTest {
             return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
                     DeletionMode.DRY_RUN,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
+        }
+
+        @Bean
+        ShowListingRepublication showListingRepublication(InMemoryListingRepository listings,
+                                                          InMemoryListingBackupRepository listingBackups,
+                                                          InMemoryPhotoStorage photos,
+                                                          InMemoryBackupValidationRepository validations,
+                                                          InMemoryListingDeletionRepository deletions) {
+            return new ShowListingRepublication(new ShowListingDeletion(listings, listingBackups, photos, validations,
+                    deletions, DeletionMode.DRY_RUN, new RepublicationDelay(Duration.ofMinutes(5))),
+                    new InMemoryListingRepublicationRepository(), listings, RepublicationMode.DRY_RUN);
         }
 
         @Bean

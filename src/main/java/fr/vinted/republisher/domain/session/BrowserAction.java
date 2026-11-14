@@ -5,7 +5,8 @@ public enum BrowserAction {
     LOGGING_IN(true),
     SCANNING(false),
     BACKING_UP(false),
-    DELETING(false);
+    DELETING(false),
+    REPUBLISHING(false);
 
     private final boolean aboutTheSession;
 
