@@ -68,8 +68,10 @@ class PlaywrightListingDeleterTest {
               for (const type of ['input', 'change', 'submit', 'keydown']) {
                 addEventListener(type, () => fetch('/interaction?' + type), true);
               }
+              // As observed on 2026-11-14: the button shows at once, but does something only once the page's
+              // scripts have run, between DOMContentLoaded and the load event that a slow image holds back here.
               const button = document.querySelector('[data-testid=item-delete-button]');
-              if (button) button.addEventListener('click', () => setTimeout(() => {
+              if (button) addEventListener('load', () => button.addEventListener('click', () => setTimeout(() => {
                 if (!%s) return;
                 document.body.insertAdjacentHTML('beforeend', `
                   <div data-testid="item-delete-modal--overlay"><div role="dialog" data-testid="item-delete-modal">
@@ -85,8 +87,9 @@ class PlaywrightListingDeleterTest {
                     if (%s) closeDialog();
                     fetch(location.pathname + '/delete', {method: 'POST'}).then(closeDialog);
                   });
-              }, 300));
+              }, 300)));
             </script>
+            <img src="/slow-image" alt="">
             </body></html>""";
     private static final String DELETE_BUTTON =
             "<button type=\"button\" data-testid=\"item-delete-button\">Supprimer</button>";
@@ -145,6 +148,10 @@ class PlaywrightListingDeleterTest {
             respond(exchange, 200, "<!DOCTYPE html><html><body><script>"
                     + (sessionComesBack ? "setTimeout(() => location.href = '" + back + "', 500);" : "")
                     + "</script></body></html>");
+        });
+        fakeVinted.createContext("/slow-image", exchange -> {
+            pause(Duration.ofSeconds(1));
+            respond(exchange, 404, "");
         });
         fakeVinted.createContext("/", exchange -> {
             record(exchange);

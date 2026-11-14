@@ -47,6 +47,9 @@ public class PlaywrightListingDeleter implements ListingDeleter {
             page.bringToFront();
             ScannedListing read = readable(() -> ListingPage.openUnlessGone(page, listing))
                     .orElseThrow(() -> new VintedUnreachable("HTTP 404 on " + listing.url()));
+            // Observed on 2026-11-14: the button shows at once, but its click does nothing until the page's scripts
+            // have run, which they have by the load event (React wired it at 3.9 s, load came at 4.9 s).
+            page.waitForLoadState(LoadState.LOAD);
             Locator deleteButton = visible(page.locator(DELETE_BUTTON), "no delete button on " + listing.url());
             if (!visit.agreesToDelete(read)) {
                 return Optional.of(read);
