@@ -289,6 +289,7 @@ Test : manuel (vrai compte Vinted, action irréversible ; uniquement avec l'acco
 ## Avancement (2026-11-11)
 - Fait : domaine, cas d'usage, base (`008-create-listing-deletion`), API, aperçu ; AT-09-01 à AT-09-15, AT-09-17 à AT-09-19 verts avec un faux navigateur.
 - Reste : l'adaptateur navigateur. En attendant, `UnobservedListingDeleter` refuse toute suppression et toute revérification (`LISTING_PAGE_UNREADABLE`) sans ouvrir Chrome. Il s'écrira après AT-09-20 (observation avec l'utilisateur), avec AT-09-16 ; puis AT-09-21 (manuel).
+- AT-09-20 fait le 2026-11-14 (annonce 10208778166, session connectée, Chrome piloté, lecture seule, aucun clic) : `/items/10208778166` redirige vers `/items/10208778166-paire-chaussure-style-converse-9-12-mois` ; titre dans le `h1`. Pour le propriétaire, la page montre `<button type="button" data-testid="item-delete-button">Supprimer</button>`, à côté de `item-edit-button` (« Modifier l'annonce »), `item-hide-button` (« Masquer »), et des liens `mark-as-reserved-button` et `mark-as-sold-button`. La fenêtre de confirmation et la réponse après suppression restent à relever à AT-09-21.
 
 ## Questions ouvertes
 - Aucune bloquante pour valider la spec. AT-09-20 (observation de la page réelle) est un prérequis de l'adaptateur, pas de la spec.
