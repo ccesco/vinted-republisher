@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.out.browser;
 
 import com.microsoft.playwright.Page;
+import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
@@ -10,7 +11,10 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.math.BigDecimal;
+import java.net.URI;
 import java.util.List;
+import java.util.Optional;
+import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
 /**
@@ -29,6 +33,27 @@ final class ListingPage {
     static ScannedListing open(Page page, ListingLink link) {
         ChromeTabs.open(page, link.url());
         return parse(link, page.locator(STRUCTURED_DATA).allTextContents());
+    }
+
+    /** Empty if Vinted answers that the listing does not exist (HTTP 404). */
+    static Optional<ScannedListing> openUnlessGone(Page page, ListingLink link) {
+        if (!ChromeTabs.openUnlessGone(page, link.url())) {
+            return Optional.empty();
+        }
+        requireOnTheListing(page, link.url());
+        return Optional.of(parse(link, page.locator(STRUCTURED_DATA).allTextContents()));
+    }
+
+    /**
+     * Vinted adds the title to the address of a listing ({@code /items/<id>-<title>}), and sends a visitor elsewhere,
+     * its login page for one, when it does not show the listing.
+     */
+    static void requireOnTheListing(Page page, URI pageUrl) {
+        String path = URI.create(page.url()).getPath();
+        String listing = pageUrl.getPath().replaceFirst("/$", "");
+        if (path == null || !Pattern.matches(Pattern.quote(listing) + "(-[^/]*)?/?", path)) {
+            throw new SessionDisconnected("redirected to " + page.url());
+        }
     }
 
     static ScannedListing parse(ListingLink link, List<String> structuredData) {

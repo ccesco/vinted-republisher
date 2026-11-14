@@ -3,7 +3,6 @@ package fr.vinted.republisher.adapter.out.browser;
 import com.microsoft.playwright.Page;
 import fr.vinted.republisher.domain.backup.DownloadedPhoto;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
-import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import tools.jackson.databind.JsonNode;
 
@@ -15,7 +14,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Pattern;
 
 /**
  * The public page of a listing: the only one giving its photos in full size, in the gallery block of the data the
@@ -49,7 +47,7 @@ final class ListingGallery {
 
     static List<DownloadedPhoto> read(Page page, VintedListingId id, URI pageUrl, Duration timeout) {
         ChromeTabs.open(page, pageUrl);
-        requireOnTheListing(page, pageUrl);
+        ListingPage.requireOnTheListing(page, pageUrl);
         List<URI> addresses = photoAddresses(id, page.locator("script").allTextContents());
         List<DownloadedPhoto> photos = new ArrayList<>();
         for (URI address : addresses) {
@@ -94,18 +92,6 @@ final class ListingGallery {
             throw new IllegalArgumentException("photo address not on the web: " + uri);
         }
         return uri;
-    }
-
-    /**
-     * Vinted adds the title to the address of a listing ({@code /items/<id>-<title>}), and sends a visitor elsewhere,
-     * its login page for one, when it does not show the listing.
-     */
-    private static void requireOnTheListing(Page page, URI pageUrl) {
-        String path = URI.create(page.url()).getPath();
-        String listing = pageUrl.getPath().replaceFirst("/$", "");
-        if (path == null || !Pattern.matches(Pattern.quote(listing) + "(-[^/]*)?/?", path)) {
-            throw new SessionDisconnected("redirected to " + page.url());
-        }
     }
 
     @SuppressWarnings("unchecked")

@@ -121,7 +121,8 @@ Test : manuel (vrai compte, après AT-09-20, avant AT-09-21).
 
 ## Avancement (2026-11-11)
 - Fait : réglage, mode affiché, dry-run dans le cas d'usage ; AT-10-01 à AT-10-04 verts.
-- Reste : AT-10-05 avec l'adaptateur navigateur (après AT-09-20), puis AT-10-06 (manuel).
+- Fait le 2026-11-14 : AT-10-05 vert (`PlaywrightListingDeleterTest.Dry_run`, page locale) ; en dry-run, l'adaptateur lit l'annonce et attend le bouton de suppression, sans aucun clic.
+- Reste : AT-10-06 (manuel, sur le vrai compte, avant AT-09-21).
 
 ## Questions ouvertes
 - Aucune.

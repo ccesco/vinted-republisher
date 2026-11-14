@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.config;
 
-import fr.vinted.republisher.adapter.out.browser.UnobservedListingDeleter;
+import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
+import fr.vinted.republisher.adapter.out.browser.PlaywrightListingDeleter;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -16,14 +17,18 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
+import java.time.Duration;
 
 /** Wires the deletion use cases: the application layer stays free of Spring. */
 @Configuration
 public class DeletionConfiguration {
 
+    /** The delete button, then Vinted's dialog, show up within seconds on the observed page. */
+    private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(10);
+
     @Bean
-    ListingDeleter listingDeleter() {
-        return new UnobservedListingDeleter();
+    ListingDeleter listingDeleter(ChromeTabs tabs) {
+        return new PlaywrightListingDeleter(CONTROL_TIMEOUT, tabs);
     }
 
     @Bean

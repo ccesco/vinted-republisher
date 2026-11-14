@@ -30,6 +30,7 @@ public class ChromeTabs {
             new Playwright.CreateOptions().setEnv(Map.of("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1"));
 
     private static final Duration LOAD_TIMEOUT = Duration.ofSeconds(30);
+    private static final int HTTP_NOT_FOUND = 404;
     private static final Page.NavigateOptions DOCUMENT_READ =
             new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED);
 
@@ -75,6 +76,26 @@ public class ChromeTabs {
      * anti-bot block page: it is never tried again and must not pass for a displayed page.
      */
     static void open(Page page, URI url) {
+        requireDisplayed(navigate(page, url));
+    }
+
+    /** Like {@link #open}, except that a page answering 404 is not there: false, rather than an error. */
+    static boolean openUnlessGone(Page page, URI url) {
+        Response response = navigate(page, url);
+        if (response != null && response.status() == HTTP_NOT_FOUND) {
+            return false;
+        }
+        requireDisplayed(response);
+        return true;
+    }
+
+    private static void requireDisplayed(Response response) {
+        if (response != null && response.status() >= 400) {
+            throw new VintedUnreachable("HTTP " + response.status() + " on " + response.url());
+        }
+    }
+
+    private static Response navigate(Page page, URI url) {
         Response response;
         try {
             try {
@@ -88,9 +109,7 @@ public class ChromeTabs {
         } catch (PlaywrightException noAnswer) {
             throw new VintedUnreachable(noAnswer.getMessage(), noAnswer);
         }
-        if (response != null && response.status() >= 400) {
-            throw new VintedUnreachable("HTTP " + response.status() + " on " + response.url());
-        }
+        return response;
     }
 
     /** Closing Playwright only detaches from Chrome, which stays open. */
