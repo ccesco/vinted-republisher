@@ -221,8 +221,8 @@ Alors le membre et Claude relèvent les sélecteurs, le choix d'une option par i
 Test : manuel (vrai compte Vinted, avec l'accord de l'utilisateur ; sert de base aux pages locales d'AT-12-14)
 
 ## Cas limites et erreurs
-- Libellé vide dans la sauvegarde (taille 588 d'US-05) : choix par identifiant si l'observation le permet, sinon FIELD_NOT_FILLABLE.
-- Brouillon gardé par Vinted quand on quitte le formulaire (erreur avant publication, dry-run) : à relever pendant l'observation (AT-12-18) ; s'il existe, son traitement revient à l'utilisateur avant l'adaptateur.
+- Brouillon gardé par Vinted quand on quitte le formulaire (erreur avant publication, dry-run) : aucun, d'après l'observation (AT-12-18) ; on ne clique jamais sur « Sauvegarder le brouillon ».
+- Libellé vide d'une taille : l'option se choisit par son identifiant (`size-group-<groupe>-grid-option-<id>`), le libellé ne sert pas.
 - Une annonce sans rapport mais inconnue de l'outil (mise en ligne par le membre hors de l'outil) avec un autre titre ou prix : ignorée ; avec le même titre et le même prix : ambiguïté → erreur de republication.
 - Plantage entre l'enregistrement de la tentative et le clic : « erreur de republication » alors que rien n'est publié ; c'est le prix de l'absence de doublon, US-13 le règle.
 
@@ -258,16 +258,38 @@ Test : manuel (vrai compte Vinted, avec l'accord de l'utilisateur ; sert de base
 - Nouvelle annonce, décidé par l'utilisateur (2026-11-11) : après une republication réussie, la nouvelle annonce est une annonce à part dans l'outil, présente, sous son nouvel identifiant Vinted, reliée à l'ancienne (« republiée depuis », pour le cumul des statistiques d'US-07), sans sauvegarde : nouvelle sauvegarde et validation avant toute future suppression. L'ancienne reste absente avec sa sauvegarde, ses photos, sa validation et sa suppression.
 
 - Lien entre ancienne et nouvelle annonce, décidé par l'utilisateur (2026-11-14) : porté par la republication réussie (ancien et nouvel identifiant), pas par une colonne sur les annonces, que chaque scan réécrit. La nouvelle annonce est une annonce ordinaire de l'outil.
+- Choix de la catégorie, décidé par l'utilisateur (2026-11-15) après l'observation : le libellé sauvegardé est saisi dans la recherche de catégorie, puis l'outil clique sur le résultat qui porte l'identifiant sauvegardé ; aucun résultat à cet identifiant → FIELD_NOT_FILLABLE (catégorie). Cette décision remplace « catégorie par l'arbre » (2026-11-11), le chemin dans l'arbre n'étant pas sauvegardé. Toutes les options (marque, taille, état, couleurs, matières, format du colis) se choisissent par leur identifiant.
+- Valeurs pré-remplies par Vinted, décidé par l'utilisateur (2026-11-15) : la sauvegarde s'impose. L'outil sélectionne toujours la valeur sauvegardée, décoche toute couleur ou matière cochée en trop et choisit « Sans marque » si la sauvegarde n'a pas de marque. Le formulaire final correspond exactement à la sauvegarde. La case payante « Boost » n'est jamais touchée.
 - Ordre de travail, décidé par l'utilisateur (2026-11-14) : comme pour US-09, tout sauf l'adaptateur navigateur d'abord, avec un publieur « non observé » qui n'ouvre jamais Chrome ; l'observation AT-12-18 et l'adaptateur Playwright (AT-12-14) viennent ensuite.
 
 - Messages de l'aperçu, proposés à l'implémentation (2026-11-14) : un refus dit « Republication refusée, rien n'a été publié : … » (ex. « Taille impossible à remplir (identifiant 588). ») ; une erreur inattendue (500) dit « Échec de la republication : vérifiez sur Vinted avant de relancer », sans affirmer que rien n'a été publié (elle peut survenir après le clic, si la base tombe pendant la réponse) ; un dry-run réussi dit « Dry-run réussi : contrôles réussis, formulaire de mise en vente entièrement rempli. Rien n'a été publié. » ; une republication réussie montre sa date et le lien vers la nouvelle annonce. Le compte à rebours d'US-11 active le bouton à la date de republication et disparaît dès qu'une republication existe.
 
 ## Avancement (2026-11-14)
 - Fait : domaine, cas d'usage (`RepublishListing`, découpé en `RepublicationChecks` et `NewListingSearch`), base (`009-create-listing-republication`), API, réglage du dry-run, aperçu ; AT-12-01 à AT-12-13, AT-12-15 à AT-12-17 verts avec un faux navigateur.
-- Reste : l'adaptateur navigateur. En attendant, `UnobservedListingPublisher` refuse toute republication (`FORM_UNREADABLE`) sans ouvrir Chrome. Il s'écrira après AT-12-18 (observation du formulaire réel avec l'utilisateur), avec AT-12-14.
+- Reste : l'adaptateur navigateur. En attendant, `UnobservedListingPublisher` refuse toute republication (`FORM_UNREADABLE`) sans ouvrir Chrome. Il s'écrira avec AT-12-14, à partir de l'observation AT-12-18, faite le 2026-11-15.
+
+## Observation du formulaire réel (AT-12-18, 2026-11-15)
+Faite avec l'accord de l'utilisateur sur l'annonce 10208513136 (« Pyjama petit bateau 3 mois »), dans le Chrome piloté, formulaire entièrement rempli puis onglet fermé : aucun clic sur « Ajouter » ni sur « Sauvegarder le brouillon ».
+- Page `https://www.vinted.fr/items/new`, titre « Vends ton article ». Pas de `<main>`. Au départ, seuls les champs photos, titre, description, catégorie et prix sont affichés. Les autres apparaissent une fois la catégorie choisie.
+- Photos : `input[data-testid=add-photos-input]` (`type=file`, `multiple`, jpeg/gif/png/webp). Les fichiers s'envoient d'un coup, sans boîte de dialogue, dans l'ordre donné ; la première devient « Principale ». Vignettes `media-select-photo-<rang>`.
+- Titre `#title`, description `textarea#description`, prix `#price` : saisie « 2,00 », affiché « 2,00 € ».
+- Catégorie `#category` : la liste déroulante propose des suggestions (`catalog-suggestion-<id>`), la recherche `#catalog-search-input` et l'arbre (`catalog-<id>`). Avec le libellé sauvegardé dans la recherche, chaque résultat porte l'identifiant (`#catalog-search-<id>-result`) et le chemin complet. Vinted **pré-sélectionne** une catégorie suggérée d'après le titre et les photos.
+- Marque `#brand` : recherche `#brand-search-input`, résultat `brand-<id>`, suggestion `suggested-brand-<id>`, « Sans marque » `empty-brand`. Vinted **pré-remplit** une marque suggérée.
+- Taille `#size` : grille `size-group-<groupe>-grid-option-<id>`. L'identifiant suffit ; le libellé vide (taille 588 d'US-05) n'empêche pas le choix.
+- État `#condition` : `condition-<id>`.
+- Couleurs `#color` : 2 au maximum, cases `filter-grid-option-<id>`. Une couleur suggérée peut apparaître deux fois (suggestion et liste complète).
+- Matériaux `#material` : cases `material-<id>` (liste) et `material-suggestion-<id>` (suggestions).
+- Format du colis : radio `package_type_selector_<id>--input`. Vinted **pré-coche** le format recommandé.
+- Une fois le prix saisi, un encart « Services supplémentaires » apparaît avec une case « Boost » (payante, décochée) : l'outil ne la touche jamais.
+- Boutons : « Ajouter » = publication (`upload-form-save-button`), « Sauvegarder le brouillon » (`upload-form-save-draft-button`).
+- Champs propres aux livres et aux objets (ISBN, auteur, fabricant, dimensions) : non vus, l'annonce observée n'en a pas.
+- Après fermeture de l'onglet, `/items/new` rouvert est vide : le navigateur ne garde aucun brouillon.
+- Titre : le titre lu au scan du dressing et le titre sauvegardé sont identiques pour l'annonce observée.
+
+- Brouillon : l'utilisateur confirme qu'aucun brouillon n'apparaît dans son compte Vinted après l'observation (2026-11-15).
 
 ## Questions ouvertes
-- Aucune bloquant la spec. L'observation du formulaire réel (AT-12-18) précède l'adaptateur ; un brouillon gardé par Vinted, s'il existe, sera soumis à l'utilisateur.
+- Aucune.
 
 ## Modèle de domaine
 Termes à ajouter au glossaire :
