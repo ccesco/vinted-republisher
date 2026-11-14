@@ -31,6 +31,9 @@ public class ChromeTabs {
 
     private static final Duration LOAD_TIMEOUT = Duration.ofSeconds(30);
     private static final int HTTP_NOT_FOUND = 404;
+    private static final String SESSION_RENEWAL = "/session-refresh";
+    private static final Page.WaitForURLOptions SESSION_RENEWED =
+            new Page.WaitForURLOptions().setWaitUntil(WaitUntilState.COMMIT);
     private static final Page.NavigateOptions DOCUMENT_READ =
             new Page.NavigateOptions().setWaitUntil(WaitUntilState.DOMCONTENTLOADED);
 
@@ -95,7 +98,30 @@ public class ChromeTabs {
         }
     }
 
+    /**
+     * Vinted renews an aging session on a page of its own, which then goes back to the page asked for (observed on
+     * 2026-11-14, about 1.3 s): once back, the page is loaded again, so that its own HTTP status is the one read. A
+     * renewal that never ends leaves the tab on it, where every reader sees the session disconnected.
+     */
     private static Response navigate(Page page, URI url) {
+        Response response = load(page, url);
+        if (!isRenewingSession(page.url())) {
+            return response;
+        }
+        try {
+            page.waitForURL(address -> !isRenewingSession(address), SESSION_RENEWED);
+        } catch (TimeoutError neverBack) {
+            LOG.warn("Vinted did not end renewing the session on {}", page.url());
+            return response;
+        }
+        return load(page, url);
+    }
+
+    private static boolean isRenewingSession(String address) {
+        return SESSION_RENEWAL.equals(URI.create(address).getPath());
+    }
+
+    private static Response load(Page page, URI url) {
         Response response;
         try {
             try {

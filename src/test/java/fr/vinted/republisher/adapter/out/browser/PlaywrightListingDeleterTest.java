@@ -49,6 +49,7 @@ class PlaywrightListingDeleterTest {
     private static final Path INSTALLED_CHROME = Path.of(Objects.requireNonNullElse(
             System.getenv("CHROME_PATH"), "C:/Program Files/Google/Chrome/Application/chrome.exe"));
     private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(2);
+    private static final Duration LOAD_TIMEOUT = Duration.ofSeconds(5);
     private static final long LISTING = 10;
 
     private static final String LISTING_PAGE = """
@@ -104,6 +105,8 @@ class PlaywrightListingDeleterTest {
     private volatile Duration deletionAnswerDelay = Duration.ZERO;
     private volatile int statusOnceGone = 404;
     private volatile boolean redirectsToLogin;
+    private volatile boolean sessionToRefresh;
+    private volatile boolean sessionComesBack = true;
     private final RecordingVisit visit = new RecordingVisit();
 
     @BeforeEach
@@ -117,6 +120,10 @@ class PlaywrightListingDeleterTest {
                     shown = false;
                 }
                 respond(exchange, 200, "{}");
+            } else if (sessionToRefresh) {
+                exchange.getResponseHeaders().add("Location",
+                        "/session-refresh?ref_url=" + exchange.getRequestURI().getPath());
+                respond(exchange, 302, "");
             } else if (redirectsToLogin) {
                 exchange.getResponseHeaders().add("Location", "/member/login");
                 respond(exchange, 302, "");
@@ -129,6 +136,15 @@ class PlaywrightListingDeleterTest {
                 respond(exchange, 200, LISTING_PAGE.formatted(DELETE_BUTTON.repeat(deleteButtons), confirmationShows,
                         dialogCloses, dialogClosesBeforeVintedAnswers));
             }
+        });
+        // As observed on 2026-11-14: Vinted renews its session on a page of its own, which then goes back by script.
+        fakeVinted.createContext("/session-refresh", exchange -> {
+            record(exchange);
+            String back = exchange.getRequestURI().getQuery().replaceFirst("^ref_url=", "");
+            sessionToRefresh = false;
+            respond(exchange, 200, "<!DOCTYPE html><html><body><script>"
+                    + (sessionComesBack ? "setTimeout(() => location.href = '" + back + "', 500);" : "")
+                    + "</script></body></html>");
         });
         fakeVinted.createContext("/", exchange -> {
             record(exchange);
@@ -292,6 +308,15 @@ class PlaywrightListingDeleterTest {
     class Dry_run {
 
         @Test
+        void waits_for_vinted_to_renew_the_session_before_reading_the_listing() {
+            sessionToRefresh = true;
+            visit.agreeing = false;
+
+            assertThat(deleter().delete(link(), visit)).contains(pullRaye());
+            assertThat(clicks()).isEmpty();
+        }
+
+        @Test
         void finds_the_button_without_clicking_anything_nor_asking_for_a_deletion() {
             visit.agreeing = false;
 
@@ -322,6 +347,29 @@ class PlaywrightListingDeleterTest {
         }
 
         @Test
+        void listing_answering_404_once_the_session_is_renewed_is_no_longer_shown() {
+            sessionToRefresh = true;
+            shown = false;
+
+            assertThat(deleter().show(link())).isEmpty();
+        }
+
+        @Test
+        void waits_for_vinted_to_renew_the_session_then_reads_the_listing() {
+            sessionToRefresh = true;
+
+            assertThat(deleter().show(link())).contains(pullRaye());
+        }
+
+        @Test
+        void session_never_renewed_means_the_session_is_disconnected() {
+            sessionToRefresh = true;
+            sessionComesBack = false;
+
+            assertThatThrownBy(() -> deleter().show(link())).isInstanceOf(SessionDisconnected.class);
+        }
+
+        @Test
         void login_page_means_the_session_is_disconnected() {
             redirectsToLogin = true;
 
@@ -331,7 +379,7 @@ class PlaywrightListingDeleterTest {
 
     private PlaywrightListingDeleter deleter() {
         return new PlaywrightListingDeleter(CONTROL_TIMEOUT,
-                new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort)));
+                new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort), LOAD_TIMEOUT));
     }
 
     private ListingLink link() {
