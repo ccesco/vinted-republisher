@@ -6,7 +6,6 @@ import fr.vinted.republisher.adapter.out.browser.PlaywrightListingContentReader;
 import fr.vinted.republisher.adapter.out.storage.FilePhotoStorage;
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
-import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.domain.backup.BackupPace;
@@ -51,12 +50,6 @@ public class BackupConfiguration {
                           WardrobeBackupRepository backups, ListingBackupRepository listingBackups,
                           BackupValidationRepository validations) {
         return new ShowBackup(session, lastBackupProblem, backups, listingBackups, validations);
-    }
-
-    @Bean
-    ShowListingBackup showListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
-                                        PhotoStorage photos, BackupValidationRepository validations) {
-        return new ShowListingBackup(listings, listingBackups, photos, validations);
     }
 
     @Bean

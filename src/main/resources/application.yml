@@ -56,6 +56,11 @@ vinted:
     label-timeout: 10s
     photo-timeout: 30s
 
+# Suppression sur Vinted (US-09, US-10) : dry-run par défaut, y compris sans la variable ; seule la valeur exacte
+# false active les suppressions réelles, toute autre valeur empêche l'application de démarrer.
+deletion:
+  dry-run: ${DELETION_DRY_RUN:true}
+
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:
   path: ${CHROME_PATH}

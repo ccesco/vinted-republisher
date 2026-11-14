@@ -12,6 +12,7 @@ import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
@@ -35,7 +36,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ListingBackupPageTest {
 
     private static final String VERIFIED = """
-            {"vintedId": 3, "savedAt": "2026-11-10T10:00:00Z",
+            {"vintedId": 3, "savedAt": "2026-11-10T10:00:00Z", "deletionDryRun": true,
              "verification": {"passed": true, "failures": []},
              "content": {"title": "Pull <b>rayé</b>", "description": "Porté deux fois",
                          "price": {"amount": 12.5, "currency": "EUR"},
@@ -66,6 +67,11 @@ class ListingBackupPageTest {
     private final AtomicInteger validationStatus = new AtomicInteger(200);
     private final AtomicReference<String> validationAnswer = new AtomicReference<>(VALIDATED);
     private final List<String> validations = new CopyOnWriteArrayList<>();
+    private final AtomicInteger deletionStatus = new AtomicInteger(200);
+    private final AtomicReference<String> deletionAnswer = new AtomicReference<>(VALIDATED);
+    private final AtomicInteger recheckStatus = new AtomicInteger(200);
+    private final AtomicReference<String> recheckAnswer = new AtomicReference<>(VALIDATED);
+    private final List<String> deletions = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -97,6 +103,13 @@ class ListingBackupPageTest {
             validations.add(exchange.getRequestMethod() + " "
                     + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             respond(exchange, validationStatus.get(), "application/json", bytes(validationAnswer.get()));
+        });
+        fakeApi.createContext("/api/listings/3/deletion", exchange -> {
+            deletions.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath() + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            boolean recheck = exchange.getRequestURI().getPath().endsWith("/recheck");
+            respond(exchange, recheck ? recheckStatus.get() : deletionStatus.get(), "application/json",
+                    bytes(recheck ? recheckAnswer.get() : deletionAnswer.get()));
         });
         fakeApi.start();
         page = chrome.newPage();
@@ -219,6 +232,177 @@ class ListingBackupPageTest {
 
         assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour au dressing")))
                 .hasAttribute("href", "wardrobe.html");
+    }
+
+    @Nested
+    class Deletion {
+
+        private static final String UNCONFIRMED = VALIDATED.replace("\"deletionDryRun\": true,",
+                "\"deletionDryRun\": false, \"deletion\": {\"outcome\": \"UNCONFIRMED\","
+                        + " \"attemptedAt\": \"2026-11-11T10:00:00Z\", \"backupSavedAt\": \"2026-11-10T10:00:00Z\"},");
+        private static final String CONFIRMED = VALIDATED.replace("\"deletionDryRun\": true,",
+                "\"deletionDryRun\": false, \"deletion\": {\"outcome\": \"CONFIRMED\","
+                        + " \"attemptedAt\": \"2026-11-11T10:00:00Z\", \"settledAt\": \"2026-11-11T10:00:05Z\","
+                        + " \"backupSavedAt\": \"2026-11-10T10:00:00Z\"},");
+
+        @Test
+        void shows_the_mode_deletions_run_in() {
+            // Étant donné le dry-run actif, puis les suppressions réelles activées
+            // Quand j'ouvre l'aperçu d'une sauvegarde
+            // Alors je vois « Dry-run actif : aucune suppression réelle », puis « Suppressions réelles activées »
+            open();
+            assertThat(mode()).hasText("Dry-run actif : aucune suppression réelle");
+
+            backup.set(VERIFIED.replace("\"deletionDryRun\": true", "\"deletionDryRun\": false"));
+            open();
+            assertThat(mode()).hasText("Suppressions réelles activées");
+        }
+
+        @Test
+        void only_a_validated_and_verified_backup_can_be_deleted() {
+            open();
+            assertThat(deleteButton()).isDisabled();
+
+            backup.set(VALIDATED.replace("{\"passed\": true, \"failures\": []}", FAILED_VERIFICATION));
+            open();
+            assertThat(deleteButton()).isDisabled();
+
+            backup.set(VALIDATED);
+            open();
+            assertThat(deleteButton()).isEnabled();
+        }
+
+        @Test
+        void asks_for_a_confirmation_recalling_the_listing_before_deleting() {
+            // Quand je clique sur « Supprimer de Vinted »
+            backup.set(VALIDATED);
+            open();
+            deleteButton().click();
+            // Alors une confirmation rappelle titre, prix, nombre de photos, date de validation et « irréversible »
+            assertThat(confirmation()).isVisible();
+            assertThat(confirmation()).containsText("Pull <b>rayé</b>");
+            assertThat(confirmation()).containsText("12,50");
+            assertThat(confirmation()).containsText("2 photos");
+            assertThat(confirmation()).containsText("11/11/2026");
+            assertThat(confirmation()).containsText("irréversible");
+            assertThat(deletions).isEmpty();
+        }
+
+        @Test
+        void dry_run_says_nothing_was_deleted() {
+            // Étant donné le dry-run actif
+            backup.set(VALIDATED);
+            deletionAnswer.set(VALIDATED.replace("\"deletionDryRun\": true,",
+                    "\"deletionDryRun\": true, \"dryRunPassed\": true,"));
+            open();
+            // Quand je confirme « Supprimer définitivement »
+            deleteButton().click();
+            confirmButton().click();
+            // Alors l'aperçu affiche « Dry-run réussi … Rien n'a été supprimé. »
+            assertThat(deletionState()).containsText("Dry-run réussi");
+            assertThat(deletionState()).containsText("Rien n'a été supprimé.");
+            assertThat(deletions).containsExactly(
+                    "POST /api/listings/3/deletion {\"savedAt\":\"2026-11-10T10:00:00Z\"}");
+        }
+
+        @Test
+        void listing_changed_on_vinted_tells_how() {
+            backup.set(VALIDATED);
+            deletionStatus.set(422);
+            deletionAnswer.set("""
+                    {"reason": "LISTING_CHANGED", "differences": [{"kind": "PRICE_CHANGED",
+                      "savedPrice": {"amount": 12, "currency": "EUR"}, "readPrice": {"amount": 10, "currency": "EUR"}}]}""");
+            open();
+
+            deleteButton().click();
+            confirmButton().click();
+
+            assertThat(problem()).containsText("rien n'a été supprimé");
+            assertThat(problem()).containsText("12,00");
+            assertThat(problem()).containsText("10,00");
+        }
+
+        @Test
+        void unconfirmed_deletion_asks_to_check_on_vinted() {
+            // Étant donné une suppression non confirmée
+            backup.set(UNCONFIRMED);
+            recheckAnswer.set(CONFIRMED);
+            open();
+            // Alors l'aperçu affiche « suppression non confirmée, vérifier sur Vinted » avec « Revérifier sur Vinted »
+            assertThat(deletionState()).containsText("Suppression non confirmée, vérifier sur Vinted");
+            assertThat(deleteButton()).isDisabled();
+            // Quand je clique sur « Revérifier sur Vinted »
+            recheckButton().click();
+            assertThat(deletionState()).containsText("Supprimée de Vinted le 11/11/2026");
+            assertThat(deletions).containsExactly("POST /api/listings/3/deletion/recheck ");
+        }
+
+        @Test
+        void failed_recheck_says_the_doubt_remains() {
+            backup.set(UNCONFIRMED);
+            recheckStatus.set(502);
+            recheckAnswer.set("{\"reason\": \"VINTED_UNREACHABLE\"}");
+            open();
+
+            recheckButton().click();
+
+            assertThat(problem()).containsText("le doute reste");
+            assertThat(problem()).containsText("Vinted est inaccessible");
+            assertThat(problem()).not().containsText("rien n'a été supprimé");
+            assertThat(recheckButton()).isEnabled();
+        }
+
+        @Test
+        void unexpected_deletion_failure_shows_the_state_saved_since_without_claiming_nothing_was_deleted() {
+            backup.set(VALIDATED);
+            deletionStatus.set(500);
+            deletionAnswer.set("{\"reason\": \"DELETION_FAILED\"}");
+            open();
+            backup.set(UNCONFIRMED);
+
+            deleteButton().click();
+            confirmButton().click();
+
+            assertThat(problem()).containsText("vérifiez l'annonce sur Vinted");
+            assertThat(problem()).not().containsText("rien n'a été supprimé");
+            assertThat(deletionState()).containsText("Suppression non confirmée, vérifier sur Vinted");
+            assertThat(recheckButton()).isVisible();
+        }
+
+        @Test
+        void confirmed_deletion_says_when() {
+            backup.set(CONFIRMED);
+
+            open();
+
+            assertThat(deletionState()).containsText("Supprimée de Vinted le 11/11/2026");
+            assertThat(deleteButton()).isHidden();
+            assertThat(recheckButton()).isHidden();
+        }
+
+        private Locator mode() {
+            return page.locator("#deletion-mode");
+        }
+
+        private Locator deletionState() {
+            return page.locator("#deletion-state");
+        }
+
+        private Locator confirmation() {
+            return page.locator("#deletion-confirmation");
+        }
+
+        private Locator deleteButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Supprimer de Vinted"));
+        }
+
+        private Locator confirmButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Supprimer définitivement"));
+        }
+
+        private Locator recheckButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Revérifier sur Vinted"));
+        }
     }
 
     private void open() {

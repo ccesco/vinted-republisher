@@ -9,7 +9,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `VintedAccount` | Compte Vinted | Compte du membre sur Vinted, atteint par un navigateur piloté (port sortant). |
 | `VintedSession` | Session Vinted | Connexion de l'outil au compte Vinted, conservée dans le profil navigateur d'un lancement à l'autre. |
 | `SessionStatus` (`CONNECTED` / `DISCONNECTED`) | État de session (connecté / non connecté) | Connecté si la page des paramètres du profil s'affiche, non connecté si Vinted redirige vers la connexion. Absent tant qu'aucune vérification n'a eu lieu (« non vérifié »). |
-| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP`) | Action navigateur (vérification / connexion / scan / sauvegarde) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
+| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP` / `DELETING`) | Action navigateur (vérification / connexion / scan / sauvegarde / suppression) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
 | `SessionCheck` (`checkSession`) | Vérification de session | Ouverture de la page des paramètres du profil dans un onglet de Chrome pour connaître l'état de session ; uniquement sur demande. |
 | `ProfileSettings` | Paramètres du profil | Page `/settings/profile` de Vinted, réservée au membre connecté (un visiteur est redirigé vers la connexion). |
 | `ManualLogin` (`awaitManualLogin`, `LogInToVinted`) | Connexion manuelle | Connexion faite par le membre lui-même dans le Chrome piloté ; l'outil ne saisit jamais d'identifiants. |
@@ -60,3 +60,19 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ListingNotBackedUp` | Annonce non sauvegardée | L'annonce n'a aucune sauvegarde à montrer ni à valider. |
 | `BackupReplaced` | Sauvegarde remplacée | La version vue par le membre n'est plus la sauvegarde actuelle : la validation est refusée. |
 | `BackupNotVerified` | Sauvegarde non vérifiée | La vérification refaite au moment de valider échoue : la validation est refusée. |
+| `ListingDeletion` (`DeleteListing`) | Suppression d'une annonce | Tentative de supprimer une annonce sur Vinted, arrivée au clic de confirmation de Vinted : annonce, version de la sauvegarde, date du clic, issue, date de règlement. Enregistrée non confirmée juste avant le clic, réglée une seule fois ; jamais supprimée. |
+| `DeletionOutcome` (`CONFIRMED` / `UNCONFIRMED` / `NOT_DONE`) | Issue de la suppression (confirmée / non confirmée / non faite) | Confirmée : Vinted ne montre plus l'annonce. Non confirmée : doute après le clic, à revérifier. Non faite : doute levé, l'annonce était toujours là. |
+| `RecheckListingDeletion` | Revérification de la suppression | Ouverture de la page de l'annonce, sans aucun clic, pour régler une suppression non confirmée. |
+| `ListingDifference` | Écart relu sur Vinted | Différence entre l'annonce montrée par Vinted juste avant sa suppression et sa sauvegarde : plus active, titre changé, prix changé. |
+| `ListingChanged` | Annonce changée sur Vinted | Refus de suppression : Vinted montre l'annonce autrement que sa sauvegarde. |
+| `DeletionVisit` | Décision de suppression | Ce que la suppression décide sur la page de l'annonce, avant tout clic : écarts, dry-run, ou enregistrement de la tentative puis clic. |
+| `ListingDeleter` | Suppresseur d'annonce | Port sortant : supprime une annonce sur Vinted comme le membre, dans le Chrome piloté, sans appel direct à l'API de Vinted. |
+| `ListingDeletionRepository` | Suppressions | Toutes les tentatives de suppression ; donne la plus récente de chaque annonce. |
+| `DeletionMode` (`DRY_RUN` / `REAL`) | Mode de suppression (dry-run / réel) | Fixé au démarrage par `DELETION_DRY_RUN` ; en dry-run, tout est contrôlé et le bouton de suppression trouvé, mais rien n'est cliqué ni enregistré. |
+| `DeletionReport` (`ShowListingDeletion`) | Aperçu de la suppression | Aperçu de la sauvegarde d'une annonce avec sa dernière suppression, le mode de suppression et, en réponse d'un dry-run, sa réussite. |
+| `BackupNotValidated` | Sauvegarde non validée | Refus de suppression : la sauvegarde actuelle n'est pas validée par le membre. |
+| `ListingAlreadyDeleted` | Annonce déjà supprimée | Refus de suppression : une suppression confirmée existe déjà. |
+| `DeletionUnconfirmed` | Suppression non confirmée | Refus d'une nouvelle suppression tant que la dernière reste dans le doute. |
+| `NoUnconfirmedDeletion` | Aucune suppression à revérifier | Seule une suppression non confirmée se règle. |
+| `ListingPageUnreadable` | Page de l'annonce illisible | La page de l'annonce n'est pas celle attendue (bouton de suppression introuvable) ; rien n'a été cliqué. |
+| `BrowserBusy` | Navigateur occupé | Une autre action navigateur est en cours : une seule à la fois. |

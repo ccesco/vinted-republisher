@@ -1,13 +1,15 @@
 package fr.vinted.republisher.adapter.in.web;
 
-import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
+import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
@@ -58,7 +60,7 @@ class ListingBackupApiControllerTest {
         assertThat(mvc.get().uri("/api/listings/1/backup"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
-                        {"vintedId": 1, "savedAt": "2026-11-10T10:00:00Z",
+                        {"vintedId": 1, "savedAt": "2026-11-10T10:00:00Z", "deletionDryRun": true,
                          "verification": {"passed": true, "failures": []},
                          "content": {"title": "Pull rayé 1", "description": "Porté deux fois",
                                      "price": {"amount": 12.50, "currency": "EUR"},
@@ -195,10 +197,12 @@ class ListingBackupApiControllerTest {
         }
 
         @Bean
-        ShowListingBackup showListingBackup(InMemoryListingRepository listings,
-                                            InMemoryListingBackupRepository listingBackups,
-                                            InMemoryPhotoStorage photos, InMemoryBackupValidationRepository validations) {
-            return new ShowListingBackup(listings, listingBackups, photos, validations);
+        ShowListingDeletion showListingDeletion(InMemoryListingRepository listings,
+                                                InMemoryListingBackupRepository listingBackups,
+                                                InMemoryPhotoStorage photos,
+                                                InMemoryBackupValidationRepository validations) {
+            return new ShowListingDeletion(listings, listingBackups, photos, validations,
+                    new InMemoryListingDeletionRepository(), DeletionMode.DRY_RUN);
         }
 
         @Bean
