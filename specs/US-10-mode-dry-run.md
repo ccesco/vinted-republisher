@@ -1,5 +1,5 @@
 # US-10 – Mode dry-run
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-09 (suppression), livrée avec elle
 
@@ -27,12 +27,12 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 Aucun moyen de changer le mode par l'API.
 
 ## Critères d'acceptation
-- [ ] Sans `DELETION_DRY_RUN`, ou avec `true`, aucune suppression réelle n'est possible.
-- [ ] Seule la valeur `false` active les suppressions réelles ; toute autre valeur empêche le démarrage.
-- [ ] En dry-run, aucun clic de suppression n'est fait sur Vinted, et tous les contrôles d'US-09 sont faits.
-- [ ] Un dry-run réussi ou refusé ne laisse aucune trace en base : l'annonce reste dans son état d'avant.
-- [ ] L'aperçu affiche toujours le mode actif.
-- [ ] Le mode ne se change ni par l'interface ni par l'API.
+- [x] Sans `DELETION_DRY_RUN`, ou avec `true`, aucune suppression réelle n'est possible.
+- [x] Seule la valeur `false` active les suppressions réelles ; toute autre valeur empêche le démarrage.
+- [x] En dry-run, aucun clic de suppression n'est fait sur Vinted, et tous les contrôles d'US-09 sont faits.
+- [x] Un dry-run réussi ou refusé ne laisse aucune trace en base : l'annonce reste dans son état d'avant.
+- [x] L'aperçu affiche toujours le mode actif.
+- [x] Le mode ne se change ni par l'interface ni par l'API.
 
 ## Tests d'acceptation
 ### AT-10-01 – Dry-run réussi
@@ -121,7 +121,8 @@ Test : manuel (vrai compte, après AT-09-20, avant AT-09-21).
 
 ## Avancement (2026-11-11)
 - Fait : réglage, mode affiché, dry-run dans le cas d'usage ; AT-10-01 à AT-10-04 verts.
-- Reste : AT-10-05 avec l'adaptateur navigateur (après AT-09-20), puis AT-10-06 (manuel).
+- Fait le 2026-11-14 : AT-10-05 vert (`PlaywrightListingDeleterTest.Dry_run`, page locale) ; en dry-run, l'adaptateur lit l'annonce et attend le bouton de suppression, sans aucun clic.
+- AT-10-06 fait le 2026-11-14 par l'utilisateur, sur le vrai compte, dry-run actif (« Dry-run actif : aucune suppression réelle » affiché) : deux annonces validées, dont 10208799832, chacune « Dry-run réussi : contrôles réussis, annonce relue sur Vinted, bouton de suppression trouvé. Rien n'a été supprimé. ». Le premier essai, refusé (« session non connectée ») à cause de la page `session-refresh` de Vinted, a été corrigé avant (voir US-09, Avancement). Clos à la demande de l'utilisateur après deux annonces au lieu de trois ; le dressing n'a pas été revérifié à part, mais aucun clic n'est possible en dry-run (AT-10-05).
 
 ## Questions ouvertes
 - Aucune.
