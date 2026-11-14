@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -55,6 +56,9 @@ class JpaListingDeletionRepositoryTest {
     private ListingBackupRepository listingBackups;
 
     @Autowired
+    private ShowListingDeletion showListingDeletion;
+
+    @Autowired
     private JdbcTemplate database;
 
     private ListingBackup backup;
@@ -85,6 +89,17 @@ class JpaListingDeletionRepositoryTest {
         deletions.save(confirmed);
         assertThat(deletions.findLatest(LISTING)).contains(confirmed);
         assertThat(database.queryForObject("SELECT count(*) FROM listing_deletion", Long.class)).isEqualTo(1);
+    }
+
+    @Test
+    void republicationDateSurvivesRestart() {
+        // Étant donné une suppression prouvée à 14:32, enregistrée en base
+        deletions.save(ListingDeletion.attempted(backup, Instant.parse("2026-11-11T14:31:58Z"))
+                .confirmed(Instant.parse("2026-11-11T14:32:00Z")));
+        // Quand l'outil redémarre à 14:34 (rien n'est gardé en mémoire : tout est relu en base)
+        // Alors l'aperçu indique toujours « republiable à partir de 14:37 »
+        assertThat(showListingDeletion.show(LISTING).republishableAt())
+                .contains(Instant.parse("2026-11-11T14:37:00Z"));
     }
 
     @Test

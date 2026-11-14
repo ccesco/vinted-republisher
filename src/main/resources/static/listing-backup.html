@@ -19,6 +19,7 @@
     <section id="deletion">
         <p id="deletion-mode"></p>
         <p id="deletion-state"></p>
+        <p id="republication-state"></p>
         <p>
             <button id="delete" type="button" hidden>Supprimer de Vinted</button>
             <button id="recheck" type="button" hidden>Revérifier sur Vinted</button>
@@ -83,7 +84,9 @@
     const deletionSummary = document.getElementById('deletion-summary');
     const confirmButton = document.getElementById('confirm-deletion');
     const cancelButton = document.getElementById('cancel-deletion');
+    const republicationState = document.getElementById('republication-state');
     let current;
+    let republicationTimer;
 
     function priceOf(price) {
         return new Intl.NumberFormat('fr-FR', {style: 'currency', currency: price.currency}).format(price.amount);
@@ -177,6 +180,30 @@
         } else {
             deletionState.textContent = view.dryRunPassed ? DRY_RUN_PASSED : '';
         }
+        showRepublication(view.deletion?.republishableAt);
+    }
+
+    // L'heure du navigateur suffit : l'application n'écoute que sur 127.0.0.1, même machine que le serveur.
+    function showRepublication(republishableAt) {
+        clearInterval(republicationTimer);
+        republicationState.textContent = '';
+        if (!republishableAt) {
+            return;
+        }
+        const date = new Date(republishableAt);
+        const update = () => {
+            const seconds = Math.ceil((date - Date.now()) / 1000);
+            if (seconds <= 0) {
+                clearInterval(republicationTimer);
+                republicationState.textContent = 'Republication possible.';
+                return;
+            }
+            const hour = date.toLocaleTimeString('fr-FR', {hour: '2-digit', minute: '2-digit'});
+            republicationState.textContent = `Republication possible dans ${Math.floor(seconds / 60)} min `
+                + `${seconds % 60} s (à ${hour}).`;
+        };
+        update();
+        republicationTimer = setInterval(update, 1000);
     }
 
     function differenceOf(difference) {

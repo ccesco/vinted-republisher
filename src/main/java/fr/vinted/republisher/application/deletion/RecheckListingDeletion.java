@@ -11,6 +11,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.deletion.NoUnconfirmedDeletion;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -41,15 +42,16 @@ public class RecheckListingDeletion {
     public RecheckListingDeletion(VintedSession session, ListingRepository listings,
                                   ListingBackupRepository listingBackups, PhotoStorage photos,
                                   BackupValidationRepository validations, ListingDeletionRepository deletions,
-                                  ListingDeleter deleter, DeletionMode mode, Clock clock) {
+                                  ListingDeleter deleter, DeletionMode mode, RepublicationDelay republicationDelay,
+                                  Clock clock) {
         this.session = session;
         this.listings = listings;
         this.listingBackups = listingBackups;
         this.deletions = deletions;
         this.deleter = deleter;
         this.clock = clock;
-        this.showListingDeletion =
-                new ShowListingDeletion(listings, listingBackups, photos, validations, deletions, mode);
+        this.showListingDeletion = new ShowListingDeletion(listings, listingBackups, photos, validations, deletions,
+                mode, republicationDelay);
     }
 
     /**

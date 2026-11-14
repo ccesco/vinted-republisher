@@ -33,7 +33,9 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Optional;
 
 /** Implements the contract-first API of a listing's backup: it reads the database and the kept files only. */
 @RestController
@@ -78,7 +80,7 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .vintedId(id)
                 .deletionDryRun(report.mode() == DeletionMode.DRY_RUN)
                 .dryRunPassed(report.dryRunPassed() ? Boolean.TRUE : null)
-                .deletion(report.lastDeletion().map(ListingBackupApiController::toDto).orElse(null))
+                .deletion(report.lastDeletion().map(deletion -> toDto(deletion, report.republishableAt())).orElse(null))
                 .savedAt(view.backup().savedAt().atOffset(ZoneOffset.UTC))
                 .validatedAt(view.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .verification(toDto(view.verification()))
@@ -86,12 +88,13 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .photos(view.backup().photos().stream().map(photo -> toDto(id, photo)).toList());
     }
 
-    private static ListingDeletionDto toDto(ListingDeletion deletion) {
+    private static ListingDeletionDto toDto(ListingDeletion deletion, Optional<Instant> republishableAt) {
         return new ListingDeletionDto()
                 .outcome(DeletionOutcomeDto.valueOf(deletion.outcome().name()))
                 .attemptedAt(deletion.attemptedAt().atOffset(ZoneOffset.UTC))
                 .settledAt(deletion.settledAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
-                .backupSavedAt(deletion.backupSavedAt().atOffset(ZoneOffset.UTC));
+                .backupSavedAt(deletion.backupSavedAt().atOffset(ZoneOffset.UTC))
+                .republishableAt(republishableAt.map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null));
     }
 
     static BackupVerificationDto toDto(BackupVerification verification) {

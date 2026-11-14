@@ -2,6 +2,7 @@ package fr.vinted.republisher.adapter.in.web;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Clock;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -244,6 +246,9 @@ class ListingBackupPageTest {
                 "\"deletionDryRun\": false, \"deletion\": {\"outcome\": \"CONFIRMED\","
                         + " \"attemptedAt\": \"2026-11-11T10:00:00Z\", \"settledAt\": \"2026-11-11T10:00:05Z\","
                         + " \"backupSavedAt\": \"2026-11-10T10:00:00Z\"},");
+        private static final String REPUBLISHABLE_AT_10_05_05 = CONFIRMED.replace(
+                "\"backupSavedAt\": \"2026-11-10T10:00:00Z\"},",
+                "\"backupSavedAt\": \"2026-11-10T10:00:00Z\", \"republishableAt\": \"2026-11-11T10:05:05Z\"},");
 
         @Test
         void shows_the_mode_deletions_run_in() {
@@ -378,6 +383,46 @@ class ListingBackupPageTest {
             assertThat(deletionState()).containsText("Supprimée de Vinted le 11/11/2026");
             assertThat(deleteButton()).isHidden();
             assertThat(recheckButton()).isHidden();
+        }
+
+        @Test
+        void showsRemainingTimeUntilRepublication() {
+            // Étant donné un aperçu dont la suppression est republiable dans 2 secondes
+            backup.set(REPUBLISHABLE_AT_10_05_05);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
+            // Quand la page est ouverte
+            open();
+            // Alors elle affiche « Republication possible dans 0 min 2 s » avec l'heure de republication
+            assertThat(republicationState()).hasText(Pattern.compile(
+                    "^Republication possible dans 0 min 2 s \\(à \\d{2}:\\d{2}\\)\\.$"));
+            // Et après 2 secondes, sans recharger, elle affiche « Republication possible »
+            page.clock().runFor(2000);
+            assertThat(republicationState()).hasText("Republication possible.");
+        }
+
+        @Test
+        void showsRepublicationPossibleOnceDelayElapsed() {
+            // Et une suppression republiable depuis 10 minutes affiche directement « Republication possible »
+            backup.set(REPUBLISHABLE_AT_10_05_05);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:15:05Z"));
+
+            open();
+
+            assertThat(republicationState()).hasText("Republication possible.");
+        }
+
+        @Test
+        void says_nothing_about_republication_without_a_confirmed_deletion() {
+            backup.set(UNCONFIRMED);
+
+            open();
+
+            assertThat(deletionState()).containsText("non confirmée");
+            assertThat(republicationState()).isEmpty();
+        }
+
+        private Locator republicationState() {
+            return page.locator("#republication-state");
         }
 
         private Locator mode() {

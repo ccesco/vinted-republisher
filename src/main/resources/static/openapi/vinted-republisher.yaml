@@ -665,11 +665,18 @@ components:
           type: string
           format: date-time
           description: Version de la sauvegarde sur laquelle s'appuie la suppression.
+        republishableAt:
+          type: string
+          format: date-time
+          description: >
+            Date à partir de laquelle l'annonce peut être republiée : date de la preuve plus le délai minimal
+            (republication.minimum-delay, 5 minutes). Présente seulement si la suppression est confirmée.
       example:
         outcome: CONFIRMED
         attemptedAt: '2026-11-11T10:00:00Z'
         settledAt: '2026-11-11T10:00:05Z'
         backupSavedAt: '2026-11-10T10:00:00Z'
+        republishableAt: '2026-11-11T10:05:05Z'
     DeletionOutcome:
       type: string
       description: >

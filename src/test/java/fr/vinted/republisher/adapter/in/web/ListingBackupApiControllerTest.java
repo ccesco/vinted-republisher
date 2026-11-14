@@ -4,6 +4,7 @@ import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -21,6 +22,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Duration;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -202,7 +204,8 @@ class ListingBackupApiControllerTest {
                                                 InMemoryPhotoStorage photos,
                                                 InMemoryBackupValidationRepository validations) {
             return new ShowListingDeletion(listings, listingBackups, photos, validations,
-                    new InMemoryListingDeletionRepository(), DeletionMode.DRY_RUN);
+                    new InMemoryListingDeletionRepository(), DeletionMode.DRY_RUN,
+                    new RepublicationDelay(Duration.ofMinutes(5)));
         }
 
         @Bean

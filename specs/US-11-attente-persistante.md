@@ -1,5 +1,5 @@
 # US-11 – Attendre 5 minutes de façon persistante
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-09 (suppression confirmée) ; prépare US-12 (republication)
 
@@ -10,7 +10,7 @@ Après la suppression d'une annonce, il faut attendre 5 minutes avant de la repu
 En tant que membre, je veux que l'outil ne me propose la republication d'une annonce qu'au moins 5 minutes après sa suppression confirmée, même après un redémarrage, afin de ne pas republier juste après avoir supprimé.
 
 ## Comportement attendu
-1. Une annonce dont la dernière suppression est confirmée (US-09) devient republiable à la date de preuve de cette suppression (`settledAt`) plus le délai minimal (`republisher.republication.minimum-delay`, 5 minutes).
+1. Une annonce dont la dernière suppression est confirmée (US-09) devient republiable à la date de preuve de cette suppression (`settledAt`) plus le délai minimal (`republication.minimum-delay`, 5 minutes).
 2. Sans suppression, ou si la dernière est non confirmée ou non faite, l'annonce n'a aucune date de republication.
 3. Cette date est calculée à chaque lecture depuis la suppression en base : rien n'est stocké en plus, rien n'est gardé en mémoire ; un redémarrage donne la même date.
 4. L'aperçu de la sauvegarde (`listing-backup.html`) affiche, sous la suppression confirmée :
@@ -24,12 +24,12 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - Aucun nouveau chemin ; les réponses de `GET /api/listings/{listingId}/backup`, `deleteListing` et `recheckListingDeletion` portent ce champ.
 
 ## Critères d'acceptation
-- [ ] Une suppression confirmée donne une date de republication égale à sa date de preuve plus le délai minimal configuré.
-- [ ] Une suppression non confirmée ou non faite, ou l'absence de suppression, ne donne aucune date de republication.
-- [ ] Une suppression confirmée par une revérification compte depuis la date de cette revérification.
-- [ ] La date de republication est la même après un redémarrage de l'outil.
-- [ ] Le délai minimal vient de `republisher.republication.minimum-delay`, 5 minutes dans `application.yml` ; absent, nul, négatif ou illisible, l'outil refuse de démarrer.
-- [ ] L'aperçu affiche le temps restant tant que la date n'est pas atteinte, puis « Republication possible » sans recharger ; une annonce supprimée depuis plus longtemps affiche directement « Republication possible ».
+- [x] Une suppression confirmée donne une date de republication égale à sa date de preuve plus le délai minimal configuré.
+- [x] Une suppression non confirmée ou non faite, ou l'absence de suppression, ne donne aucune date de republication.
+- [x] Une suppression confirmée par une revérification compte depuis la date de cette revérification.
+- [x] La date de republication est la même après un redémarrage de l'outil.
+- [x] Le délai minimal vient de `republication.minimum-delay`, 5 minutes dans `application.yml` ; absent, nul, négatif ou illisible, l'outil refuse de démarrer.
+- [x] L'aperçu affiche le temps restant tant que la date n'est pas atteinte, puis « Republication possible » sans recharger ; une annonce supprimée depuis plus longtemps affiche directement « Republication possible ».
 
 ## Tests d'acceptation
 ### AT-11-01 – Délai après une suppression confirmée
@@ -77,9 +77,9 @@ Test : `JpaListingDeletionRepositoryTest.republicationDateSurvivesRestart()` (`@
 ```gherkin
 Étant donné la configuration par défaut
 Alors le délai minimal vaut 5 minutes
-Et quand `republisher.republication.minimum-delay` vaut PT10M, une suppression prouvée à 14:32 est republiable à partir de 14:42
+Et quand `republication.minimum-delay` vaut PT10M, une suppression prouvée à 14:32 est republiable à partir de 14:42
 ```
-Test : `RepublicationPropertiesTest.defaultMinimumDelayIsFiveMinutes()` et `RepublicationPropertiesTest.minimumDelayIsConfigurable()`
+Test : `RepublicationConfigurationTest.defaultMinimumDelayIsFiveMinutes()` et `RepublicationConfigurationTest.minimumDelayIsConfigurable()`
 
 ### AT-11-07 – Affichage du temps restant dans l'aperçu
 ```gherkin
@@ -89,15 +89,15 @@ Alors elle affiche « Republication possible dans 0 min 2 s » avec l'heure de r
 Et après 2 secondes, sans recharger, elle affiche « Republication possible »
 Et une suppression republiable depuis 10 minutes affiche directement « Republication possible »
 ```
-Test : `ListingBackupPageTest.showsRemainingTimeUntilRepublication()` et `ListingBackupPageTest.showsRepublicationPossibleOnceDelayElapsed()` (`@Tag("browser")`, page locale, API simulée)
+Test : `ListingBackupPageTest.Deletion.showsRemainingTimeUntilRepublication()` et `ListingBackupPageTest.Deletion.showsRepublicationPossibleOnceDelayElapsed()` (`@Tag("browser")`, page locale, API simulée)
 
 ### AT-11-08 – Délai invalide dans la configuration
 ```gherkin
-Étant donné `republisher.republication.minimum-delay` absent, à PT0S, à -PT5M ou à « cinq »
+Étant donné `republication.minimum-delay` absent, à PT0S, à -PT5M ou à « cinq »
 Quand l'outil démarre
-Alors il refuse de démarrer avec un message qui nomme `republisher.republication.minimum-delay`
+Alors il refuse de démarrer avec un message qui nomme `republication.minimum-delay`
 ```
-Test : `RepublicationPropertiesTest.invalidMinimumDelayPreventsStartup()`
+Test : `RepublicationConfigurationTest.missingMinimumDelayPreventsStartup()` et `RepublicationConfigurationTest.invalidMinimumDelayPreventsStartup()`
 
 ## Cas limites et erreurs
 - Délai minimal absent, nul, négatif ou illisible dans la configuration : l'outil refuse de démarrer (AT-11-08).
@@ -114,7 +114,7 @@ Test : `RepublicationPropertiesTest.invalidMinimumDelayPreventsStartup()`
 - Nature de l'attente, décidé par l'utilisateur (2026-11-11) : délai qui bloque la republication manuelle (US-12) jusqu'à la fin des 5 minutes, temps restant affiché dans l'aperçu ; aucun déclenchement automatique de la republication (orchestration : US-15, US-16, US-19).
 - Point de départ, décidé par l'utilisateur (2026-11-11) : la date de preuve de la suppression confirmée (`settledAt` de `ListingDeletion`), y compris quand la preuve vient d'une revérification (choix prudent : l'instant exact de la disparition est inconnu). L'attente se calcule depuis cette date déjà en base : rien de nouveau à stocker, elle survit à tout redémarrage.
 - Délai minimal, décidé par l'utilisateur (2026-11-11) : les 5 minutes servent seulement à ne pas proposer la republication juste après la suppression. Une annonce supprimée depuis 5 minutes ou plus (par exemple 10 minutes, ou après un arrêt de l'outil) est republiable tout de suite, sans aucune attente.
-- Durée réglable, décidé par l'utilisateur (2026-11-11) : le délai minimal est une propriété de configuration, `republisher.republication.minimum-delay: PT5M`, écrite dans `application.yml` (même valeur partout), sans variable d'environnement obligatoire ; surchargeable comme toute propriété Spring.
+- Durée réglable, décidé par l'utilisateur (2026-11-11) : le délai minimal est une propriété de configuration, `republication.minimum-delay: 5m`, écrite dans `application.yml` (même valeur partout), sans variable d'environnement obligatoire ; surchargeable comme toute propriété Spring. Nom de la propriété aligné à l'implémentation sur `deletion.dry-run` (préfixe court, sans `republisher.`).
 - Livrable, décidé par l'utilisateur (2026-11-11) : la règle du domaine (une annonce dont la suppression est confirmée est republiable à `settledAt` + délai minimal ; sans suppression confirmée, aucune date, pas republiable), la date `republishableAt` dans l'aperçu de la suppression (contrat OpenAPI d'abord) et son affichage dans l'aperçu. Le refus d'une republication trop tôt est appliqué par US-12, qui s'appuie sur cette règle.
 - Affichage, décidé par l'utilisateur (2026-11-11) : seulement dans l'aperçu de la sauvegarde (`listing-backup.html`) ; temps restant mis à jour chaque seconde par la page avec l'heure du navigateur, passage à « Republication possible » sans recharger.
 
@@ -125,12 +125,14 @@ Test : `RepublicationPropertiesTest.invalidMinimumDelayPreventsStartup()`
 
 ## Modèle de domaine
 - Nouveau terme : `RepublicationDelay` | Délai avant republication | Durée minimale entre la preuve d'une suppression et sa republication, fixée par la configuration (5 minutes) ; strictement positive.
-- `ListingDeletion.republishableAt(RepublicationDelay)` : `Optional<Instant>`, présent seulement pour une suppression `CONFIRMED`, égal à `settledAt` + délai.
+- `RepublicationDelay.republishableAt(ListingDeletion)` : `Optional<Instant>`, présent seulement pour une suppression `CONFIRMED`, égal à `settledAt` + délai. La règle vit dans `domain.republication`, qui dépend de `domain.deletion` et pas l'inverse (US-12 y ajoutera la republication sans cycle de paquets).
+- `InvalidRepublicationDelay` : délai nul ou négatif refusé.
+- `DeletionReport` gagne `republishableAt`, calculé par `ShowListingDeletion` : l'adaptateur web n'a pas à connaître le délai.
 - Aucun nouvel agrégat, aucun nouveau port, aucun changement de schéma (Liquibase).
 
 ## Tests unitaires et d'intégration attendus
-- Domaine : `ListingDeletionTest` (date pour `CONFIRMED`, aucune pour `UNCONFIRMED` et `NOT_DONE`) ; `RepublicationDelayTest` (refuse une durée nulle ou négative).
+- Domaine : `RepublicationDelayTest` (date pour `CONFIRMED`, aucune pour `UNCONFIRMED` et `NOT_DONE`, refuse une durée nulle ou négative).
 - Application : `ShowListingBackup` (ou le cas d'usage qui construit `DeletionReport`) transmet la date.
 - Adapter web : mapping de `republishableAt` dans `ListingBackupView` ; `ListingBackupPageTest` pour l'affichage.
-- Configuration : `RepublicationPropertiesTest` (défaut 5 minutes, surcharge, valeur invalide).
+- Configuration : `RepublicationConfigurationTest` (défaut 5 minutes, surcharge, valeur invalide).
 - Persistance : relecture d'une suppression confirmée après redémarrage (`@Tag("docker")`).

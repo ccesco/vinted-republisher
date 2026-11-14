@@ -61,6 +61,11 @@ vinted:
 deletion:
   dry-run: ${DELETION_DRY_RUN:true}
 
+# Republication (US-11) : délai minimal entre la preuve d'une suppression et la republication de l'annonce.
+# Même valeur partout ; absent, nul, négatif ou illisible, l'application ne démarre pas.
+republication:
+  minimum-delay: 5m
+
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:
   path: ${CHROME_PATH}

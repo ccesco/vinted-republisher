@@ -10,6 +10,7 @@ import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import org.springframework.context.annotation.Bean;
@@ -29,8 +30,10 @@ public class DeletionConfiguration {
     @Bean
     ShowListingDeletion showListingDeletion(ListingRepository listings, ListingBackupRepository listingBackups,
                                             PhotoStorage photos, BackupValidationRepository validations,
-                                            ListingDeletionRepository deletions, DeletionMode mode) {
-        return new ShowListingDeletion(listings, listingBackups, photos, validations, deletions, mode);
+                                            ListingDeletionRepository deletions, DeletionMode mode,
+                                            RepublicationDelay republicationDelay) {
+        return new ShowListingDeletion(listings, listingBackups, photos, validations, deletions, mode,
+                republicationDelay);
     }
 
     // A deletion opens one or two pages: it runs within the request, unlike scans and backups.
@@ -38,9 +41,10 @@ public class DeletionConfiguration {
     DeleteListing deleteListing(VintedSession session, ListingRepository listings,
                                 ListingBackupRepository listingBackups, PhotoStorage photos,
                                 BackupValidationRepository validations, ListingDeletionRepository deletions,
-                                ListingDeleter deleter, DeletionMode mode, Clock clock) {
+                                ListingDeleter deleter, DeletionMode mode, RepublicationDelay republicationDelay,
+                                Clock clock) {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter, mode,
-                clock);
+                republicationDelay, clock);
     }
 
     @Bean
@@ -48,8 +52,9 @@ public class DeletionConfiguration {
                                                   ListingBackupRepository listingBackups, PhotoStorage photos,
                                                   BackupValidationRepository validations,
                                                   ListingDeletionRepository deletions, ListingDeleter deleter,
-                                                  DeletionMode mode, Clock clock) {
+                                                  DeletionMode mode, RepublicationDelay republicationDelay,
+                                                  Clock clock) {
         return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions, deleter,
-                mode, clock);
+                mode, republicationDelay, clock);
     }
 }

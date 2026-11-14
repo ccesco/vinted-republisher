@@ -69,7 +69,9 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ListingDeleter` | Suppresseur d'annonce | Port sortant : supprime une annonce sur Vinted comme le membre, dans le Chrome piloté, sans appel direct à l'API de Vinted. |
 | `ListingDeletionRepository` | Suppressions | Toutes les tentatives de suppression ; donne la plus récente de chaque annonce. |
 | `DeletionMode` (`DRY_RUN` / `REAL`) | Mode de suppression (dry-run / réel) | Fixé au démarrage par `DELETION_DRY_RUN` ; en dry-run, tout est contrôlé et le bouton de suppression trouvé, mais rien n'est cliqué ni enregistré. |
-| `DeletionReport` (`ShowListingDeletion`) | Aperçu de la suppression | Aperçu de la sauvegarde d'une annonce avec sa dernière suppression, le mode de suppression et, en réponse d'un dry-run, sa réussite. |
+| `DeletionReport` (`ShowListingDeletion`) | Aperçu de la suppression | Aperçu de la sauvegarde d'une annonce avec sa dernière suppression, sa date de republication (suppression confirmée seulement), le mode de suppression et, en réponse d'un dry-run, sa réussite. |
+| `RepublicationDelay` | Délai avant republication | Durée minimale entre la preuve d'une suppression et la republication de l'annonce (`republication.minimum-delay`, 5 minutes, strictement positive) ; date de republication calculée depuis la preuve gardée en base, donc inchangée après un redémarrage, et sans attente une fois écoulée. |
+| `InvalidRepublicationDelay` | Délai avant republication invalide | Délai nul ou négatif : refusé ; dans la configuration, l'application ne démarre pas. |
 | `BackupNotValidated` | Sauvegarde non validée | Refus de suppression : la sauvegarde actuelle n'est pas validée par le membre. |
 | `ListingAlreadyDeleted` | Annonce déjà supprimée | Refus de suppression : une suppression confirmée existe déjà. |
 | `DeletionUnconfirmed` | Suppression non confirmée | Refus d'une nouvelle suppression tant que la dernière reste dans le doute. |
