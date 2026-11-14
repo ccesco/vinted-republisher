@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -114,7 +113,7 @@ class ListingBackupPageTest {
                     bytes(recheck ? recheckAnswer.get() : deletionAnswer.get()));
         });
         fakeApi.start();
-        page = chrome.newPage();
+        page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
     }
 
     @AfterEach
@@ -392,9 +391,8 @@ class ListingBackupPageTest {
             page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
             // Quand la page est ouverte
             open();
-            // Alors elle affiche « Republication possible dans 0 min 2 s » avec l'heure de republication
-            assertThat(republicationState()).hasText(Pattern.compile(
-                    "^Republication possible dans 0 min 2 s \\(à \\d{2}:\\d{2}\\)\\.$"));
+            // Alors elle affiche « Republication possible dans 0 min 2 s (à 11:05) », heure de Paris
+            assertThat(republicationState()).hasText("Republication possible dans 0 min 2 s (à 11:05).");
             // Et après 2 secondes, sans recharger, elle affiche « Republication possible »
             page.clock().runFor(2000);
             assertThat(republicationState()).hasText("Republication possible.");

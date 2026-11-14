@@ -83,9 +83,9 @@ Test : `RepublicationConfigurationTest.defaultMinimumDelayIsFiveMinutes()` et `R
 
 ### AT-11-07 – Affichage du temps restant dans l'aperçu
 ```gherkin
-Étant donné un aperçu dont la suppression est republiable dans 2 secondes
+Étant donné un navigateur à l'heure de Paris et une suppression republiable dans 2 secondes, à 10:05:05 UTC
 Quand la page est ouverte
-Alors elle affiche « Republication possible dans 0 min 2 s » avec l'heure de republication
+Alors elle affiche « Republication possible dans 0 min 2 s (à 11:05) »
 Et après 2 secondes, sans recharger, elle affiche « Republication possible »
 Et une suppression republiable depuis 10 minutes affiche directement « Republication possible »
 ```
