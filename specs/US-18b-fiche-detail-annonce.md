@@ -1,5 +1,5 @@
 # US-18b – Fiche détail d'une annonce
-**Statut** : brouillon
+**Statut** : validée
 **Priorité** : MVP
 **Dépend de** : US-18 (liste), US-07 (historique des relevés), US-08/US-09/US-12 (aperçu de la sauvegarde, suppression, republication)
 
