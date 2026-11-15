@@ -46,7 +46,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 showListingInventory.show(criteria).stream().map(ListingInventoryApiController::toDto).toList()));
     }
 
-    private static ListingDto toDto(InventoryEntry entry) {
+    static ListingDto toDto(InventoryEntry entry) {
         Listing listing = entry.listing();
         return new ListingDto()
                 .vintedId(listing.id().value())
@@ -61,7 +61,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .statistics(entry.statistics().map(ListingInventoryApiController::statisticsOf).orElse(null));
     }
 
-    private static ListingStatisticsDto statisticsOf(StatisticsReading reading) {
+    static ListingStatisticsDto statisticsOf(StatisticsReading reading) {
         return new ListingStatisticsDto()
                 .viewCount(reading.statistics().viewCount())
                 .favouriteCount(reading.statistics().favouriteCount())

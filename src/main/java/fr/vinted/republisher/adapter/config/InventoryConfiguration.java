@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
@@ -16,5 +17,11 @@ class InventoryConfiguration {
                                               ListingBackupRepository backups,
                                               BackupValidationRepository validations) {
         return new ShowListingInventory(listings, statistics, backups, validations);
+    }
+
+    @Bean
+    ShowListingDetail showListingDetail(ListingRepository listings, ListingStatisticsRepository statistics,
+                                        ListingBackupRepository backups, BackupValidationRepository validations) {
+        return new ShowListingDetail(listings, statistics, backups, validations);
     }
 }

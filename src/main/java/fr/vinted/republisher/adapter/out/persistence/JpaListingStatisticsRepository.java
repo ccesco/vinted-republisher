@@ -2,6 +2,7 @@ package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
@@ -23,6 +24,12 @@ class JpaListingStatisticsRepository implements ListingStatisticsRepository {
     @Override
     public List<StatisticsReading> findLatest() {
         return repository.findLatestOfEachListing().stream()
+                .map(ListingStatisticsReadingJpaEntity::toStatisticsReading).toList();
+    }
+
+    @Override
+    public List<StatisticsReading> historyOf(VintedListingId listing) {
+        return repository.findByListingIdOrderByReadAtDesc(listing.value()).stream()
                 .map(ListingStatisticsReadingJpaEntity::toStatisticsReading).toList();
     }
 }

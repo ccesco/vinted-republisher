@@ -10,4 +10,7 @@ public interface ListingStatisticsRepository {
 
     /** The most recent reading of each listing ever read. */
     List<StatisticsReading> findLatest();
+
+    /** Every reading of the listing, most recent first. */
+    List<StatisticsReading> historyOf(VintedListingId listing);
 }
