@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.config;
 
-import fr.vinted.republisher.adapter.out.browser.UnobservedListingPublisher;
+import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
+import fr.vinted.republisher.adapter.out.browser.PlaywrightListingPublisher;
 import fr.vinted.republisher.adapter.out.browser.WardrobeProperties;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.republication.NewListingSearch;
@@ -18,18 +19,25 @@ import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.net.URI;
 import java.time.Clock;
+import java.time.Duration;
 
 /** Wires the republication use cases: the application layer stays free of Spring. */
 @Configuration
 public class ListingRepublicationConfiguration {
 
+    /** Fields and options show up within seconds on the observed form; photos take longer to be sent. */
+    private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(10);
+    private static final Duration PHOTO_TIMEOUT = Duration.ofSeconds(60);
+
     @Bean
-    ListingPublisher listingPublisher() {
-        return new UnobservedListingPublisher();
+    ListingPublisher listingPublisher(@Value("${vinted.listing-form-url}") URI listingFormUrl, ChromeTabs tabs) {
+        return new PlaywrightListingPublisher(listingFormUrl, CONTROL_TIMEOUT, PHOTO_TIMEOUT, tabs);
     }
 
     @Bean

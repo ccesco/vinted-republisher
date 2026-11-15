@@ -35,6 +35,8 @@ app:
 # et redirige un visiteur vers la connexion (le dressing, public, ne permet pas de le savoir).
 vinted:
   profile-settings-url: https://www.vinted.fr/settings/profile
+  # Formulaire de mise en vente (US-12) : la republication le remplit comme le membre.
+  listing-form-url: https://www.vinted.fr/items/new
   # Dressing du membre (US-04), de la forme https://www.vinted.fr/member/<id>.
   wardrobe-url: ${VINTED_WARDROBE_URL}
   # Rythme du scan : pauses aléatoires entre deux défilements et entre deux annonces,
