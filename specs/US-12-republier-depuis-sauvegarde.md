@@ -268,7 +268,8 @@ Test : manuel (vrai compte Vinted, avec l'accord de l'utilisateur ; sert de base
 ## Avancement (2026-11-14)
 - Fait : domaine, cas d'usage (`RepublishListing`, découpé en `RepublicationChecks` et `NewListingSearch`), base (`009-create-listing-republication`), API, réglage du dry-run, aperçu ; AT-12-01 à AT-12-13, AT-12-15 à AT-12-17 verts avec un faux navigateur.
 - 2026-11-15 : observation AT-12-18 faite ; adaptateur `PlaywrightListingPublisher` écrit d'après elle, AT-12-14 vert sur pages locales. Il remplace `UnobservedListingPublisher`. Les champs propres aux livres et objets, jamais observés, rendent l'annonce non remplissable (`FIELD_NOT_FILLABLE`) sans ouvrir Chrome.
-- Reste : un dry-run de republication sur le vrai compte, avec l'accord de l'utilisateur, avant toute republication réelle.
+- 2026-11-15 : dry-run de republication sur le vrai compte, avec l'accord de l'utilisateur, sur l'annonce supprimée 10208799832 (« Bonnet 1-3 mois du pareil au même ») : contrôles réussis, formulaire entièrement rempli et relu, `republicationDryRunPassed: true`, aucune republication enregistrée, rien publié.
+- Reste : la première republication réelle (`REPUBLICATION_DRY_RUN=false`), sur validation explicite de l'utilisateur.
 
 ## Observation du formulaire réel (AT-12-18, 2026-11-15)
 Faite avec l'accord de l'utilisateur sur l'annonce 10208513136 (« Pyjama petit bateau 3 mois »), dans le Chrome piloté, formulaire entièrement rempli puis onglet fermé : aucun clic sur « Ajouter » ni sur « Sauvegarder le brouillon ».
