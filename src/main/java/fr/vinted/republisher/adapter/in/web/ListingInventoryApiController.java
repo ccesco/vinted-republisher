@@ -5,6 +5,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.BackupFilterDto;
 import fr.vinted.republisher.adapter.in.web.api.model.InventorySortDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingInventoryDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ListingStageDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingStatisticsDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PresenceFilterDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceDto;
@@ -54,6 +55,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .price(new PriceDto().amount(listing.price().amount()).currency(listing.price().currency()))
                 .url(listing.url())
                 .present(listing.present())
+                .stage(ListingStageDto.valueOf(entry.stage().name()))
                 .savedAt(entry.backup().map(backup -> backup.savedAt().atOffset(ZoneOffset.UTC)).orElse(null))
                 .photoCount(entry.backup().map(ListingBackup::photos).filter(photos -> !photos.isEmpty())
                         .map(List::size).orElse(null))

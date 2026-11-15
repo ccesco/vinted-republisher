@@ -12,13 +12,16 @@ import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,6 +31,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
@@ -69,7 +74,7 @@ class ListingInventoryApiControllerTest {
     }
 
     @Test
-    void shows_each_listing_with_its_statistics_backup_and_validation() {
+    void shows_each_listing_with_its_statistics_backup_validation_and_stage() {
         listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
                 Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
         statistics.addAll(List.of(
@@ -85,10 +90,12 @@ class ListingInventoryApiControllerTest {
                 .bodyJson().isStrictlyEqualTo("""
                         {"listings": [{"vintedId": 18, "title": "Jupe",
                                        "price": {"amount": 3.00, "currency": "EUR"},
-                                       "url": "https://vinted.test/items/18", "present": true},
+                                       "url": "https://vinted.test/items/18", "present": true,
+                                       "stage": "TO_BACK_UP"},
                                       {"vintedId": 17, "title": "Pull rayé",
                                        "price": {"amount": 1.50, "currency": "EUR"},
                                        "url": "https://vinted.test/items/17", "present": true,
+                                       "stage": "TO_DELETE",
                                        "savedAt": "2026-11-07T10:00:00Z", "photoCount": 3,
                                        "validatedAt": "2026-11-07T11:00:00Z",
                                        "statistics": {"viewCount": 15, "favouriteCount": 4,
@@ -166,7 +173,9 @@ class ListingInventoryApiControllerTest {
                                                   InMemoryListingStatisticsRepository statistics,
                                                   InMemoryListingBackupRepository backups,
                                                   InMemoryBackupValidationRepository validations) {
-            return new ShowListingInventory(listings, statistics, backups, validations);
+            return new ShowListingInventory(listings, statistics, backups, validations,
+                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
         }
     }
 }

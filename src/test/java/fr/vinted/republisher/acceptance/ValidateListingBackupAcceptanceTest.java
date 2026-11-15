@@ -2,6 +2,7 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupFixtures;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
@@ -14,22 +15,25 @@ import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoAltered;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PriceChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.TitleChanged;
+import fr.vinted.republisher.domain.inventory.InventoryCriteria;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
-import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
-import fr.vinted.republisher.application.inventory.ShowListingInventory;
-import fr.vinted.republisher.domain.inventory.InventoryCriteria;
-import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -60,7 +64,9 @@ class ValidateListingBackupAcceptanceTest {
     private final ValidateListingBackup validateListingBackup =
             new ValidateListingBackup(listings, listingBackups, photos, validations, clock);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
-            new InMemoryListingStatisticsRepository(), listingBackups, validations);
+            new InMemoryListingStatisticsRepository(), listingBackups, validations,
+            new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
 
     @Test
     void preview_shows_a_verified_backup() {

@@ -2,12 +2,15 @@ package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -22,19 +25,26 @@ class ListingInventoryTest {
     private static final Instant SCANNED_AT = Instant.parse("2026-11-10T09:00:00Z");
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00Z");
 
+    private static ListingInventory inventoryOf(List<Listing> listings, List<StatisticsReading> readings,
+                                                List<ListingBackup> backups, List<BackupValidation> validations) {
+        return ListingInventory.of(listings, readings, backups, validations, List.of(), List.of(),
+                new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
+    }
+
     @Test
     void joins_each_listing_with_its_latest_reading_backup_and_validation() {
         ListingBackup backup = aBackup(1, SAVED_AT);
         StatisticsReading reading = reading(1, 12, 3);
         BackupValidation validation = BackupValidation.of(backup, SAVED_AT.plusSeconds(60));
 
-        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1"), present(2, "b", "1")),
                 List.of(reading), List.of(backup), List.of(validation));
 
         assertThat(inventory.select(InventoryCriteria.defaults())).containsExactly(
-                new InventoryEntry(present(2, "b", "1"), Optional.empty(), Optional.empty(), Optional.empty()),
+                new InventoryEntry(present(2, "b", "1"), Optional.empty(), Optional.empty(), Optional.empty(),
+                        ListingStage.TO_BACK_UP),
                 new InventoryEntry(present(1, "a", "1"), Optional.of(reading), Optional.of(backup),
-                        Optional.of(validation.validatedAt())));
+                        Optional.of(validation.validatedAt()), ListingStage.TO_DELETE));
     }
 
     @Test
@@ -42,7 +52,7 @@ class ListingInventoryTest {
         ListingBackup replaced = aBackup(1, SAVED_AT);
         ListingBackup current = aBackup(1, SAVED_AT.plusSeconds(3600));
 
-        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(current),
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1")), List.of(), List.of(current),
                 List.of(BackupValidation.of(replaced, SAVED_AT.plusSeconds(60))));
 
         assertThat(inventory.select(InventoryCriteria.defaults())).singleElement()
@@ -51,7 +61,7 @@ class ListingInventoryTest {
 
     @Test
     void filters_on_presence() {
-        ListingInventory inventory = ListingInventory.of(
+        ListingInventory inventory = inventoryOf(
                 List.of(present(1, "a", "1"), present(2, "b", "1").absent(), present(3, "c", "1")),
                 List.of(), List.of(), List.of());
 
@@ -64,7 +74,7 @@ class ListingInventoryTest {
     void filters_on_backup_state() {
         ListingBackup validated = aBackup(3, SAVED_AT);
         ListingBackup savedAgain = aBackup(4, SAVED_AT.plusSeconds(3600));
-        ListingInventory inventory = ListingInventory.of(
+        ListingInventory inventory = inventoryOf(
                 List.of(present(1, "a", "1"), present(2, "b", "1"), present(3, "c", "1"), present(4, "d", "1")),
                 List.of(), List.of(aBackup(2, SAVED_AT), validated, savedAgain),
                 List.of(BackupValidation.of(validated, SAVED_AT), BackupValidation.of(aBackup(4, SAVED_AT), SAVED_AT)));
@@ -78,7 +88,7 @@ class ListingInventoryTest {
 
     @Test
     void searches_the_title_ignoring_case_accents_and_surrounding_spaces() {
-        ListingInventory inventory = ListingInventory.of(
+        ListingInventory inventory = inventoryOf(
                 List.of(present(1, "Pull rayé", "1"), present(2, "ROBE d'été", "1"), present(3, "Jean bleu", "1")),
                 List.of(), List.of(), List.of());
 
@@ -89,7 +99,7 @@ class ListingInventoryTest {
 
     @Test
     void sorts_on_statistics_with_unread_listings_last_in_both_directions() {
-        ListingInventory inventory = ListingInventory.of(
+        ListingInventory inventory = inventoryOf(
                 List.of(present(101, "a", "1"), present(102, "b", "1"), present(103, "c", "1")),
                 List.of(reading(101, 5, 2), reading(102, 40, 0)), List.of(), List.of());
 
@@ -103,7 +113,7 @@ class ListingInventoryTest {
 
     @Test
     void sorts_on_title_price_backup_date_and_recency() {
-        ListingInventory inventory = ListingInventory.of(
+        ListingInventory inventory = inventoryOf(
                 List.of(present(101, "b", "5"), present(102, "A", "12"), present(103, "c", "5")),
                 List.of(), List.of(aBackup(101, SAVED_AT.plusSeconds(86_400)), aBackup(103, SAVED_AT)), List.of());
 
@@ -119,11 +129,26 @@ class ListingInventoryTest {
 
     @Test
     void ties_put_the_most_recent_first_whatever_the_direction() {
-        ListingInventory inventory = ListingInventory.of(
+        ListingInventory inventory = inventoryOf(
                 List.of(present(1, "same", "1"), present(2, "same", "1")), List.of(), List.of(), List.of());
 
         assertThat(ids(inventory, sorted(InventorySort.PRICE, SortDirection.ASC))).containsExactly(2L, 1L);
         assertThat(ids(inventory, sorted(InventorySort.PRICE, SortDirection.DESC))).containsExactly(2L, 1L);
+    }
+
+    @Test
+    void two_deletions_clicked_at_the_same_instant_keep_the_one_not_settled_as_not_done() {
+        ListingBackup backup = aBackup(1, SAVED_AT);
+        Instant clickedAt = SAVED_AT.plusSeconds(3600);
+        ListingDeletion notDone = ListingDeletion.attempted(backup, clickedAt).notDone(clickedAt.plusSeconds(60));
+        ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
+
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(backup),
+                List.of(), List.of(notDone, unconfirmed), List.of(), new RepublicationDelay(Duration.ofMinutes(5)),
+                clickedAt);
+
+        assertThat(inventory.entries()).singleElement()
+                .satisfies(entry -> assertThat(entry.stage()).isEqualTo(ListingStage.DELETION_TO_CHECK));
     }
 
     private static Listing present(long id, String title, String price) {

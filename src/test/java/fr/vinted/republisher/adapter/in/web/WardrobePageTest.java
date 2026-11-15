@@ -115,7 +115,7 @@ class WardrobePageTest {
         // Alors il voit un tableau de deux lignes avec titre, prix, vues, favoris, présence, sauvegarde et validation
         //   et le titre affiché tel quel
         assertThat(page.locator("#listings thead th")).hasText(new String[]{
-                "Titre", "Prix", "Vues", "Favoris", "Présence", "Sauvegarde", "Validation"});
+                "Titre", "Prix", "Vues", "Favoris", "Présence", "Sauvegarde", "Validation", "Étape"});
         assertThat(rows()).hasCount(2);
         assertThat(listingCount()).hasText("2 annonces");
         assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
@@ -328,6 +328,25 @@ class WardrobePageTest {
     }
 
     @Test
+    void stage_column_highlights_listings_to_check() {
+        // Étant donné une annonce « Suppression à vérifier » et une annonce « À sauvegarder »
+        inventory.set("""
+                {"listings": [
+                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                    "url": "https://vinted.test/items/3", "present": true, "stage": "DELETION_TO_CHECK"},
+                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                    "url": "https://vinted.test/items/1", "present": true, "stage": "TO_BACK_UP"}]}""");
+        // Quand le membre ouvre la page du dressing
+        open();
+        // Alors la colonne « Étape » montre leurs libellés
+        assertThat(cell(0, STAGE)).hasText("Suppression à vérifier");
+        assertThat(cell(1, STAGE)).hasText("À sauvegarder");
+        // Et seule « Suppression à vérifier » est mise en évidence
+        assertThat(cell(0, STAGE).locator("strong")).hasCount(1);
+        assertThat(cell(1, STAGE).locator("strong")).hasCount(0);
+    }
+
+    @Test
     void title_opens_the_listing_detail() {
         // Étant donné la liste avec une annonce sauvegardée et une annonce absente non sauvegardée
         inventory.set("""
@@ -406,6 +425,7 @@ class WardrobePageTest {
     private static final int PRESENCE = 4;
     private static final int BACKUP = 5;
     private static final int VALIDATION = 6;
+    private static final int STAGE = 7;
 
     private void answer(HttpExchange exchange, String json) throws IOException {
         if (applicationDown.get()) {

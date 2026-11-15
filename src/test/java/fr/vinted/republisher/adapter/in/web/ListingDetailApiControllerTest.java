@@ -1,13 +1,16 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,6 +20,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 
@@ -42,7 +47,7 @@ class ListingDetailApiControllerTest {
     private InMemoryListingStatisticsRepository statistics;
 
     @Test
-    void shows_the_listing_and_its_statistics_history() {
+    void shows_the_listing_its_stage_and_its_statistics_history() {
         listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND).absent()));
         statistics.addAll(List.of(reading(5, 1, FIRST), reading(12, 3, SECOND)));
 
@@ -52,6 +57,7 @@ class ListingDetailApiControllerTest {
                         {"listing": {"vintedId": 101, "title": "Pull rayé",
                                      "price": {"amount": 12.50, "currency": "EUR"},
                                      "url": "https://vinted.test/items/101", "present": false,
+                                     "stage": "GONE",
                                      "statistics": {"viewCount": 12, "favouriteCount": 3,
                                                     "readAt": "2026-11-02T09:00:00Z"}},
                          "lastSeenAt": "2026-11-02T09:00:00Z",
@@ -95,7 +101,9 @@ class ListingDetailApiControllerTest {
         ShowListingDetail showListingDetail(InMemoryListingRepository listings,
                                             InMemoryListingStatisticsRepository statistics) {
             return new ShowListingDetail(listings, statistics, new InMemoryListingBackupRepository(),
-                    new InMemoryBackupValidationRepository());
+                    new InMemoryBackupValidationRepository(),
+                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
         }
     }
 }

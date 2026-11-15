@@ -12,6 +12,7 @@
 <h1 id="listing-title">Annonce</h1>
 <p id="problem" role="alert" hidden></p>
 <section id="listing" hidden>
+    <p id="stage"></p>
     <p id="listing-price"></p>
     <p><a id="vinted-link" rel="noopener noreferrer">Voir sur Vinted</a></p>
     <p id="presence"></p>
@@ -64,6 +65,13 @@
     <div id="photos"></div>
 </section>
 <script>
+    // Codes du contrat OpenAPI (ListingStage) -> libellés affichés.
+    const STAGE_LABELS = {
+        TO_BACK_UP: 'À sauvegarder', TO_VALIDATE: 'À valider', TO_DELETE: 'Prête à supprimer',
+        DELETION_TO_CHECK: 'Suppression à vérifier', WAITING: 'En attente avant republication',
+        TO_REPUBLISH: 'À republier', REPUBLICATION_TO_CHECK: 'Republication à vérifier', REPUBLISHED: 'Republiée',
+        GONE: 'Absente de Vinted'
+    };
     const LABELS = [
         ['title', 'Titre'], ['description', 'Description'], ['price', 'Prix'], ['category', 'Catégorie'],
         ['brand', 'Marque'], ['condition', 'État'], ['size', 'Taille'], ['colors', 'Couleurs'],
@@ -131,6 +139,7 @@
     const listingPrice = document.getElementById('listing-price');
     const vintedLink = document.getElementById('vinted-link');
     const presence = document.getElementById('presence');
+    const stage = document.getElementById('stage');
     const noReading = document.getElementById('no-reading');
     const history = document.getElementById('history');
     const notBackedUp = document.getElementById('not-backed-up');
@@ -405,6 +414,7 @@
         const listing = detail.listing;
         document.title = listing.title;
         listingTitle.textContent = listing.title;
+        stage.textContent = 'Étape : ' + (STAGE_LABELS[listing.stage] ?? '');
         listingPrice.textContent = priceOf(listing.price);
         vintedLink.href = listing.url;
         presence.textContent = listing.present ? 'Présente dans le dressing.'

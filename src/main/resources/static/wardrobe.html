@@ -61,11 +61,21 @@
         <th scope="col">Présence</th>
         <th scope="col">Sauvegarde</th>
         <th scope="col">Validation</th>
+        <th scope="col">Étape</th>
     </tr>
     </thead>
     <tbody></tbody>
 </table>
 <script>
+    // Codes du contrat OpenAPI (ListingStage) -> libellés affichés.
+    const STAGE_LABELS = {
+        TO_BACK_UP: 'À sauvegarder', TO_VALIDATE: 'À valider', TO_DELETE: 'Prête à supprimer',
+        DELETION_TO_CHECK: 'Suppression à vérifier', WAITING: 'En attente avant republication',
+        TO_REPUBLISH: 'À republier', REPUBLICATION_TO_CHECK: 'Republication à vérifier', REPUBLISHED: 'Republiée',
+        GONE: 'Absente de Vinted'
+    };
+    // Étapes qui demandent de vérifier sur Vinted : mises en évidence.
+    const STAGES_TO_CHECK = ['DELETION_TO_CHECK', 'REPUBLICATION_TO_CHECK'];
     // Codes du contrat OpenAPI (ScanProblem) -> libellés affichés.
     const PROBLEM_MESSAGES = {
         BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
@@ -223,6 +233,16 @@
         return cell('sauvegardée le ' + dateOf(listing.savedAt) + photos);
     }
 
+    function stageCell(listing) {
+        const label = STAGE_LABELS[listing.stage] ?? '';
+        if (!STAGES_TO_CHECK.includes(listing.stage)) {
+            return cell(label);
+        }
+        const strong = document.createElement('strong');
+        strong.textContent = label;
+        return cell(strong);
+    }
+
     // Les titres viennent de Vinted : jamais d'innerHTML. Le titre ouvre la fiche, qui mène à Vinted.
     function rowOf(listing) {
         const link = document.createElement('a');
@@ -238,7 +258,8 @@
             statisticCell(listing, statistics => statistics.favouriteCount),
             cell(listing.present ? '' : 'absente'),
             backupCell(listing),
-            cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''));
+            cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''),
+            stageCell(listing));
         return row;
     }
 

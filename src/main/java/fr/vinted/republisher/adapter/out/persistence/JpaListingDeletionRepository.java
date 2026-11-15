@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -20,6 +21,11 @@ class JpaListingDeletionRepository implements ListingDeletionRepository {
     public Optional<ListingDeletion> findLatest(VintedListingId listing) {
         return repository.findFirstByListingIdOrderByAttemptedAtDesc(listing.value())
                 .map(ListingDeletionJpaEntity::toListingDeletion);
+    }
+
+    @Override
+    public List<ListingDeletion> findAllLatest() {
+        return repository.findAllLatest().stream().map(ListingDeletionJpaEntity::toListingDeletion).toList();
     }
 
     /** The attempt is the key: settling it updates the same row. */

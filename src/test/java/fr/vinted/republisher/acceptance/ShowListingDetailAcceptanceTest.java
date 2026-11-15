@@ -3,15 +3,21 @@ package fr.vinted.republisher.acceptance;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
+import fr.vinted.republisher.domain.inventory.ListingStage;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 
@@ -37,8 +43,11 @@ class ShowListingDetailAcceptanceTest {
     private final InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
     private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
+    private final InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
+    private final AdjustableClock clock = new AdjustableClock(THIRD);
     private final ShowListingDetail showListingDetail =
-            new ShowListingDetail(listings, statistics, backups, validations);
+            new ShowListingDetail(listings, statistics, backups, validations, deletions,
+                    new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)), clock);
 
     @Test
     void shows_listing_statistics_history_most_recent_first() {
@@ -90,6 +99,20 @@ class ShowListingDetailAcceptanceTest {
         // Alors il la voit absente, vue pour la dernière fois le 3 novembre
         assertThat(shown.present()).isFalse();
         assertThat(shown.lastSeenAt()).isEqualTo(THIRD);
+    }
+
+    @Test
+    void shows_the_stage_of_a_deleted_listing() {
+        // Étant donné l'annonce 103 supprimée avec preuve il y a 2 minutes
+        listings.saveAll(List.of(Listing.seen(aListing(103, "Robe", "6", ACTIVE), SECOND).absent()));
+        ListingBackup backup = aBackup(103, FIRST);
+        backups.save(backup);
+        validations.save(BackupValidation.of(backup, FIRST.plusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(backup, THIRD.minusSeconds(122)).confirmed(THIRD.minusSeconds(120)));
+
+        // Quand le membre ouvre sa fiche
+        // Alors son étape est « En attente avant republication »
+        assertThat(showListingDetail.show(new VintedListingId(103)).entry().stage()).isEqualTo(ListingStage.WAITING);
     }
 
     @Test

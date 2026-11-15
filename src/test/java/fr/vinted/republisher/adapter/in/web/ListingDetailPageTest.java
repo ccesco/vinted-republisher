@@ -289,6 +289,16 @@ class ListingDetailPageTest {
     }
 
     @Test
+    void shows_the_stage() {
+        // Étant donné une annonce « À republier »
+        detail.set(ABSENT.replace("\"present\": false", "\"present\": false, \"stage\": \"TO_REPUBLISH\""));
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors l'étape « À republier » est affichée sous le titre
+        assertThat(page.locator("#stage")).hasText("Étape : À republier");
+    }
+
+    @Test
     void unknown_listing() {
         // Quand le membre ouvre listing.html?id=999, ou listing.html sans identifiant, ou avec un identifiant invalide
         // Alors il voit « Annonce inconnue. » et le lien de retour à la liste

@@ -19,6 +19,7 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
         return this;
     }
 
+    @Override
     public List<ListingRepublication> findAll() {
         return List.copyOf(republications.values());
     }

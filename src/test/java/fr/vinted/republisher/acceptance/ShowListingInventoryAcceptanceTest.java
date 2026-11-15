@@ -8,18 +8,23 @@ import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.InventorySort;
+import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -44,7 +49,9 @@ class ShowListingInventoryAcceptanceTest {
     private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final ShowListingInventory showListingInventory =
-            new ShowListingInventory(listings, statistics, backups, validations);
+            new ShowListingInventory(listings, statistics, backups, validations,
+                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
 
     @Test
     void present_listings_most_recent_first_by_default() {
@@ -162,7 +169,8 @@ class ShowListingInventoryAcceptanceTest {
         // Alors la ligne montre son titre, son prix, 12 vues, 3 favoris, la date du relevé, la date de sauvegarde,
         //   3 photos et la date de validation
         assertThat(showListingInventory.show(InventoryCriteria.defaults())).containsExactly(
-                new InventoryEntry(listing, Optional.of(reading), Optional.of(backup), Optional.of(validatedAt)));
+                new InventoryEntry(listing, Optional.of(reading), Optional.of(backup), Optional.of(validatedAt),
+                        ListingStage.TO_DELETE));
         assertThat(backup.photos()).hasSize(3);
     }
 

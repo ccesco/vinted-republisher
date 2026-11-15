@@ -90,6 +90,7 @@ class JpaListingRepublicationRepositoryTest {
         // Alors les deux sont relues à l'identique, avec le lien entre ancienne et nouvelle annonce
         assertThat(republications.find(PUBLISHED_LISTING)).contains(published);
         assertThat(republications.find(FAILED_LISTING)).contains(failed);
+        assertThat(republications.findAll()).containsExactlyInAnyOrder(published, failed);
         assertThat(database.queryForObject("SELECT count(*) FROM listing_republication", Long.class)).isEqualTo(2);
     }
 
