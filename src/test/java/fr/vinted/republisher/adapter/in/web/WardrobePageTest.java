@@ -123,7 +123,7 @@ class WardrobePageTest {
         assertThat(cell(1, PRESENCE)).hasText("absente");
         assertThat(cell(0, PRESENCE)).hasText("");
         Locator link = page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Bonnet"));
-        assertThat(link).hasAttribute("href", "https://vinted.test/items/1");
+        assertThat(link).hasAttribute("href", "listing.html?id=1");
         assertThat(listingQueries).contains("presence=PRESENT&backup=ALL&sort=RECENCY&direction=DESC");
 
         // Quand il choisit « toutes », « validées », tape "pull" et trie par vues croissantes
@@ -322,14 +322,29 @@ class WardrobePageTest {
                     "url": "https://vinted.test/items/1", "present": true}]}""");
         // Quand j'ouvre la page du dressing
         open();
-        // Alors le dressing affiche « Voir la sauvegarde » pour les deux sauvegardées et « validée le … » pour la première
+        // Alors le dressing affiche « validée le … » pour la première
         assertThat(cell(0, VALIDATION)).containsText("validée le 08/11/2026");
         assertThat(cell(1, VALIDATION)).hasText("");
-        assertThat(rows().nth(0).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
-                .hasAttribute("href", "listing-backup.html?id=3");
-        assertThat(rows().nth(1).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
-                .hasAttribute("href", "listing-backup.html?id=2");
-        assertThat(rows().nth(2).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
+    }
+
+    @Test
+    void title_opens_the_listing_detail() {
+        // Étant donné la liste avec une annonce sauvegardée et une annonce absente non sauvegardée
+        inventory.set("""
+                {"listings": [
+                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                    "url": "https://vinted.test/items/3", "present": true, "savedAt": "2026-11-07T10:00:00Z",
+                    "photoCount": 2},
+                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                    "url": "https://vinted.test/items/1", "present": false}]}""");
+        // Quand le membre regarde le tableau
+        open();
+        // Alors le titre de chacune mène à listing.html?id=<son identifiant>
+        //   et aucune ligne n'a de lien « Voir la sauvegarde »
+        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=3");
+        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasText("Pull");
+        assertThat(rows().nth(1).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=1");
+        assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Voir la sauvegarde")))
                 .hasCount(0);
     }
 

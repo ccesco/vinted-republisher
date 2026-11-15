@@ -220,17 +220,13 @@
         }
         const photos = listing.photoCount
             ? ` · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}` : '';
-        const preview = document.createElement('a');
-        preview.href = 'listing-backup.html?id=' + encodeURIComponent(listing.vintedId);
-        preview.textContent = 'Voir la sauvegarde';
-        return cell('sauvegardée le ' + dateOf(listing.savedAt) + photos + ' – ', preview);
+        return cell('sauvegardée le ' + dateOf(listing.savedAt) + photos);
     }
 
-    // Titres et liens viennent de Vinted : jamais d'innerHTML.
+    // Les titres viennent de Vinted : jamais d'innerHTML. Le titre ouvre la fiche, qui mène à Vinted.
     function rowOf(listing) {
         const link = document.createElement('a');
-        link.href = listing.url;
-        link.rel = 'noopener noreferrer';
+        link.href = 'listing.html?id=' + encodeURIComponent(listing.vintedId);
         link.textContent = listing.title;
         const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
             .format(listing.price.amount);
