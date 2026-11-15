@@ -182,10 +182,11 @@ Test : `RepublishListingAcceptanceTest.refusesWhileBrowserBusy()`
 ```gherkin
 Étant donné une copie locale du formulaire de mise en vente et du dressing relevés pendant l'observation
 Quand l'adaptateur remplit et publie
-Alors chaque champ reçoit la valeur sauvegardée, les photos sont envoyées dans l'ordre
+Alors chaque champ reçoit la valeur sauvegardée, même là où Vinted a suggéré autre chose, les photos sont envoyées dans l'ordre
+Et seul « Ajouter » est cliqué, jamais « Sauvegarder le brouillon » ni le Boost
 Et la nouvelle annonce est reconnue sur la page du dressing
 ```
-Test : `PlaywrightListingPublisherTest` (`@Tag("browser")`, pages locales)
+Test : `PlaywrightListingPublisherTest` (`@Tag("browser")`, pages locales), dont `Publication.fills_every_field_with_the_saved_values_over_vinteds_suggestions_then_publishes()` ; la reconnaissance dans le dressing passe par `PlaywrightWardrobeReader`, déjà couvert par ses propres tests.
 
 ### AT-12-15 – Conservation en base
 ```gherkin
@@ -266,7 +267,8 @@ Test : manuel (vrai compte Vinted, avec l'accord de l'utilisateur ; sert de base
 
 ## Avancement (2026-11-14)
 - Fait : domaine, cas d'usage (`RepublishListing`, découpé en `RepublicationChecks` et `NewListingSearch`), base (`009-create-listing-republication`), API, réglage du dry-run, aperçu ; AT-12-01 à AT-12-13, AT-12-15 à AT-12-17 verts avec un faux navigateur.
-- Reste : l'adaptateur navigateur. En attendant, `UnobservedListingPublisher` refuse toute republication (`FORM_UNREADABLE`) sans ouvrir Chrome. Il s'écrira avec AT-12-14, à partir de l'observation AT-12-18, faite le 2026-11-15.
+- 2026-11-15 : observation AT-12-18 faite ; adaptateur `PlaywrightListingPublisher` écrit d'après elle, AT-12-14 vert sur pages locales. Il remplace `UnobservedListingPublisher`. Les champs propres aux livres et objets, jamais observés, rendent l'annonce non remplissable (`FIELD_NOT_FILLABLE`) sans ouvrir Chrome.
+- Reste : un dry-run de republication sur le vrai compte, avec l'accord de l'utilisateur, avant toute republication réelle.
 
 ## Observation du formulaire réel (AT-12-18, 2026-11-15)
 Faite avec l'accord de l'utilisateur sur l'annonce 10208513136 (« Pyjama petit bateau 3 mois »), dans le Chrome piloté, formulaire entièrement rempli puis onglet fermé : aucun clic sur « Ajouter » ni sur « Sauvegarder le brouillon ».
@@ -274,12 +276,13 @@ Faite avec l'accord de l'utilisateur sur l'annonce 10208513136 (« Pyjama petit 
 - Photos : `input[data-testid=add-photos-input]` (`type=file`, `multiple`, jpeg/gif/png/webp). Les fichiers s'envoient d'un coup, sans boîte de dialogue, dans l'ordre donné ; la première devient « Principale ». Vignettes `media-select-photo-<rang>`.
 - Titre `#title`, description `textarea#description`, prix `#price` : saisie « 2,00 », affiché « 2,00 € ».
 - Catégorie `#category` : la liste déroulante propose des suggestions (`catalog-suggestion-<id>`), la recherche `#catalog-search-input` et l'arbre (`catalog-<id>`). Avec le libellé sauvegardé dans la recherche, chaque résultat porte l'identifiant (`#catalog-search-<id>-result`) et le chemin complet. Vinted **pré-sélectionne** une catégorie suggérée d'après le titre et les photos.
-- Marque `#brand` : recherche `#brand-search-input`, résultat `brand-<id>`, suggestion `suggested-brand-<id>`, « Sans marque » `empty-brand`. Vinted **pré-remplit** une marque suggérée.
+- Marque `#brand` : recherche `#brand-search-input`, résultat `brand-<id>`, suggestion `suggested-brand-<id>`, « Sans marque » `empty-brand`, listé dès l'ouverture, sans recherche. Vinted **pré-remplit** une marque suggérée.
 - Taille `#size` : grille `size-group-<groupe>-grid-option-<id>`. L'identifiant suffit ; le libellé vide (taille 588 d'US-05) n'empêche pas le choix.
 - État `#condition` : `condition-<id>`.
-- Couleurs `#color` : 2 au maximum, cases `filter-grid-option-<id>`. Une couleur suggérée peut apparaître deux fois (suggestion et liste complète).
+- Couleurs `#color` : 2 au maximum, cases `filter-grid-option-<id>` (`role=checkbox`, état dans `aria-checked`, comme les tailles et les matières). Une couleur suggérée peut apparaître deux fois (suggestion et liste complète).
 - Matériaux `#material` : cases `material-<id>` (liste) et `material-suggestion-<id>` (suggestions).
-- Format du colis : radio `package_type_selector_<id>--input`. Vinted **pré-coche** le format recommandé.
+- Format du colis : cellule `#package-size-<id>`, radio `package_type_selector_<id>--input`. Vinted **pré-coche** le format recommandé.
+- Chaque champ choisi affiche sa valeur dans son `input` (`#category`, `#brand`, `#size`, `#condition`, `#color`, `#material`). L'outil relit ces valeurs juste avant de publier : une suggestion de Vinted arrivée après coup rend le champ non remplissable, et rien n'est publié.
 - Une fois le prix saisi, un encart « Services supplémentaires » apparaît avec une case « Boost » (payante, décochée) : l'outil ne la touche jamais.
 - Boutons : « Ajouter » = publication (`upload-form-save-button`), « Sauvegarder le brouillon » (`upload-form-save-draft-button`).
 - Champs propres aux livres et aux objets (ISBN, auteur, fabricant, dimensions) : non vus, l'annonce observée n'en a pas.
