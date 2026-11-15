@@ -1,5 +1,9 @@
 package fr.vinted.republisher.acceptance;
 
+import java.time.Clock;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.domain.backup.BackupFixtures;
@@ -60,7 +64,9 @@ class ValidateListingBackupAcceptanceTest {
     private final ValidateListingBackup validateListingBackup =
             new ValidateListingBackup(listings, listingBackups, photos, validations, clock);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
-            new InMemoryListingStatisticsRepository(), listingBackups, validations);
+            new InMemoryListingStatisticsRepository(), listingBackups, validations,
+            new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
 
     @Test
     void preview_shows_a_verified_backup() {

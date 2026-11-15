@@ -30,6 +30,12 @@ public class InMemoryListingDeletionRepository implements ListingDeletionReposit
     }
 
     @Override
+    public List<ListingDeletion> findAllLatest() {
+        return deletions.values().stream().map(ListingDeletion::listingId).distinct()
+                .map(listing -> findLatest(listing).orElseThrow()).toList();
+    }
+
+    @Override
     public Optional<ListingDeletion> findLatest(VintedListingId listing) {
         return deletions.values().stream().filter(deletion -> deletion.listingId().equals(listing))
                 .max(Comparator.comparing(ListingDeletion::attemptedAt));

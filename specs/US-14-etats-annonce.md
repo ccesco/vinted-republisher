@@ -144,7 +144,7 @@ Test : `ListingStageAcceptanceTest.absent_listing_without_deletion_is_gone()`
 Quand l'IHM demande la liste puis la fiche d'une annonce
 Alors chaque annonce porte son étape (`stage`)
 ```
-Test : `ListingInventoryApiControllerTest.listings_carry_their_stage()`, `ListingDetailApiControllerTest.detail_carries_the_stage()`
+Test : `ListingInventoryApiControllerTest.shows_each_listing_with_its_statistics_backup_validation_and_stage()`, `ListingDetailApiControllerTest.shows_the_listing_its_stage_and_its_statistics_history()`
 
 ### AT-14-13 – Colonne de la liste
 ```gherkin

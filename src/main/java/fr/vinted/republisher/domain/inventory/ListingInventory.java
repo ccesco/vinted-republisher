@@ -2,10 +2,14 @@ package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -19,21 +23,33 @@ public record ListingInventory(List<InventoryEntry> entries) {
         entries = List.copyOf(entries);
     }
 
-    /** {@code readings} are the latest of each listing; a validation counts only for the backup it was given to. */
+    /**
+     * {@code readings} and {@code deletions} are the latest of each listing; a validation counts only for the backup
+     * it was given to. Stages are those at {@code now}.
+     */
     public static ListingInventory of(List<Listing> listings, List<StatisticsReading> readings,
-                                      List<ListingBackup> backups, List<BackupValidation> validations) {
+                                      List<ListingBackup> backups, List<BackupValidation> validations,
+                                      List<ListingDeletion> deletions, List<ListingRepublication> republications,
+                                      RepublicationDelay delay, Instant now) {
         Map<VintedListingId, StatisticsReading> readingOf = readings.stream()
                 .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
         Map<VintedListingId, ListingBackup> backupOf = backups.stream()
                 .collect(Collectors.toMap(ListingBackup::id, Function.identity()));
         Map<VintedListingId, BackupValidation> validationOf = validations.stream()
                 .collect(Collectors.toMap(BackupValidation::listingId, Function.identity()));
+        Map<VintedListingId, ListingDeletion> deletionOf = deletions.stream()
+                .collect(Collectors.toMap(ListingDeletion::listingId, Function.identity()));
+        Map<VintedListingId, ListingRepublication> republicationOf = republications.stream()
+                .collect(Collectors.toMap(ListingRepublication::listingId, Function.identity()));
         return new ListingInventory(listings.stream().map(listing -> {
             Optional<ListingBackup> backup = Optional.ofNullable(backupOf.get(listing.id()));
             Optional<BackupValidation> validation = Optional.ofNullable(validationOf.get(listing.id()))
                     .filter(given -> backup.filter(given::holdsFor).isPresent());
+            ListingStage stage = ListingStage.of(listing.present(), backup.isPresent(), validation.isPresent(),
+                    Optional.ofNullable(deletionOf.get(listing.id())),
+                    Optional.ofNullable(republicationOf.get(listing.id())), delay, now);
             return new InventoryEntry(listing, Optional.ofNullable(readingOf.get(listing.id())), backup,
-                    validation.map(BackupValidation::validatedAt));
+                    validation.map(BackupValidation::validatedAt), stage);
         }).toList());
     }
 

@@ -1,5 +1,9 @@
 package fr.vinted.republisher.acceptance;
 
+import java.time.Clock;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -38,7 +42,9 @@ class ShowListingDetailAcceptanceTest {
     private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final ShowListingDetail showListingDetail =
-            new ShowListingDetail(listings, statistics, backups, validations);
+            new ShowListingDetail(listings, statistics, backups, validations,
+                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
 
     @Test
     void shows_listing_statistics_history_most_recent_first() {

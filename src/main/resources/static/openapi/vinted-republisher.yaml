@@ -590,7 +590,7 @@ components:
     Listing:
       type: object
       description: Annonce connue de l'outil.
-      required: [vintedId, title, price, url, present]
+      required: [vintedId, title, price, url, present, stage]
       properties:
         vintedId:
           type: integer
@@ -624,6 +624,17 @@ components:
           type: string
           format: date-time
           description: Date de validation de la sauvegarde actuelle par le membre ; absente si elle n'est pas validée.
+        stage:
+          $ref: '#/components/schemas/ListingStage'
+    ListingStage:
+      type: string
+      description: >
+        Étape de traitement de l'annonce, déduite à chaque lecture (la première règle qui s'applique) : republiée,
+        republication à vérifier (en erreur), suppression à vérifier (non confirmée), en attente avant
+        republication (suppression confirmée, délai minimal pas écoulé), à republier, absente de Vinted (sans
+        suppression confirmée), prête à supprimer (sauvegarde actuelle validée), à valider, à sauvegarder.
+      enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, GONE, TO_DELETE,
+        TO_VALIDATE, TO_BACK_UP]
     ListingStatistics:
       type: object
       description: >-

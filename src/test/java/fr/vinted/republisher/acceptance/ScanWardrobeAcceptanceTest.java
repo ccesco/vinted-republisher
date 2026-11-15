@@ -1,5 +1,9 @@
 package fr.vinted.republisher.acceptance;
 
+import java.time.Clock;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.application.session.CheckVintedSession;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
@@ -62,7 +66,9 @@ class ScanWardrobeAcceptanceTest {
             new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, pace, clock, RIGHT_AWAY);
     private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, scans);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics,
-            new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository());
+            new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
+            new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
 
     @Test
     void scan_records_every_active_listing() {

@@ -10,15 +10,16 @@ import java.util.Optional;
 
 /**
  * A listing with its latest statistics reading, its current backup and the date of the validation that holds for
- * that backup.
+ * that backup, and where it stands.
  */
 public record InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<ListingBackup> backup,
-                             Optional<Instant> validatedAt) {
+                             Optional<Instant> validatedAt, ListingStage stage) {
 
     public InventoryEntry {
         Objects.requireNonNull(listing);
         Objects.requireNonNull(statistics);
         Objects.requireNonNull(backup);
         Objects.requireNonNull(validatedAt);
+        Objects.requireNonNull(stage);
     }
 }

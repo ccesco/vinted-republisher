@@ -103,6 +103,21 @@ class JpaListingDeletionRepositoryTest {
     }
 
     @Test
+    void finds_the_latest_attempt_of_each_listing() {
+        VintedListingId other = new VintedListingId(LISTING.value() + 1);
+        listings.saveAll(List.of(Listing.seen(anActiveListing(other.value()), SAVED_AT)));
+        ListingBackup otherBackup = aBackup(other.value(), SAVED_AT);
+        listingBackups.save(otherBackup);
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT).notDone(CLICKED_AT.plusSeconds(60)));
+        ListingDeletion second = ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(120));
+        deletions.save(second);
+        ListingDeletion onOther = ListingDeletion.attempted(otherBackup, CLICKED_AT);
+        deletions.save(onOther);
+
+        assertThat(deletions.findAllLatest()).containsExactlyInAnyOrder(second, onOther);
+    }
+
+    @Test
     void the_latest_attempt_is_the_last_one_clicked() {
         ListingDeletion notDone = ListingDeletion.attempted(backup, CLICKED_AT).notDone(CLICKED_AT.plusSeconds(60));
         deletions.save(notDone);
