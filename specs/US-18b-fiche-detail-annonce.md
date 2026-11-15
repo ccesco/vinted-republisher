@@ -1,5 +1,5 @@
 # US-18b – Fiche détail d'une annonce
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-18 (liste), US-07 (historique des relevés), US-08/US-09/US-12 (aperçu de la sauvegarde, suppression, republication)
 
@@ -33,12 +33,12 @@ En tant que membre, je veux ouvrir la fiche d'une annonce depuis la liste, afin 
 | `GET /api/listings/{listingId}/backup` et suivantes | inchangées | La fiche les appelle comme le faisait `listing-backup.html`. |
 
 ## Critères d'acceptation
-- [ ] Le titre de chaque annonce de la liste ouvre sa fiche, qu'elle soit présente ou absente, sauvegardée ou non.
-- [ ] La fiche montre le titre, le prix, le lien Vinted et la présence ; une annonce absente montre la date où elle a été vue pour la dernière fois.
-- [ ] La fiche montre tous les relevés de vues et favoris, du plus récent au plus ancien, ou « Aucun relevé ».
-- [ ] La fiche montre la section sauvegarde / suppression / republication d'une annonce sauvegardée, avec ses actions inchangées ; « Non sauvegardée » sinon, sans action.
-- [ ] Une annonce inconnue donne 404 dans l'API et « Annonce inconnue. » sur la fiche.
-- [ ] Les textes venus de Vinted sont affichés comme texte, jamais interprétés comme HTML.
+- [x] Le titre de chaque annonce de la liste ouvre sa fiche, qu'elle soit présente ou absente, sauvegardée ou non.
+- [x] La fiche montre le titre, le prix, le lien Vinted et la présence ; une annonce absente montre la date où elle a été vue pour la dernière fois.
+- [x] La fiche montre tous les relevés de vues et favoris, du plus récent au plus ancien, ou « Aucun relevé ».
+- [x] La fiche montre la section sauvegarde / suppression / republication d'une annonce sauvegardée, avec ses actions inchangées ; « Non sauvegardée » sinon, sans action.
+- [x] Une annonce inconnue donne 404 dans l'API et « Annonce inconnue. » sur la fiche.
+- [x] Les textes venus de Vinted sont affichés comme texte, jamais interprétés comme HTML.
 
 ## Tests d'acceptation
 ### AT-18b-01 – Fiche d'une annonce relevée et sauvegardée
@@ -129,7 +129,7 @@ Test : `ListingDetailPageTest.shows_the_title_as_text_never_as_html()`
 ## Modèle de domaine
 - `ListingDetail` (fiche d'une annonce) : la ligne de l'inventaire de l'annonce (`InventoryEntry`, US-18) et tout son historique de relevés, du plus récent au plus ancien.
 - `ShowListingDetail` (cas d'usage) : lit l'annonce, son historique, sa sauvegarde et sa validation ; refuse une annonce inconnue (`ListingNotFound`).
-- Port `ListingStatisticsRepository` : gagne `findAll(VintedListingId)` (historique d'une annonce, du plus récent au plus ancien), requête paramétrée sur l'index unique (identifiant Vinted, `read_at`) existant ; aucune modification de schéma.
+- Port `ListingStatisticsRepository` : gagne `historyOf(VintedListingId)` (historique d'une annonce, du plus récent au plus ancien), requête paramétrée sur l'index unique (identifiant Vinted, `read_at`) existant ; aucune modification de schéma.
 - `Listing.lastSeenAt` existant fournit la date de dernière vue.
 
 ## Tests unitaires et d'intégration attendus

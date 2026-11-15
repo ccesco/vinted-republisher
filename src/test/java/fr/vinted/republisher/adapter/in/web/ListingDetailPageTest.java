@@ -78,6 +78,8 @@ class ListingDetailPageTest {
 
     private HttpServer fakeApi;
     private final AtomicReference<String> detail = new AtomicReference<>(DETAIL);
+    private final AtomicInteger detailStatus = new AtomicInteger(200);
+    private final List<String> backupReads = new CopyOnWriteArrayList<>();
     private final AtomicReference<String> backup = new AtomicReference<>(VERIFIED);
     private final AtomicInteger backupStatus = new AtomicInteger(200);
     private final AtomicInteger validationStatus = new AtomicInteger(200);
@@ -116,9 +118,11 @@ class ListingDetailPageTest {
         fakeApi.createContext("/api/listings/abc", exchange -> respond(exchange, 400, "text/plain", new byte[0]));
         fakeApi.createContext("/api/listings/999", exchange -> respond(exchange, 404, "text/plain", new byte[0]));
         fakeApi.createContext("/api/listings/3", exchange ->
-                respond(exchange, 200, "application/json", bytes(detail.get())));
-        fakeApi.createContext("/api/listings/3/backup", exchange ->
-                respond(exchange, backupStatus.get(), "application/json", bytes(backup.get())));
+                respond(exchange, detailStatus.get(), "application/json", bytes(detail.get())));
+        fakeApi.createContext("/api/listings/3/backup", exchange -> {
+            backupReads.add(exchange.getRequestMethod());
+            respond(exchange, backupStatus.get(), "application/json", bytes(backup.get()));
+        });
         fakeApi.createContext("/api/listings/3/backup/photos/", exchange ->
                 respond(exchange, 200, "image/png", new byte[]{(byte) 0x89, 'P', 'N', 'G'}));
         fakeApi.createContext("/api/listings/3/backup/validation", exchange -> {
@@ -305,6 +309,21 @@ class ListingDetailPageTest {
 
         assertThat(page.locator("#listing-title")).hasText("Pull <b>rayé</b>");
         assertThat(page.locator("#listing-title b")).hasCount(0);
+        assertThat(page).hasTitle("Pull <b>rayé</b>");
+    }
+
+    @Test
+    void application_down_shows_neither_the_listing_nor_its_backup() {
+        // Étant donné la base indisponible
+        detailStatus.set(500);
+        detail.set("");
+        // Quand le membre ouvre la fiche
+        open();
+        // Alors il voit « L'application ne répond pas » et rien de l'annonce, sans lire sa sauvegarde
+        assertThat(problem()).containsText("L'application ne répond pas");
+        assertThat(page.locator("#listing")).isHidden();
+        assertThat(page.locator("#backup")).isHidden();
+        assertThat(backupReads).isEmpty();
     }
 
     @Test

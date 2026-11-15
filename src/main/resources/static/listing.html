@@ -422,9 +422,13 @@
 
     // Vrai si l'annonce est connue : sa sauvegarde se lit ensuite.
     async function loadListing() {
+        if (!listingId) {
+            tell(UNKNOWN_LISTING_MESSAGE);
+            return false;
+        }
         try {
             const response = await fetch('/api/listings/' + encodeURIComponent(listingId));
-            // 400 : identifiant absent ou invalide dans l'adresse de la page ; 404 : annonce inconnue.
+            // 400 : identifiant invalide dans l'adresse de la page ; 404 : annonce inconnue.
             if (response.status === 404 || response.status === 400) {
                 tell(UNKNOWN_LISTING_MESSAGE);
                 return false;
