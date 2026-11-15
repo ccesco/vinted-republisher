@@ -1,6 +1,6 @@
 # US-23 – Journal des actions
 
-**Statut** : brouillon
+**Statut** : validée
 **Priorité** : MVP
 **Dépend de** : US-04 (scan), US-05 à US-08 (sauvegarde, validation), US-09 et US-10 (suppression, dry-run), US-12 (republication), US-18 et US-18b (liste et fiche)
 
@@ -200,10 +200,10 @@ Test : `JpaActionJournalTest.entries_survive_restart()` (`@Tag("docker")`)
 - Affichage, décidé par l'utilisateur (2026-11-15) : page `journal.html` (lien depuis `wardrobe.html`) et section « Journal » dans la fiche, limitée à l'annonce.
 - Parcours, décidé par l'utilisateur (2026-11-15) : plus récentes d'abord, pages de 50, « Plus ancien » pour la suite ; aucun filtre (le filtre par annonce, c'est la fiche).
 - Échec d'écriture, décidé par l'utilisateur (2026-11-15) : l'action continue et sa réponse ne change pas ; l'échec est écrit dans les logs.
-- Proposés à la rédaction, à valider avec la spec : issues et codes de raison du tableau (mêmes codes que l'API) ; pagination par identifiant de ligne (`before`) ; journal de la fiche porté par `ListingDetail` (pas de requête en plus) ; titre actuel de l'annonce lu à l'affichage, pas copié dans la ligne.
+- Proposés à la rédaction, validés par l'utilisateur avec la spec (« fait comme tu recommandes », 2026-11-15) : issues et codes de raison du tableau (mêmes codes que l'API) ; pagination par identifiant de ligne (`before`) ; journal de la fiche porté par `ListingDetail` (pas de requête en plus) ; titre actuel de l'annonce lu à l'affichage, pas copié dans la ligne.
 
 ## Questions ouvertes
-- Aucune bloquante une fois les propositions ci-dessus validées.
+- Aucune.
 
 ## Modèle de domaine
 - `ActionJournal` | Journal des actions | Port sortant : écrit une ligne, lit une page (plus récentes d'abord) et les lignes d'une annonce.
