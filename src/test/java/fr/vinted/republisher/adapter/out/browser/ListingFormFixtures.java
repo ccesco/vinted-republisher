@@ -124,6 +124,11 @@ final class ListingFormFixtures {
 
                 $('[data-testid=add-photos-input]').addEventListener('change', (event) => {
                   state.photos = [...event.target.files].map(file => file.name + ':' + file.size);
+                  // As observed: a progress bar while the photos are sent to Vinted.
+                  const progress = document.createElement('div');
+                  progress.setAttribute('role', 'progressbar');
+                  $('[data-testid=media-upload]').append(progress);
+                  setTimeout(() => progress.remove(), %s);
                   setTimeout(() => {
                     $('[data-testid=media-upload-grid]').innerHTML = state.photos
                       .map((photo, rank) => `<div data-testid="media-select-photo-${rank}">${photo}</div>`).join('');
@@ -136,6 +141,14 @@ final class ListingFormFixtures {
 
                 const publish = $('[data-testid=upload-form-save-button]');
                 if (publish) publish.addEventListener('click', () => {
+                  if (document.querySelector('[role=progressbar]')) {
+                    // A refusal shown on the form itself, which stays.
+                    const refusal = document.createElement('div');
+                    refusal.setAttribute('role', 'alert');
+                    refusal.textContent = 'Attends la fin du téléchargement des photos';
+                    document.body.append(refusal);
+                    return;
+                  }
                   const form = {photos: state.photos, title: $('#title').value,
                     description: $('#description').value, price: $('#price').value, category: state.category,
                     brand: state.brand, size: state.size, condition: state.condition,
@@ -144,7 +157,16 @@ final class ListingFormFixtures {
                     packageSize: Number(document.querySelector('[name=package]:checked').id.split('_')[3]),
                     boost: $('[data-testid=boost-checkbox]').checked};
                   fetch('/items/publish', {method: 'POST', body: JSON.stringify(form)})
-                    .then(response => response.text()).then(next => { if (next) location.href = next; });
+                    .then(response => response.text()).then(next => {
+                      if (next) {
+                        location.href = next;
+                        return;
+                      }
+                      const refusal = document.createElement('span');
+                      refusal.setAttribute('data-testid', 'price-input--validation');
+                      refusal.textContent = 'Le prix minimum est de 1,00 €';
+                      document.body.append(refusal);
+                    });
                 });
               });
             </script>

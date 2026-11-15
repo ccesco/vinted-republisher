@@ -75,6 +75,7 @@ class PlaywrightListingPublisherTest {
     private volatile boolean redirectsToLogin;
     private volatile boolean leavesTheFormOncePublished = true;
     private volatile boolean lateBrandSuggestion;
+    private volatile long uploadMillis = 300;
     private final RecordingVisit visit = new RecordingVisit();
 
     @BeforeEach
@@ -90,7 +91,7 @@ class PlaywrightListingPublisherTest {
                 exchange.getResponseHeaders().add("Location", "/member/login");
                 respond(exchange, 302, "");
             } else if (path.equals("/items/new")) {
-                respond(exchange, 200, LISTING_FORM.formatted(details, publishButton, lateBrandSuggestion));
+                respond(exchange, 200, LISTING_FORM.formatted(details, publishButton, lateBrandSuggestion, uploadMillis));
             } else {
                 respond(exchange, 200, "<!DOCTYPE html><html><body>Pyjama petit bateau 3 mois</body></html>");
             }
@@ -158,12 +159,33 @@ class PlaywrightListingPublisherTest {
         }
 
         @Test
-        void form_still_shown_once_published_is_unreadable() {
+        void form_still_shown_once_published_is_unreadable_and_tells_what_vinted_shows() {
             leavesTheFormOncePublished = false;
 
             assertThatThrownBy(() -> publisher().publish(pyjama(), List.of(COVER), visit))
-                    .isInstanceOf(ListingFormUnreadable.class);
+                    .isInstanceOf(ListingFormUnreadable.class)
+                    .hasMessageContaining("Le prix minimum est de 1,00 €");
             assertThat(published).hasSize(1);
+        }
+
+        @Test
+        void waits_for_the_photos_to_be_sent_before_publishing() {
+            uploadMillis = 1_500;
+
+            publisher().publish(pyjama(), List.of(COVER), visit);
+
+            assertThat(published).hasSize(1);
+        }
+
+        @Test
+        void photos_never_sent_cannot_be_filled_and_nothing_is_published() {
+            uploadMillis = 60_000;
+
+            assertThatThrownBy(() -> publisher().publish(pyjama(), List.of(COVER), visit))
+                    .isInstanceOfSatisfying(FieldNotFillable.class,
+                            notFillable -> assertThat(notFillable.field()).isEqualTo(ListingFormField.PHOTOS));
+            assertThat(visit.steps).isEmpty();
+            assertThat(published).isEmpty();
         }
 
         @Test

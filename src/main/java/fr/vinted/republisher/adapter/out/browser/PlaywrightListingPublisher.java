@@ -41,6 +41,11 @@ public class PlaywrightListingPublisher implements ListingPublisher {
 
     private static final String PHOTOS = "input[data-testid='add-photos-input']";
     private static final String PUBLISH_BUTTON = "[data-testid='upload-form-save-button']";
+    /** Observed on 2026-11-15 while a photo was sent; gone once its thumbnail showed. */
+    private static final String UPLOAD_PROGRESS = "[data-testid='media-upload'] [role='progressbar'], "
+            + "[data-testid='media-upload'] [data-testid='progressbar'], [data-testid='upload-button-loader']";
+    /** Where Vinted tells why it keeps the form: alerts and the validation message under a field. */
+    private static final String REFUSAL = "[role='alert'], [data-testid$='--validation'], [data-testid$='-error']";
     private static final String CHECKED_COLORS = "[role='checkbox'][data-testid^='filter-grid-option-'][aria-checked='true']";
     private static final String CHECKED_MATERIALS = "[role='checkbox'][data-testid^='material-'][aria-checked='true']";
 
@@ -161,6 +166,8 @@ public class PlaywrightListingPublisher implements ListingPublisher {
         try {
             page.locator("[data-testid='media-select-photo-" + (photos.size() - 1) + "']")
                     .waitFor(waitingFor(WaitForSelectorState.VISIBLE, photoTimeout));
+            // Vinted shows a progress bar while it receives the photos, and refuses to publish meanwhile.
+            page.locator(UPLOAD_PROGRESS).first().waitFor(waitingFor(WaitForSelectorState.DETACHED, photoTimeout));
         } catch (TimeoutError notSent) {
             throw new FieldNotFillable(ListingFormField.PHOTOS, Optional.empty());
         }
@@ -258,7 +265,9 @@ public class PlaywrightListingPublisher implements ListingPublisher {
             page.waitForURL(address -> !URI.create(address).getPath().equals(listingFormUrl.getPath()),
                     new Page.WaitForURLOptions().setTimeout(controlTimeout.toMillis()));
         } catch (TimeoutError stillThere) {
-            throw new ListingFormUnreadable("still on the listing form once published");
+            List<String> shown = page.locator(REFUSAL).allInnerTexts().stream().map(String::strip)
+                    .filter(text -> !text.isEmpty()).toList();
+            throw new ListingFormUnreadable("still on the listing form once published, showing " + shown);
         }
     }
 
