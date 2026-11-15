@@ -14,11 +14,12 @@ import java.util.UUID;
 /**
  * An attempt to put a deleted listing on sale again, from the click on Publish on. It starts in error, so that a
  * crash right after the click blocks any new attempt rather than risk a duplicate, and is published once its new
- * listing is found in the wardrobe. Its new listing links the old listing to the one replacing it.
+ * listing is found on Vinted, or not published once Vinted is checked and shows nothing. Its new listing links the
+ * old listing to the one replacing it.
  */
 public record ListingRepublication(ListingRepublicationId id, VintedListingId listingId, Instant backupSavedAt,
                                    Instant attemptedAt, RepublicationOutcome outcome, Optional<Instant> publishedAt,
-                                   Optional<VintedListingId> newListingId) {
+                                   Optional<VintedListingId> newListingId, Optional<Instant> checkedAt) {
 
     public ListingRepublication {
         Objects.requireNonNull(id);
@@ -28,27 +29,49 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
         Objects.requireNonNull(outcome);
         Objects.requireNonNull(publishedAt);
         Objects.requireNonNull(newListingId);
+        Objects.requireNonNull(checkedAt);
     }
 
     public static ListingRepublication attempted(ListingBackup backup, Instant attemptedAt) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), backup.id(), backup.savedAt(),
-                attemptedAt, RepublicationOutcome.FAILED, Optional.empty(), Optional.empty());
+                attemptedAt, RepublicationOutcome.FAILED, Optional.empty(), Optional.empty(), Optional.empty());
     }
 
     /** Among the listings the tool did not know, the only one with the saved title and price. */
     public static Optional<ScannedListing> newListingAmong(List<ScannedListing> unknown, ListingContent saved) {
-        List<ScannedListing> matching = unknown.stream()
-                .filter(listing -> listing.title().equals(saved.title()) && listing.price().equals(saved.price()))
-                .toList();
+        List<ScannedListing> matching = matching(unknown, saved);
         return matching.size() == 1 ? Optional.of(matching.getFirst()) : Optional.empty();
     }
 
+    /** The listings with the saved title and price. */
+    public static List<ScannedListing> matching(List<ScannedListing> listings, ListingContent saved) {
+        return listings.stream()
+                .filter(listing -> listing.title().equals(saved.title()) && listing.price().equals(saved.price()))
+                .toList();
+    }
+
+    /** Only an attempt in error can be proven: once checked not published, a new attempt is made instead. */
     public ListingRepublication published(VintedListingId newListing, Instant provenAt) {
         if (outcome == RepublicationOutcome.PUBLISHED) {
             throw new ListingAlreadyRepublished(listingId);
         }
+        requireFailed();
         return new ListingRepublication(id, listingId, backupSavedAt, attemptedAt, RepublicationOutcome.PUBLISHED,
-                Optional.of(provenAt), Optional.of(newListing));
+                Optional.of(provenAt), Optional.of(newListing), Optional.empty());
+    }
+
+    /** Vinted was checked and shows no listing with the saved title and price. */
+    public ListingRepublication notPublished(Instant checked) {
+        requireFailed();
+        return new ListingRepublication(id, listingId, backupSavedAt, attemptedAt, RepublicationOutcome.NOT_PUBLISHED,
+                Optional.empty(), Optional.empty(), Optional.of(checked));
+    }
+
+    /** Only a republication in error or published has something to verify on Vinted. */
+    public void requireToVerify() {
+        if (outcome == RepublicationOutcome.NOT_PUBLISHED) {
+            throw new NoRepublicationToVerify(listingId);
+        }
     }
 
     /** A listing is republished once at most, and never again after an attempt left in error. */
@@ -56,6 +79,14 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
         switch (outcome) {
             case PUBLISHED -> throw new ListingAlreadyRepublished(listingId);
             case FAILED -> throw new RepublicationInError(listingId);
+            case NOT_PUBLISHED -> {
+            }
+        }
+    }
+
+    private void requireFailed() {
+        if (outcome != RepublicationOutcome.FAILED) {
+            throw new NoRepublicationToVerify(listingId);
         }
     }
 }

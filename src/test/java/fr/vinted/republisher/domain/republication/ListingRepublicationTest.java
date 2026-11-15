@@ -54,6 +54,45 @@ class ListingRepublicationTest {
                 .isInstanceOf(ListingAlreadyRepublished.class);
     }
 
+    @Test
+    void a_failed_attempt_missing_from_vinted_is_not_published_once_checked() {
+        ListingRepublication notPublished = attempt.notPublished(PROVEN_AT);
+
+        assertThat(notPublished.id()).isEqualTo(attempt.id());
+        assertThat(notPublished.outcome()).isEqualTo(RepublicationOutcome.NOT_PUBLISHED);
+        assertThat(notPublished.checkedAt()).contains(PROVEN_AT);
+        assertThat(notPublished.publishedAt()).isEmpty();
+        assertThat(notPublished.newListingId()).isEmpty();
+    }
+
+    @Nested
+    class Verification {
+
+        @Test
+        void applies_to_a_failed_or_published_republication() {
+            attempt.requireToVerify();
+            attempt.published(NEW_LISTING, PROVEN_AT).requireToVerify();
+        }
+
+        @Test
+        void is_refused_once_not_published() {
+            assertThatThrownBy(() -> attempt.notPublished(PROVEN_AT).requireToVerify())
+                    .isInstanceOf(NoRepublicationToVerify.class);
+        }
+
+        @Test
+        void cannot_settle_a_published_republication_as_not_published() {
+            assertThatThrownBy(() -> attempt.published(NEW_LISTING, PROVEN_AT).notPublished(PROVEN_AT))
+                    .isInstanceOf(NoRepublicationToVerify.class);
+        }
+
+        @Test
+        void cannot_publish_a_republication_checked_not_published() {
+            assertThatThrownBy(() -> attempt.notPublished(PROVEN_AT).published(NEW_LISTING, PROVEN_AT))
+                    .isInstanceOf(NoRepublicationToVerify.class);
+        }
+    }
+
     @Nested
     class New_attempt {
 
@@ -66,6 +105,11 @@ class ListingRepublicationTest {
         @Test
         void is_refused_while_in_error() {
             assertThatThrownBy(attempt::allowNewAttempt).isInstanceOf(RepublicationInError.class);
+        }
+
+        @Test
+        void is_allowed_once_checked_not_published() {
+            attempt.notPublished(PROVEN_AT).allowNewAttempt();
         }
     }
 

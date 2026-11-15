@@ -48,7 +48,7 @@ public class ShowListingDetail {
         List<StatisticsReading> history = statistics.historyOf(id);
         ListingInventory inventory = ListingInventory.of(List.of(listing), history.stream().limit(1).toList(),
                 backups.find(id).stream().toList(), validations.find(id).stream().toList(),
-                deletions.findLatest(id).stream().toList(), republications.find(id).stream().toList(), delay,
+                deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
                 clock.instant());
         return new ListingDetail(inventory.entries().getFirst(), history);
     }

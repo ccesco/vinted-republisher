@@ -1,7 +1,10 @@
 package fr.vinted.republisher.domain.republication;
 
-/** Published once the new listing is found alone in the wardrobe; failed for anything else after the click. */
 public enum RepublicationOutcome {
+    /** The new listing was found, alone, on Vinted. */
     PUBLISHED,
-    FAILED
+    /** Publish was clicked, but nothing proves the new listing: blocks any new attempt until verified. */
+    FAILED,
+    /** Verified on Vinted: no listing with the saved title and price, so a new attempt is allowed. */
+    NOT_PUBLISHED
 }

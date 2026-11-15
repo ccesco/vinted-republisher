@@ -173,7 +173,7 @@ Test : `ListingDetailPageTest.shows_the_stage()`
 - Action en cours sur une annonce (sauvegarde, suppression, republication qui tourne) : l'action navigateur est déjà affichée (US-03) ; l'état « en cours » par annonce viendra avec le traitement en parallèle (US-15).
 - Filtre ou tri par étape ; compteurs par étape (plus tard si besoin, US-19).
 - Enchaînement automatique, reprise, gestion des échecs, relance (US-16, US-17, US-19, US-20).
-- Vérification de la republication (US-13) : `REPUBLICATION_TO_CHECK` reste tant qu'elle n'existe pas.
+- Vérification de la republication (US-13) : une republication vérifiée « non publiée » (`NOT_PUBLISHED`) compte comme aucune republication, comme une suppression `NOT_DONE` ; l'annonce revient à `TO_REPUBLISH`.
 - Journal des changements d'étape (US-23).
 
 ## Décisions

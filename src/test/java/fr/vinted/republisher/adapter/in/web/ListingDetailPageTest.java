@@ -93,6 +93,9 @@ class ListingDetailPageTest {
     private final AtomicInteger republicationStatus = new AtomicInteger(200);
     private final AtomicReference<String> republicationAnswer = new AtomicReference<>(VALIDATED);
     private final List<String> republications = new CopyOnWriteArrayList<>();
+    private final AtomicInteger verificationStatus = new AtomicInteger(200);
+    private final AtomicReference<String> verificationAnswer = new AtomicReference<>(VALIDATED);
+    private final List<String> verifications = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -141,6 +144,10 @@ class ListingDetailPageTest {
             republications.add(exchange.getRequestMethod() + " "
                     + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             respond(exchange, republicationStatus.get(), "application/json", bytes(republicationAnswer.get()));
+        });
+        fakeApi.createContext("/api/listings/3/republication/verification", exchange -> {
+            verifications.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
+            respond(exchange, verificationStatus.get(), "application/json", bytes(verificationAnswer.get()));
         });
         fakeApi.start();
         page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
@@ -573,6 +580,8 @@ class ListingDetailPageTest {
         private static final String FAILED = PUBLISHED.replace("\"outcome\": \"PUBLISHED\"", "\"outcome\": \"FAILED\"")
                 .replace(" \"publishedAt\": \"2026-11-11T10:06:20Z\", \"newListingId\": 10300000001,"
                         + " \"newListingUrl\": \"https://www.vinted.fr/items/10300000001-pull\",", "");
+        private static final String NOT_PUBLISHED = FAILED.replace("\"outcome\": \"FAILED\"",
+                "\"outcome\": \"NOT_PUBLISHED\", \"checkedAt\": \"2026-11-12T09:00:00Z\"");
 
         @Test
         void shows_the_mode_republications_run_in() {
@@ -632,8 +641,9 @@ class ListingDetailPageTest {
 
             open();
 
-            assertThat(outcome()).hasText("Erreur de republication, vérifier sur Vinted.");
+            assertThat(outcome()).hasText("Erreur de republication : vérifiez sur Vinted avant toute relance.");
             assertThat(republishButton()).isHidden();
+            assertThat(verifyButton()).isVisible();
             assertThat(page.locator("#republication-state")).isEmpty();
         }
 
@@ -681,6 +691,89 @@ class ListingDetailPageTest {
 
             assertThat(problem()).containsText("vérifiez sur Vinted avant de relancer");
             assertThat(problem()).not().containsText("rien n'a été publié");
+        }
+
+        @Test
+        void failed_republication_is_verified_and_can_be_republished_once_not_published() {
+            // Étant donné une republication en erreur
+            backup.set(FAILED);
+            verificationAnswer.set(NOT_PUBLISHED);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+            assertThat(republishButton()).isHidden();
+            // Quand le membre clique sur « Vérifier sur Vinted »
+            verifyButton().click();
+            // Alors l'issue est affichée et « Republier sur Vinted » redevient possible
+            assertThat(outcome()).containsText("Republication non faite : rien trouvé sur Vinted");
+            assertThat(outcome()).containsText("vérifié le 12/11/2026");
+            assertThat(verifications).containsExactly("POST /api/listings/3/republication/verification");
+            assertThat(republications).isEmpty();
+            assertThat(republishButton()).isVisible();
+            assertThat(republishButton()).isEnabled();
+            assertThat(verifyButton()).isHidden();
+        }
+
+        @Test
+        void several_candidates_ask_to_remove_the_duplicates() {
+            backup.set(FAILED);
+            verificationAnswer.set(FAILED);
+            open();
+
+            verifyButton().click();
+
+            assertThat(problem()).hasText(
+                    "Plusieurs annonces correspondent sur Vinted : supprimez les doublons puis revérifiez.");
+            assertThat(verifyButton()).isEnabled();
+        }
+
+        @Test
+        void published_republication_shows_its_differences_as_text() {
+            backup.set(PUBLISHED);
+            verificationAnswer.set(PUBLISHED.replace("\"republicationDryRun\": false,",
+                    "\"republicationDryRun\": false, \"republicationComparison\": [{\"field\": \"SIZE\","
+                            + " \"saved\": \"1-3 mois (613)\", \"read\": \"<b>3-6 mois</b> (614)\"}],"));
+            open();
+            assertThat(verifyButton()).isVisible();
+
+            verifyButton().click();
+
+            assertThat(comparison()).hasText("Différences avec la sauvegarde, rien n'a été corrigé : Taille"
+                    + " « 1-3 mois (613) » sauvegardé, « <b>3-6 mois</b> (614) » lu sur Vinted.");
+            assertThat(outcome()).containsText("Republiée sur Vinted le 11/11/2026");
+        }
+
+        @Test
+        void identical_new_listing_says_so() {
+            backup.set(PUBLISHED);
+            verificationAnswer.set(PUBLISHED.replace("\"republicationDryRun\": false,",
+                    "\"republicationDryRun\": false, \"republicationComparison\": [],"));
+            open();
+
+            verifyButton().click();
+
+            assertThat(comparison()).hasText("Nouvelle annonce identique à la sauvegarde.");
+        }
+
+        @Test
+        void refused_verification_says_nothing_changed() {
+            backup.set(PUBLISHED);
+            verificationStatus.set(502);
+            verificationAnswer.set("{\"reason\": \"LISTING_UNREADABLE\"}");
+            open();
+
+            verifyButton().click();
+
+            assertThat(problem()).hasText("Vérification interrompue, l'état affiché est celui enregistré : la page"
+                    + " de la nouvelle annonce sur Vinted n'est pas celle attendue.");
+            assertThat(comparison()).isEmpty();
+        }
+
+        private Locator verifyButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Vérifier sur Vinted"));
+        }
+
+        private Locator comparison() {
+            return page.locator("#republication-comparison");
         }
 
         private Locator mode() {

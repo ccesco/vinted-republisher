@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.adapter.out.browser.BackupProperties;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightListingPublisher;
 import fr.vinted.republisher.adapter.out.browser.WardrobeProperties;
@@ -8,8 +9,11 @@ import fr.vinted.republisher.application.republication.NewListingSearch;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.application.republication.VerifyListingRepublication;
+import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
+import fr.vinted.republisher.domain.backup.ListingContentReader;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
@@ -18,6 +22,7 @@ import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
+import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -26,6 +31,7 @@ import org.springframework.context.annotation.Configuration;
 import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
+import java.util.Random;
 
 /** Wires the republication use cases: the application layer stays free of Spring. */
 @Configuration
@@ -61,5 +67,19 @@ public class ListingRepublicationConfiguration {
                 republications, publisher,
                 new NewListingSearch(wardrobe, WardrobeConfiguration.paceOf(wardrobeProperties.scan()), listings),
                 listings, mode, clock, showListingRepublication);
+    }
+    // A verification only reads the wardrobe once, and the new listing once: it runs within the request too.
+    @Bean
+    VerifyListingRepublication verifyListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
+                                                          ListingRepublicationRepository republications,
+                                                          ListingRepository listings, WardrobeReader wardrobe,
+                                                          WardrobeProperties wardrobeProperties,
+                                                          ListingContentReader contents, BackupProperties backup,
+                                                          Clock clock,
+                                                          ShowListingRepublication showListingRepublication) {
+        return new VerifyListingRepublication(session, listingBackups, republications, listings,
+                new NewListingSearch(wardrobe, WardrobeConfiguration.paceOf(wardrobeProperties.scan()), listings),
+                contents, new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()), new Random()),
+                clock, showListingRepublication);
     }
 }

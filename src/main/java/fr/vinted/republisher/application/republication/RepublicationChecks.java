@@ -54,7 +54,7 @@ public class RepublicationChecks {
         if (!backup.savedAt().equals(seen)) {
             throw new BackupReplaced(id, seen);
         }
-        republications.find(id).ifPresent(ListingRepublication::allowNewAttempt);
+        republications.findLatest(id).ifPresent(ListingRepublication::allowNewAttempt);
         checkDeleted(backup);
         validations.find(id).filter(validation -> validation.holdsFor(backup))
                 .orElseThrow(() -> new BackupNotValidated(id));

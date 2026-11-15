@@ -106,6 +106,15 @@ class ListingStageTest {
     }
 
     @Test
+    void republication_checked_not_published_is_to_republish_again() {
+        Optional<ListingRepublication> notPublished =
+                failed().map(republication -> republication.notPublished(DELETED_AT.plusSeconds(900)));
+
+        assertThat(stage(false, true, true, confirmed(), notPublished, DELETED_AT.plusSeconds(900)))
+                .isEqualTo(ListingStage.TO_REPUBLISH);
+    }
+
+    @Test
     void published_republication_wins_over_everything() {
         assertThat(stage(true, true, true, confirmed(), published(), DELETED_AT.plusSeconds(900)))
                 .isEqualTo(ListingStage.REPUBLISHED);

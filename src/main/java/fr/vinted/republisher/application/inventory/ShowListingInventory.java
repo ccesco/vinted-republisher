@@ -42,7 +42,7 @@ public class ShowListingInventory {
 
     public List<InventoryEntry> show(InventoryCriteria criteria) {
         return ListingInventory.of(listings.findAll(), statistics.findLatest(), backups.findAll(),
-                validations.findAll(), deletions.findAllLatest(), republications.findAll(), delay,
+                validations.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay,
                 clock.instant()).select(criteria);
     }
 }
