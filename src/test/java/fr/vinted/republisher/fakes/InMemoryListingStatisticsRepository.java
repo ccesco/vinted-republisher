@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,5 +30,11 @@ public class InMemoryListingStatisticsRepository implements ListingStatisticsRep
         readings.forEach(reading -> latest.merge(reading.listingId(), reading,
                 (kept, other) -> other.readAt().isAfter(kept.readAt()) ? other : kept));
         return List.copyOf(latest.values());
+    }
+
+    @Override
+    public List<StatisticsReading> historyOf(VintedListingId listing) {
+        return readings.stream().filter(reading -> reading.listingId().equals(listing))
+                .sorted(Comparator.comparing(StatisticsReading::readAt).reversed()).toList();
     }
 }

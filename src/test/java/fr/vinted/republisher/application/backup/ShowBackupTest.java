@@ -2,27 +2,16 @@ package fr.vinted.republisher.application.backup;
 
 import fr.vinted.republisher.domain.backup.BackupOverview;
 import fr.vinted.republisher.domain.backup.BackupProblem;
-import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
-import fr.vinted.republisher.domain.backup.ListingBackup;
-import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
-import fr.vinted.republisher.domain.wardrobe.VintedListingId;
-import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
-import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
-import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 
-import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
-import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
-import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ShowBackupTest {
@@ -33,13 +22,11 @@ class ShowBackupTest {
     private final VintedSession session = new VintedSession();
     private final LastBackupProblem lastProblem = new LastBackupProblem();
     private final InMemoryWardrobeBackupRepository backups = new InMemoryWardrobeBackupRepository();
-    private final InMemoryListingBackupRepository listingBackups = new InMemoryListingBackupRepository();
-    private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
-    private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups, listingBackups, validations);
+    private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups);
 
     @Test
     void nothing_is_known_before_the_first_backup() {
-        assertThat(showBackup.show()).isEqualTo(new BackupOverview(false, Optional.empty(), Optional.empty(), Map.of(), Map.of(), Map.of()));
+        assertThat(showBackup.show()).isEqualTo(new BackupOverview(false, Optional.empty(), Optional.empty()));
     }
 
     @Test
@@ -48,21 +35,6 @@ class ShowBackupTest {
         backups.save(WardrobeBackup.startedAt(FINISHED_AT));
 
         assertThat(showBackup.show().lastBackupAt()).contains(FINISHED_AT);
-    }
-
-    @Test
-    void tells_when_each_listing_was_saved() {
-        listingBackups.save(aBackup(1, STARTED_AT));
-
-        assertThat(showBackup.show().savedAt()).isEqualTo(Map.of(new VintedListingId(1), STARTED_AT));
-    }
-
-    @Test
-    void tells_how_many_photos_each_listing_has_kept_none_before_photos_were_kept() {
-        listingBackups.save(ListingBackup.of(new ListingReading(aContent(1), List.of(aPhoto("A"), aPhoto("B"))), STARTED_AT));
-        listingBackups.save(new ListingBackup(aContent(2), List.of(), STARTED_AT));
-
-        assertThat(showBackup.show().photoCount()).isEqualTo(Map.of(new VintedListingId(1), 2));
     }
 
     @Test
@@ -80,17 +52,5 @@ class ShowBackupTest {
         lastProblem.report(BackupProblem.SESSION_DISCONNECTED);
 
         assertThat(showBackup.show().problem()).contains(BackupProblem.SESSION_DISCONNECTED);
-    }
-
-    @Test
-    void shows_the_validations_that_hold_for_the_current_backups_only() {
-        ListingBackup validated = aBackup(1, STARTED_AT);
-        ListingBackup replaced = aBackup(2, FINISHED_AT);
-        listingBackups.save(validated);
-        listingBackups.save(replaced);
-        validations.save(BackupValidation.of(validated, FINISHED_AT));
-        validations.save(BackupValidation.of(aBackup(2, STARTED_AT), FINISHED_AT));
-
-        assertThat(showBackup.show().validatedAt()).isEqualTo(Map.of(new VintedListingId(1), FINISHED_AT));
     }
 }

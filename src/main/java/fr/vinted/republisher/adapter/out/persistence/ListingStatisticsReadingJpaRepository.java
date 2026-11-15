@@ -12,4 +12,6 @@ interface ListingStatisticsReadingJpaRepository extends JpaRepository<ListingSta
             FROM listing_statistics_reading
             ORDER BY listing_id DESC, read_at DESC""")
     List<ListingStatisticsReadingJpaEntity> findLatestOfEachListing();
+
+    List<ListingStatisticsReadingJpaEntity> findByListingIdOrderByReadAtDesc(long listingId);
 }

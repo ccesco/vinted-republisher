@@ -2,15 +2,34 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Sauvegarde d'une annonce</title>
+    <title>Annonce</title>
     <style>
         #photos img { max-width: 100%; max-height: 80vh; display: block; margin-bottom: 1em; }
     </style>
 </head>
 <body>
-<p><a href="wardrobe.html">Retour au dressing</a></p>
-<h1>Sauvegarde d'une annonce</h1>
+<p><a href="wardrobe.html">Retour à la liste</a></p>
+<h1 id="listing-title">Annonce</h1>
 <p id="problem" role="alert" hidden></p>
+<section id="listing" hidden>
+    <p id="listing-price"></p>
+    <p><a id="vinted-link" rel="noopener noreferrer">Voir sur Vinted</a></p>
+    <p id="presence"></p>
+    <h2>Vues et favoris</h2>
+    <p id="no-reading" hidden>Aucun relevé</p>
+    <table id="history" hidden>
+        <thead>
+        <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Vues</th>
+            <th scope="col">Favoris</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <h2>Sauvegarde</h2>
+    <p id="not-backed-up" hidden>Non sauvegardée</p>
+</section>
 <section id="backup" hidden>
     <div id="verification"></div>
     <p id="saved-at"></p>
@@ -103,8 +122,18 @@
     const REPUBLICATION_DRY_RUN_PASSED = "Dry-run réussi : contrôles réussis, formulaire de mise en vente entièrement"
         + " rempli. Rien n'a été publié.";
 
-    const listingId = new URLSearchParams(location.search).get('id');
+    const UNKNOWN_LISTING_MESSAGE = 'Annonce inconnue.';
+
+    const listingId = new URLSearchParams(location.search).get('id') ?? '';
     const problem = document.getElementById('problem');
+    const listingSection = document.getElementById('listing');
+    const listingTitle = document.getElementById('listing-title');
+    const listingPrice = document.getElementById('listing-price');
+    const vintedLink = document.getElementById('vinted-link');
+    const presence = document.getElementById('presence');
+    const noReading = document.getElementById('no-reading');
+    const history = document.getElementById('history');
+    const notBackedUp = document.getElementById('not-backed-up');
     const section = document.getElementById('backup');
     const verification = document.getElementById('verification');
     const savedAt = document.getElementById('saved-at');
@@ -365,12 +394,61 @@
         problem.hidden = false;
     }
 
+    function cell(text) {
+        const td = document.createElement('td');
+        td.textContent = text;
+        return td;
+    }
+
+    // Les textes viennent de Vinted : jamais d'innerHTML.
+    function showListing(detail) {
+        const listing = detail.listing;
+        document.title = listing.title;
+        listingTitle.textContent = listing.title;
+        listingPrice.textContent = priceOf(listing.price);
+        vintedLink.href = listing.url;
+        presence.textContent = listing.present ? 'Présente dans le dressing.'
+            : 'Absente du dressing, vue pour la dernière fois le ' + dateOf(detail.lastSeenAt) + '.';
+        noReading.hidden = detail.statisticsHistory.length > 0;
+        history.hidden = detail.statisticsHistory.length === 0;
+        history.tBodies[0].replaceChildren(...detail.statisticsHistory.map(reading => {
+            const row = document.createElement('tr');
+            row.append(cell(dateOf(reading.readAt)), cell(String(reading.viewCount)),
+                cell(String(reading.favouriteCount)));
+            return row;
+        }));
+        listingSection.hidden = false;
+    }
+
+    // Vrai si l'annonce est connue : sa sauvegarde se lit ensuite.
+    async function loadListing() {
+        if (!listingId) {
+            tell(UNKNOWN_LISTING_MESSAGE);
+            return false;
+        }
+        try {
+            const response = await fetch('/api/listings/' + encodeURIComponent(listingId));
+            // 400 : identifiant invalide dans l'adresse de la page ; 404 : annonce inconnue.
+            if (response.status === 404 || response.status === 400) {
+                tell(UNKNOWN_LISTING_MESSAGE);
+                return false;
+            }
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            showListing(await response.json());
+            return true;
+        } catch (unreachable) {
+            tell(APPLICATION_DOWN_MESSAGE);
+            return false;
+        }
+    }
+
     async function load() {
         try {
             const response = await fetch('/api/listings/' + encodeURIComponent(listingId) + '/backup');
-            // 400 : identifiant absent ou invalide dans l'adresse de la page.
-            if (response.status === 404 || response.status === 400) {
-                tell('Aucune sauvegarde pour cette annonce.');
+            if (response.status === 404) {
+                notBackedUp.hidden = false;
                 return;
             }
             if (!response.ok) {
@@ -419,7 +497,7 @@
     cancelRepublicationButton.addEventListener('click', () => republicationConfirmation.hidden = true);
     confirmRepublicationButton.addEventListener('click', () =>
         send('/republication', {savedAt: current.savedAt}, republicationRefusalOf));
-    load();
+    loadListing().then(known => known && load());
 </script>
 </body>
 </html>

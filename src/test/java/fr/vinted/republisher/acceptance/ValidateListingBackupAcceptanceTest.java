@@ -1,13 +1,11 @@
 package fr.vinted.republisher.acceptance;
 
-import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.domain.backup.BackupFixtures;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupVerification;
-import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupView;
 import fr.vinted.republisher.domain.backup.ListingReading;
@@ -16,7 +14,6 @@ import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoAltered;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PriceChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.TitleChanged;
-import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -25,7 +22,10 @@ import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
-import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.domain.inventory.InventoryCriteria;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 
 import java.math.BigDecimal;
@@ -33,7 +33,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
@@ -59,8 +59,8 @@ class ValidateListingBackupAcceptanceTest {
             new ShowListingBackup(listings, listingBackups, photos, validations);
     private final ValidateListingBackup validateListingBackup =
             new ValidateListingBackup(listings, listingBackups, photos, validations, clock);
-    private final ShowBackup showBackup = new ShowBackup(new VintedSession(), new LastBackupProblem(),
-            new InMemoryWardrobeBackupRepository(), listingBackups, validations);
+    private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
+            new InMemoryListingStatisticsRepository(), listingBackups, validations);
 
     @Test
     void preview_shows_a_verified_backup() {
@@ -89,7 +89,8 @@ class ValidateListingBackupAcceptanceTest {
         // Et la page du dressing affiche « validée le … » pour cette annonce
         assertThat(validated.validatedAt()).contains(NOW);
         assertThat(showListingBackup.show(LISTING).validatedAt()).contains(NOW);
-        assertThat(showBackup.show().validatedAt()).containsExactlyEntriesOf(Map.of(LISTING, NOW));
+        assertThat(showListingInventory.show(InventoryCriteria.defaults())).extracting(InventoryEntry::validatedAt)
+                .containsExactly(Optional.of(NOW));
     }
 
     @Test
@@ -176,7 +177,8 @@ class ValidateListingBackupAcceptanceTest {
         aKeptBackup(NOW, "front");
         // Alors l'annonce n'est plus validée
         assertThat(showListingBackup.show(LISTING).validatedAt()).isEmpty();
-        assertThat(showBackup.show().validatedAt()).isEmpty();
+        assertThat(showListingInventory.show(InventoryCriteria.defaults())).extracting(InventoryEntry::validatedAt)
+                .containsExactly(Optional.empty());
     }
 
     @Test

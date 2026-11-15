@@ -43,9 +43,8 @@ public class WardrobeConfiguration {
     }
 
     @Bean
-    ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, ListingRepository listings,
-                              ListingStatisticsRepository statistics, WardrobeScanRepository scans) {
-        return new ShowWardrobe(session, lastProblem, listings, statistics, scans);
+    ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeScanRepository scans) {
+        return new ShowWardrobe(session, lastProblem, scans);
     }
 
     @Bean

@@ -88,6 +88,16 @@ class JpaListingStatisticsRepositoryTest {
         assertThat(statistics.findLatest()).containsExactly(aReading(999, 1, 0, FIRST_SCAN));
     }
 
+    @Test
+    void history_of_a_listing_is_every_reading_of_it_most_recent_first() {
+        statistics.addAll(List.of(aReading(1, 12, 3, FIRST_SCAN), aReading(2, 4, 1, FIRST_SCAN)));
+        statistics.addAll(List.of(aReading(1, 15, 3, NEXT_SCAN)));
+
+        assertThat(statistics.historyOf(new VintedListingId(1)))
+                .containsExactly(aReading(1, 15, 3, NEXT_SCAN), aReading(1, 12, 3, FIRST_SCAN));
+        assertThat(statistics.historyOf(new VintedListingId(3))).isEmpty();
+    }
+
     private static StatisticsReading aReading(long listing, int views, int favourites, Instant readAt) {
         return new StatisticsReading(new VintedListingId(listing), new ListingStatistics(views, favourites), readAt);
     }

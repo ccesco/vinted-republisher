@@ -8,6 +8,9 @@ import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScanRepository;
 import org.junit.jupiter.api.Tag;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.domain.inventory.InventoryCriteria;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
@@ -47,7 +50,8 @@ class ListingPersistenceAcceptanceTest {
             WardrobeOverview overview = restarted.getBean(ShowWardrobe.class).show();
 
             // Alors l'inventaire et la date du dernier scan restent affichés
-            assertThat(overview.listings()).containsExactly(scanned);
+            assertThat(restarted.getBean(ShowListingInventory.class).show(InventoryCriteria.defaults()))
+                    .extracting(InventoryEntry::listing).containsExactly(scanned);
             assertThat(overview.lastScanAt()).contains(FINISHED_AT);
         }
     }

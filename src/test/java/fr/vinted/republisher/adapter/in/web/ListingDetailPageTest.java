@@ -7,6 +7,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.WaitUntilState;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
@@ -30,11 +31,24 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * The static page of a listing's backup in the installed Chrome, against a simulated API answering as the
- * contract says: never the real application nor Vinted.
+ * The static page of a listing (its detail, then its backup) in the installed Chrome, against a simulated API
+ * answering as the contract says: never the real application nor Vinted.
  */
 @Tag("browser")
-class ListingBackupPageTest {
+class ListingDetailPageTest {
+
+    private static final String DETAIL = """
+            {"listing": {"vintedId": 3, "title": "Pull <b>rayé</b>", "price": {"amount": 12.5, "currency": "EUR"},
+                         "url": "https://vinted.test/items/3", "present": true},
+             "lastSeenAt": "2026-11-03T09:00:00Z",
+             "statisticsHistory": [
+               {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
+               {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}]}""";
+    private static final String NEVER_READ = """
+            {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
+                         "url": "https://vinted.test/items/3", "present": true},
+             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": []}""";
+    private static final String ABSENT = NEVER_READ.replace("\"present\": true", "\"present\": false");
 
     private static final String VERIFIED = """
             {"vintedId": 3, "savedAt": "2026-11-10T10:00:00Z", "deletionDryRun": true,
@@ -63,6 +77,9 @@ class ListingBackupPageTest {
     private static Browser chrome;
 
     private HttpServer fakeApi;
+    private final AtomicReference<String> detail = new AtomicReference<>(DETAIL);
+    private final AtomicInteger detailStatus = new AtomicInteger(200);
+    private final List<String> backupReads = new CopyOnWriteArrayList<>();
     private final AtomicReference<String> backup = new AtomicReference<>(VERIFIED);
     private final AtomicInteger backupStatus = new AtomicInteger(200);
     private final AtomicInteger validationStatus = new AtomicInteger(200);
@@ -93,14 +110,19 @@ class ListingBackupPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/listing-backup.html", exchange -> {
-            try (InputStream html = getClass().getResourceAsStream("/static/listing-backup.html")) {
+        fakeApi.createContext("/listing.html", exchange -> {
+            try (InputStream html = getClass().getResourceAsStream("/static/listing.html")) {
                 respond(exchange, 200, "text/html; charset=utf-8", html.readAllBytes());
             }
         });
-        fakeApi.createContext("/api/listings/abc/backup", exchange -> respond(exchange, 400, "text/plain", new byte[0]));
-        fakeApi.createContext("/api/listings/3/backup", exchange ->
-                respond(exchange, backupStatus.get(), "application/json", bytes(backup.get())));
+        fakeApi.createContext("/api/listings/abc", exchange -> respond(exchange, 400, "text/plain", new byte[0]));
+        fakeApi.createContext("/api/listings/999", exchange -> respond(exchange, 404, "text/plain", new byte[0]));
+        fakeApi.createContext("/api/listings/3", exchange ->
+                respond(exchange, detailStatus.get(), "application/json", bytes(detail.get())));
+        fakeApi.createContext("/api/listings/3/backup", exchange -> {
+            backupReads.add(exchange.getRequestMethod());
+            respond(exchange, backupStatus.get(), "application/json", bytes(backup.get()));
+        });
         fakeApi.createContext("/api/listings/3/backup/photos/", exchange ->
                 respond(exchange, 200, "image/png", new byte[]{(byte) 0x89, 'P', 'N', 'G'}));
         fakeApi.createContext("/api/listings/3/backup/validation", exchange -> {
@@ -218,28 +240,97 @@ class ListingBackupPageTest {
     }
 
     @Test
-    void listing_without_backup_says_so() {
+    void shows_listing_history_and_backup() {
+        // Étant donné l'annonce 3 présente, relevée à 5 vues et 1 favori le 1er novembre puis 12 vues et 3 favoris
+        //   le 2, et sauvegardée
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit son titre, son prix, son lien Vinted et sa présence
+        assertThat(page.locator("#listing-title")).hasText("Pull <b>rayé</b>");
+        assertThat(page.locator("#listing-price")).containsText("12,50");
+        assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Voir sur Vinted")))
+                .hasAttribute("href", "https://vinted.test/items/3");
+        assertThat(page.locator("#presence")).hasText("Présente dans le dressing.");
+        //   et les relevés du 2 (12 vues, 3 favoris) puis du 1er (5 vues, 1 favori)
+        assertThat(historyRows()).hasCount(2);
+        assertThat(historyRows().nth(0).locator("td")).hasText(new String[]{"02/11/2026 10:00:00", "12", "3"});
+        assertThat(historyRows().nth(1).locator("td")).hasText(new String[]{"01/11/2026 10:00:00", "5", "1"});
+        assertThat(page.locator("#no-reading")).isHidden();
+        //   et la section de sa sauvegarde
+        assertThat(verification()).containsText("Vérification réussie");
+        assertThat(page.locator("#not-backed-up")).isHidden();
+    }
+
+    @Test
+    void listing_never_read_nor_backed_up() {
+        // Étant donné l'annonce 3 présente, jamais relevée ni sauvegardée
+        detail.set(NEVER_READ);
         backupStatus.set(404);
         backup.set("");
-
+        // Quand le membre ouvre sa fiche
         open();
-
-        assertThat(problem()).containsText("Aucune sauvegarde");
-        assertThat(validateButton()).isHidden();
+        // Alors il voit « Aucun relevé » et « Non sauvegardée », sans bouton
+        assertThat(page.locator("#no-reading")).hasText("Aucun relevé");
+        assertThat(page.locator("#history")).isHidden();
+        assertThat(page.locator("#not-backed-up")).hasText("Non sauvegardée");
+        assertThat(page.locator("#backup")).isHidden();
+        assertThat(problem()).isHidden();
+        assertThat(page.getByRole(AriaRole.BUTTON)).hasCount(0);
     }
 
     @Test
-    void unknown_listing_identifier_says_there_is_no_backup() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/listing-backup.html?id=abc");
-
-        assertThat(problem()).containsText("Aucune sauvegarde");
+    void absent_listing() {
+        // Étant donné l'annonce 3 vue au scan du 3 novembre puis absente
+        detail.set(ABSENT);
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit « absente du dressing, vue pour la dernière fois le 03/11/2026 »
+        assertThat(page.locator("#presence")).containsText("Absente du dressing, vue pour la dernière fois le 03/11/2026");
     }
 
     @Test
-    void links_back_to_the_wardrobe() {
+    void unknown_listing() {
+        // Quand le membre ouvre listing.html?id=999, ou listing.html sans identifiant, ou avec un identifiant invalide
+        // Alors il voit « Annonce inconnue. » et le lien de retour à la liste
+        for (String query : List.of("?id=999", "", "?id=abc")) {
+            page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/listing.html" + query);
+
+            assertThat(problem()).hasText("Annonce inconnue.");
+            assertThat(page.locator("#listing")).isHidden();
+            assertThat(page.locator("#backup")).isHidden();
+            assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour à la liste")))
+                    .hasAttribute("href", "wardrobe.html");
+        }
+    }
+
+    @Test
+    void shows_the_title_as_text_never_as_html() {
         open();
 
-        assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour au dressing")))
+        assertThat(page.locator("#listing-title")).hasText("Pull <b>rayé</b>");
+        assertThat(page.locator("#listing-title b")).hasCount(0);
+        assertThat(page).hasTitle("Pull <b>rayé</b>");
+    }
+
+    @Test
+    void application_down_shows_neither_the_listing_nor_its_backup() {
+        // Étant donné la base indisponible
+        detailStatus.set(500);
+        detail.set("");
+        // Quand le membre ouvre la fiche
+        open();
+        // Alors il voit « L'application ne répond pas » et rien de l'annonce, sans lire sa sauvegarde
+        assertThat(problem()).containsText("L'application ne répond pas");
+        assertThat(page.locator("#listing")).isHidden();
+        assertThat(page.locator("#backup")).isHidden();
+        assertThat(backupReads).isEmpty();
+    }
+
+    @Test
+    void links_back_to_the_list() {
+        open();
+
+        assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour à la liste")))
                 .hasAttribute("href", "wardrobe.html");
     }
 
@@ -603,12 +694,18 @@ class ListingBackupPageTest {
         }
     }
 
+    /** The page reads the listing, then its backup: both are read once it returns. */
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/listing-backup.html?id=3");
+        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/listing.html?id=3",
+                new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
     }
 
     private Locator verification() {
         return page.locator("#verification");
+    }
+
+    private Locator historyRows() {
+        return page.locator("#history tbody tr");
     }
 
     private Locator failures() {

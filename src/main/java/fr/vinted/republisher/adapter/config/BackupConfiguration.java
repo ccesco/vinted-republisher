@@ -47,9 +47,8 @@ public class BackupConfiguration {
 
     @Bean
     ShowBackup showBackup(VintedSession session, LastBackupProblem lastBackupProblem,
-                          WardrobeBackupRepository backups, ListingBackupRepository listingBackups,
-                          BackupValidationRepository validations) {
-        return new ShowBackup(session, lastBackupProblem, backups, listingBackups, validations);
+                          WardrobeBackupRepository backups) {
+        return new ShowBackup(session, lastBackupProblem, backups);
     }
 
     @Bean
