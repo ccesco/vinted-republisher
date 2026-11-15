@@ -1,6 +1,6 @@
 # US-14 – États d'une annonce en cours de traitement
 
-**Statut** : brouillon
+**Statut** : validée
 **Priorité** : MVP
 **Dépend de** : US-08 (validation), US-09 (suppression), US-11 (délai), US-12 (republication, en cours), US-18 et US-18b (liste et fiche, PR #12) ; prépare US-16, US-17, US-19, US-20, US-21, US-23
 
@@ -177,7 +177,7 @@ Test : `ListingDetailPageTest.shows_the_stage()`
 - Journal des changements d'étape (US-23).
 
 ## Décisions
-- Prises par Claude sur délégation de l'utilisateur (« fait comme tu le penses », 2026-11-15), soumises à sa validation avec la spec :
+- Prises par Claude sur délégation de l'utilisateur (« fait comme tu le penses », 2026-11-15), validées par l'utilisateur avec la spec (2026-11-15) :
   - Étape déduite des faits en base, jamais stockée : une seule source de vérité, rien à resynchroniser, survit aux redémarrages (base de la reprise d'US-16). Les transitions sont déjà gardées par les refus d'US-08, US-09 et US-12 ; US-14 n'en ajoute pas.
   - Neuf étapes et leur ordre de priorité (tableau ci-dessus) ; `GONE` pour une annonce disparue hors outil, sans traitement possible.
   - Nouvelle annonce après republication : annonce ordinaire, donc « À sauvegarder » (décision d'US-12 : nouvelle sauvegarde avant toute future suppression).
