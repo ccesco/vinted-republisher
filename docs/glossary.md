@@ -34,7 +34,14 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ScannedListing` | Annonce lue | Annonce telle que lue sur sa page lors d'un scan, active si sa disponibilité est `InStock`. |
 | `InvalidListing` | Annonce invalide | Annonce lue dont une valeur est inacceptable (identifiant, titre, lien, prix). |
 | `ScanPace` (`PauseRange`) | Rythme du scan | Pauses aléatoires entre deux défilements et entre deux annonces, chacune dans ses bornes configurées. |
-| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date de fin du dernier scan terminé, problème éventuel, annonces présentes et dernier relevé des statistiques de chaque annonce, tels qu'affichés. |
+| `WardrobeOverview` | Aperçu du dressing | Scan en cours, date de fin du dernier scan terminé et problème éventuel, tels qu'affichés ; les annonces sont dans l'inventaire des annonces. |
+| `ListingInventory` (`ShowListingInventory`) | Inventaire des annonces | Toutes les annonces connues, présentes ou absentes, chacune avec son dernier relevé de statistiques, sa sauvegarde actuelle et la date de la validation qui vaut pour elle ; lu en base seulement, filtré, trié et fouillé selon les critères d'affichage. |
+| `InventoryEntry` | Ligne de l'inventaire | Une annonce de l'inventaire avec son dernier relevé, sa sauvegarde actuelle et sa date de validation éventuels. |
+| `InventoryCriteria` | Critères d'affichage | Présence, état de la sauvegarde, recherche, critère et sens du tri demandés par le membre ; par défaut les annonces présentes, les plus récentes d'abord. |
+| `PresenceFilter` (`PRESENT` / `ABSENT` / `ALL`) | Filtre de présence (présentes / absentes / toutes) | Annonces dans le dressing au dernier scan terminé, sorties du dressing, ou les deux. |
+| `BackupFilter` (`ALL` / `NOT_BACKED_UP` / `NOT_VALIDATED` / `VALIDATED`) | Filtre de sauvegarde (toutes / non sauvegardées / sauvegardées non validées / validées) | État de la sauvegarde actuelle ; seule une validation de cette version compte. |
+| `InventorySort` (`RECENCY` / `TITLE` / `PRICE` / `VIEWS` / `FAVOURITES` / `SAVED_AT`) et `SortDirection` (`ASC` / `DESC`) | Tri (mise en ligne / titre / prix / vues / favoris / date de sauvegarde) et sens | Une annonce sans la valeur triée finit la liste quel que soit le sens ; à égalité, la plus récente d'abord. Mise en ligne = identifiant Vinted, le plus haut étant le plus récent. |
+| `SearchText` | Texte cherché | Titre ou recherche sans casse, accents ni espaces autour : la recherche trouve le titre qui le contient. |
 | `ListingContent` | Contenu d'une annonce | Tous les champs du formulaire de mise en vente sauf les photos, tels que lus sur Vinted : de quoi republier l'annonce sans rien ressaisir. |
 | `FormOption` / `FormOptions` | Option du formulaire | Choix unique (catégorie, marque, état, taille, format du colis) ou multiple (couleurs, matières) : identifiant Vinted, qui sert à republier, et libellé affiché, vide si le formulaire ne l'affiche pas. |
 | `CategoryDetails` | Détails propres à la catégorie | Champs que le formulaire ne demande que dans certaines catégories : ISBN, titre du livre, auteur, fabricant, modèle, mesures. |
@@ -47,7 +54,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `PhotoStorage` | Rangement des photos | Fichiers des photos sous `APP_DATA_DIR/photos/<annonce>/<SHA-256>.<extension>`, écrits une fois et jamais modifiés ; relus tels quels pour la vérification et l'aperçu (absent ou illisible = manquant). |
 | `WardrobeBackup` (`BackUpWardrobe`) | Sauvegarde du dressing | Lecture du formulaire de modification et des photos de la page publique de chaque annonce présente, uniquement sur demande ; persistée avec ses dates de début et de fin, elle reste non terminée après un échec et se reprend à la sauvegarde suivante. |
 | `BackupPace` | Rythme de la sauvegarde | Pause aléatoire entre deux pages ouvertes par la sauvegarde, dans ses bornes configurées. |
-| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée, problème éventuel, date de sauvegarde et nombre de photos gardées de chaque annonce, date de validation de chaque annonce dont la sauvegarde actuelle est validée. |
+| `BackupOverview` | Aperçu de la sauvegarde | Sauvegarde en cours, date de fin de la dernière terminée et problème éventuel ; la sauvegarde de chaque annonce est dans l'inventaire des annonces. |
 | `BackupProblem` | Problème de sauvegarde | Raison affichée quand une sauvegarde n'a pas abouti : navigateur indisponible, Vinted inaccessible, session non connectée, annonce illisible, échec de la sauvegarde. |
 | `LastBackupProblem` | Problème de la dernière sauvegarde | Problème affiché jusqu'à la sauvegarde suivante, conservé en mémoire seulement. |
 | `ListingUnreadable` | Annonce illisible | Formulaire sans données de l'annonce, champ obligatoire absent ou invalide, ou attribut de code inconnu. |

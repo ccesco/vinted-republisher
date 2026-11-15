@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 
 import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -35,23 +36,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Tag("browser")
 class WardrobePageTest {
 
-    private static final String EMPTY = "{\"scanInProgress\": false, \"listings\": []}";
+    private static final String IDLE = "{\"scanInProgress\": false, \"backupInProgress\": false}";
+    private static final String SCANNED = """
+            {"scanInProgress": false, "backupInProgress": false, "lastScanAt": "2026-11-06T10:15:30Z"}""";
+    private static final String NO_LISTING = "{\"listings\": []}";
     private static final String TWO_LISTINGS = """
-            {"scanInProgress": false, "lastScanAt": "2026-11-06T10:15:30Z", "listings": [
+            {"listings": [
               {"vintedId": 2, "title": "Pull <b>rayé</b>", "price": {"amount": 12.5, "currency": "EUR"},
-               "url": "https://vinted.test/items/2"},
+               "url": "https://vinted.test/items/2", "present": true},
               {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
-               "url": "https://vinted.test/items/1"}]}""";
+               "url": "https://vinted.test/items/1", "present": false}]}""";
 
     private static Playwright playwright;
     private static Browser chrome;
 
     private HttpServer fakeApi;
-    private final AtomicReference<String> overview = new AtomicReference<>(EMPTY);
-    private final AtomicReference<String> launchAnswer = new AtomicReference<>(EMPTY);
+    private final AtomicReference<String> overview = new AtomicReference<>(IDLE);
+    private final AtomicReference<String> inventory = new AtomicReference<>(NO_LISTING);
+    private final AtomicReference<String> launchAnswer = new AtomicReference<>(IDLE);
     private final AtomicBoolean applicationDown = new AtomicBoolean();
     private final List<String> launchedScans = new CopyOnWriteArrayList<>();
     private final List<String> launchedBackups = new CopyOnWriteArrayList<>();
+    private final List<String> listingQueries = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -74,13 +80,10 @@ class WardrobePageTest {
                 respond(exchange, 200, "text/html; charset=utf-8", html.readAllBytes());
             }
         });
-        fakeApi.createContext("/api/wardrobe", exchange -> {
-            if (applicationDown.get()) {
-                exchange.sendResponseHeaders(500, -1);
-                exchange.close();
-            } else {
-                respond(exchange, 200, "application/json", overview.get().getBytes(StandardCharsets.UTF_8));
-            }
+        fakeApi.createContext("/api/wardrobe", exchange -> answer(exchange, overview.get()));
+        fakeApi.createContext("/api/listings", exchange -> {
+            listingQueries.add(exchange.getRequestURI().getRawQuery());
+            answer(exchange, inventory.get());
         });
         fakeApi.createContext("/api/wardrobe/scan", exchange -> {
             launchedScans.add(exchange.getRequestMethod());
@@ -101,31 +104,69 @@ class WardrobePageTest {
     }
 
     @Test
-    void shows_the_inventory_and_offers_to_scan() {
-        // Étant donné un inventaire de deux annonces
-        overview.set(TWO_LISTINGS);
+    void shows_listing_table_and_requests_chosen_criteria() {
+        // Étant donné une API qui renvoie deux annonces, dont une au titre "<b>gras</b>"
+        overview.set(SCANNED);
+        inventory.set(TWO_LISTINGS);
 
-        // Quand j'ouvre la page du dressing
+        // Quand le membre ouvre wardrobe.html
         open();
 
-        // Alors je vois la date du scan, le nombre d'annonces, leur titre, leur prix et leur lien
-        // Et un bouton "Scanner"
-        assertThat(summary()).containsText("2 annonces");
-        assertThat(summary()).containsText("06/11/2026");
+        // Alors il voit un tableau de deux lignes avec titre, prix, vues, favoris, présence, sauvegarde et validation
+        //   et le titre affiché tel quel
+        assertThat(page.locator("#listings thead th")).hasText(new String[]{
+                "Titre", "Prix", "Vues", "Favoris", "Présence", "Sauvegarde", "Validation"});
         assertThat(rows()).hasCount(2);
+        assertThat(listingCount()).hasText("2 annonces");
+        assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
         assertThat(rows().nth(0)).containsText("12,50");
+        assertThat(cell(1, PRESENCE)).hasText("absente");
+        assertThat(cell(0, PRESENCE)).hasText("");
         Locator link = page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Bonnet"));
         assertThat(link).hasAttribute("href", "https://vinted.test/items/1");
-        assertThat(button()).isVisible();
+        assertThat(listingQueries).contains("presence=PRESENT&backup=ALL&sort=RECENCY&direction=DESC");
+
+        // Quand il choisit « toutes », « validées », tape "pull" et trie par vues croissantes
+        page.locator("#presence").selectOption("ALL");
+        page.locator("#backup-filter").selectOption("VALIDATED");
+        page.locator("#sort").selectOption("VIEWS");
+        page.locator("#direction").selectOption("ASC");
+        page.locator("#search").fill("pull");
+
+        // Alors la page demande GET /api/listings?presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC
+        page.waitForCondition(() -> listingQueries.contains(
+                "presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC"));
     }
 
     @Test
-    void shows_a_title_as_text_never_as_html() {
-        overview.set(TWO_LISTINGS);
+    void shows_the_answer_to_the_last_criteria() {
+        open();
+        assertThat(listingCount()).hasText("0 annonce");
+
+        inventory.set(TWO_LISTINGS);
+        page.locator("#presence").selectOption("ALL");
+
+        assertThat(rows()).hasCount(2);
+    }
+
+    @Test
+    void says_when_the_list_is_unavailable() {
+        open();
+
+        applicationDown.set(true);
+        page.locator("#presence").selectOption("ALL");
+
+        assertThat(page.locator("#listings-problem")).hasText("Liste indisponible.");
+    }
+
+    @Test
+    void shows_the_date_of_the_last_scan_and_offers_to_scan() {
+        overview.set(SCANNED);
 
         open();
 
-        assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
+        assertThat(summary()).containsText("06/11/2026");
+        assertThat(button()).isVisible();
     }
 
     @Test
@@ -149,7 +190,7 @@ class WardrobePageTest {
     @Test
     void shows_the_scan_launched_from_the_answer_to_the_request() {
         open();
-        launchAnswer.set("{\"scanInProgress\": true, \"listings\": []}");
+        launchAnswer.set("{\"scanInProgress\": true, \"backupInProgress\": false}");
 
         button().click();
 
@@ -158,12 +199,13 @@ class WardrobePageTest {
     }
 
     @Test
-    void follows_a_scan_in_progress_until_done() {
-        overview.set("{\"scanInProgress\": true, \"listings\": []}");
+    void follows_a_scan_in_progress_until_done_and_reads_the_list_again() {
+        overview.set("{\"scanInProgress\": true, \"backupInProgress\": false}");
         open();
         assertThat(progress()).isVisible();
 
-        overview.set(TWO_LISTINGS);
+        inventory.set(TWO_LISTINGS);
+        overview.set(SCANNED);
 
         assertThat(rows()).hasCount(2, new LocatorAssertions.HasCountOptions().setTimeout(5000));
         assertThat(progress()).isHidden();
@@ -172,7 +214,7 @@ class WardrobePageTest {
 
     @Test
     void explains_an_unreadable_wardrobe() {
-        overview.set("{\"scanInProgress\": false, \"problem\": \"WARDROBE_UNREADABLE\", \"listings\": []}");
+        overview.set("{\"scanInProgress\": false, \"problem\": \"WARDROBE_UNREADABLE\"}");
 
         open();
 
@@ -182,7 +224,7 @@ class WardrobePageTest {
 
     @Test
     void explains_an_unreachable_vinted() {
-        overview.set("{\"scanInProgress\": false, \"problem\": \"VINTED_UNREACHABLE\", \"listings\": []}");
+        overview.set("{\"scanInProgress\": false, \"problem\": \"VINTED_UNREACHABLE\"}");
 
         open();
 
@@ -191,7 +233,7 @@ class WardrobePageTest {
 
     @Test
     void explains_an_unavailable_browser() {
-        overview.set("{\"scanInProgress\": false, \"problem\": \"BROWSER_UNAVAILABLE\", \"listings\": []}");
+        overview.set("{\"scanInProgress\": false, \"problem\": \"BROWSER_UNAVAILABLE\"}");
 
         open();
 
@@ -200,7 +242,7 @@ class WardrobePageTest {
 
     @Test
     void explains_a_failed_scan() {
-        overview.set("{\"scanInProgress\": false, \"problem\": \"SCAN_FAILED\", \"listings\": []}");
+        overview.set("{\"scanInProgress\": false, \"problem\": \"SCAN_FAILED\"}");
 
         open();
 
@@ -214,7 +256,7 @@ class WardrobePageTest {
         open();
         assertThat(problem()).containsText("L'application ne répond pas");
 
-        overview.set(TWO_LISTINGS);
+        inventory.set(TWO_LISTINGS);
         applicationDown.set(false);
 
         assertThat(rows()).hasCount(2, new LocatorAssertions.HasCountOptions().setTimeout(5000));
@@ -225,21 +267,22 @@ class WardrobePageTest {
     void shows_backup_state() {
         // Étant donné une annonce sauvegardée et une annonce jamais sauvegardée
         overview.set("""
-                {"scanInProgress": false, "backupInProgress": false, "lastBackupAt": "2026-11-07T11:02:10Z",
-                 "listings": [
+                {"scanInProgress": false, "backupInProgress": false, "lastBackupAt": "2026-11-07T11:02:10Z"}""");
+        inventory.set("""
+                {"listings": [
                   {"vintedId": 2, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
-                   "url": "https://vinted.test/items/2", "savedAt": "2026-11-07T10:31:45Z",
+                   "url": "https://vinted.test/items/2", "present": true, "savedAt": "2026-11-07T10:31:45Z",
                    "photoCount": 3},
                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
-                   "url": "https://vinted.test/items/1"}]}""");
+                   "url": "https://vinted.test/items/1", "present": true}]}""");
         // Quand j'ouvre la page du dressing
         open();
         // Alors je vois la date de sauvegarde de la première et « non sauvegardée » pour la seconde
         // Et je vois la date de la dernière sauvegarde terminée et le bouton « Sauvegarder »
-        assertThat(rows().nth(0)).containsText("sauvegardée le 07/11/2026");
+        assertThat(cell(0, BACKUP)).containsText("sauvegardée le 07/11/2026");
         // Et le nombre de photos gardées de la première (AT-06-11)
-        assertThat(rows().nth(0)).containsText("· 3 photos");
-        assertThat(rows().nth(1)).containsText("non sauvegardée");
+        assertThat(cell(0, BACKUP)).containsText("· 3 photos");
+        assertThat(cell(1, BACKUP)).hasText("non sauvegardée");
         assertThat(backupSummary()).containsText("Dernière sauvegarde terminée le 07/11/2026");
         assertThat(backupButton()).isVisible();
     }
@@ -247,48 +290,41 @@ class WardrobePageTest {
     @Test
     void shows_statistics() {
         // Étant donné une annonce dont le dernier relevé est 12 vues et 3 favoris, et une annonce jamais relevée
-        overview.set("""
-                {"scanInProgress": false, "backupInProgress": false,
-                 "listings": [
+        inventory.set("""
+                {"listings": [
                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
-                   "url": "https://vinted.test/items/3",
+                   "url": "https://vinted.test/items/3", "present": true,
                    "statistics": {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-07T10:05:00Z"}},
-                  {"vintedId": 2, "title": "Jupe", "price": {"amount": 4, "currency": "EUR"},
-                   "url": "https://vinted.test/items/2",
-                   "statistics": {"viewCount": 1, "favouriteCount": 1, "readAt": "2026-11-07T10:05:00Z"}},
-                  {"vintedId": 4, "title": "Robe", "price": {"amount": 6, "currency": "EUR"},
-                   "url": "https://vinted.test/items/4",
-                   "statistics": {"viewCount": 0, "favouriteCount": 0, "readAt": "2026-11-07T10:05:00Z"}},
                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
-                   "url": "https://vinted.test/items/1"}]}""");
+                   "url": "https://vinted.test/items/1", "present": true}]}""");
         // Quand j'ouvre la page du dressing
         open();
-        // Alors je vois « 12 vues · 3 favoris » pour la première, et rien pour la seconde
-        assertThat(rows().nth(0)).containsText("12 vues · 3 favoris");
-        assertThat(rows().nth(1)).containsText("1 vue · 1 favori");
-        assertThat(rows().nth(2)).containsText("0 vue · 0 favori –");
-        assertThat(rows().nth(3)).not().containsText("vue");
-        assertThat(rows().nth(3)).not().containsText("favori");
+        // Alors je vois 12 vues et 3 favoris pour la première, avec la date du relevé, et rien pour la seconde
+        assertThat(cell(0, VIEWS)).hasText("12");
+        assertThat(cell(0, FAVOURITES)).hasText("3");
+        assertThat(cell(0, VIEWS)).hasAttribute("title", Pattern.compile("Relevé le 07/11/2026.*"));
+        assertThat(cell(1, VIEWS)).hasText("");
+        assertThat(cell(1, FAVOURITES)).hasText("");
     }
 
     @Test
     void shows_validation() {
         // Étant donné une annonce sauvegardée et validée, et une autre sauvegardée non validée, et une jamais sauvegardée
-        overview.set("""
-                {"scanInProgress": false, "backupInProgress": false,
-                 "listings": [
+        inventory.set("""
+                {"listings": [
                    {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
-                    "url": "https://vinted.test/items/3", "savedAt": "2026-11-07T10:00:00Z", "photoCount": 2,
-                    "validatedAt": "2026-11-08T09:00:00Z"},
+                    "url": "https://vinted.test/items/3", "present": true, "savedAt": "2026-11-07T10:00:00Z",
+                    "photoCount": 2, "validatedAt": "2026-11-08T09:00:00Z"},
                    {"vintedId": 2, "title": "Jupe", "price": {"amount": 4, "currency": "EUR"},
-                    "url": "https://vinted.test/items/2", "savedAt": "2026-11-07T10:00:00Z", "photoCount": 1},
+                    "url": "https://vinted.test/items/2", "present": true, "savedAt": "2026-11-07T10:00:00Z",
+                    "photoCount": 1},
                    {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
-                    "url": "https://vinted.test/items/1"}]}""");
+                    "url": "https://vinted.test/items/1", "present": true}]}""");
         // Quand j'ouvre la page du dressing
         open();
         // Alors le dressing affiche « Voir la sauvegarde » pour les deux sauvegardées et « validée le … » pour la première
-        assertThat(rows().nth(0)).containsText("validée le 08/11/2026");
-        assertThat(rows().nth(1)).not().containsText("validée");
+        assertThat(cell(0, VALIDATION)).containsText("validée le 08/11/2026");
+        assertThat(cell(1, VALIDATION)).hasText("");
         assertThat(rows().nth(0).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
                 .hasAttribute("href", "listing-backup.html?id=3");
         assertThat(rows().nth(1).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Voir la sauvegarde")))
@@ -316,13 +352,13 @@ class WardrobePageTest {
 
     @Test
     void follows_a_backup_in_progress_until_done_without_offering_another_action() {
-        overview.set("{\"scanInProgress\": false, \"backupInProgress\": true, \"listings\": []}");
+        overview.set("{\"scanInProgress\": false, \"backupInProgress\": true}");
         open();
         assertThat(backupProgress()).isVisible();
         assertThat(backupButton()).isHidden();
         assertThat(button()).isHidden();
 
-        overview.set(TWO_LISTINGS);
+        overview.set(IDLE);
 
         assertThat(backupProgress()).isHidden(new LocatorAssertions.IsHiddenOptions().setTimeout(5000));
         assertThat(backupButton()).isVisible();
@@ -332,7 +368,7 @@ class WardrobePageTest {
     @Test
     void explains_a_disconnected_session() {
         overview.set("{\"scanInProgress\": false, \"backupInProgress\": false, "
-                + "\"backupProblem\": \"SESSION_DISCONNECTED\", \"listings\": []}");
+                + "\"backupProblem\": \"SESSION_DISCONNECTED\"}");
 
         open();
 
@@ -343,11 +379,26 @@ class WardrobePageTest {
     @Test
     void explains_an_unreadable_listing() {
         overview.set("{\"scanInProgress\": false, \"backupInProgress\": false, "
-                + "\"backupProblem\": \"LISTING_UNREADABLE\", \"listings\": []}");
+                + "\"backupProblem\": \"LISTING_UNREADABLE\"}");
 
         open();
 
         assertThat(backupProblem()).containsText("Une annonce est illisible");
+    }
+
+    private static final int VIEWS = 2;
+    private static final int FAVOURITES = 3;
+    private static final int PRESENCE = 4;
+    private static final int BACKUP = 5;
+    private static final int VALIDATION = 6;
+
+    private void answer(HttpExchange exchange, String json) throws IOException {
+        if (applicationDown.get()) {
+            exchange.sendResponseHeaders(500, -1);
+            exchange.close();
+        } else {
+            respond(exchange, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
+        }
     }
 
     private Locator backupSummary() {
@@ -374,6 +425,10 @@ class WardrobePageTest {
         return page.locator("#wardrobe-summary");
     }
 
+    private Locator listingCount() {
+        return page.locator("#listing-count");
+    }
+
     private Locator progress() {
         return page.locator("#scan-progress");
     }
@@ -383,7 +438,11 @@ class WardrobePageTest {
     }
 
     private Locator rows() {
-        return page.locator("#listings li");
+        return page.locator("#listings tbody tr");
+    }
+
+    private Locator cell(int row, int column) {
+        return rows().nth(row).locator("td").nth(column);
     }
 
     private Locator button() {

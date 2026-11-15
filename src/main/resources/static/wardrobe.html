@@ -14,7 +14,57 @@
 <p id="backup-progress" hidden>Sauvegarde en cours…</p>
 <p id="backup-problem" role="alert" hidden></p>
 <p><button id="backup" type="button" hidden>Sauvegarder</button></p>
-<ul id="listings"></ul>
+<h2>Annonces</h2>
+<p>
+    <label>Présence
+        <select id="presence">
+            <option value="PRESENT" selected>Présentes</option>
+            <option value="ABSENT">Absentes</option>
+            <option value="ALL">Toutes</option>
+        </select>
+    </label>
+    <label>Sauvegarde
+        <select id="backup-filter">
+            <option value="ALL" selected>Toutes</option>
+            <option value="NOT_BACKED_UP">Non sauvegardées</option>
+            <option value="NOT_VALIDATED">Sauvegardées non validées</option>
+            <option value="VALIDATED">Validées</option>
+        </select>
+    </label>
+    <label>Recherche <input id="search" type="search" maxlength="100"></label>
+    <label>Tri
+        <select id="sort">
+            <option value="RECENCY" selected>Mise en ligne</option>
+            <option value="TITLE">Titre</option>
+            <option value="PRICE">Prix</option>
+            <option value="VIEWS">Vues</option>
+            <option value="FAVOURITES">Favoris</option>
+            <option value="SAVED_AT">Date de sauvegarde</option>
+        </select>
+    </label>
+    <label>Sens
+        <select id="direction">
+            <option value="DESC" selected>Décroissant</option>
+            <option value="ASC">Croissant</option>
+        </select>
+    </label>
+</p>
+<p id="listing-count"></p>
+<p id="listings-problem" role="alert" hidden>Liste indisponible.</p>
+<table id="listings">
+    <thead>
+    <tr>
+        <th scope="col">Titre</th>
+        <th scope="col">Prix</th>
+        <th scope="col">Vues</th>
+        <th scope="col">Favoris</th>
+        <th scope="col">Présence</th>
+        <th scope="col">Sauvegarde</th>
+        <th scope="col">Validation</th>
+    </tr>
+    </thead>
+    <tbody></tbody>
+</table>
 <script>
     // Codes du contrat OpenAPI (ScanProblem) -> libellés affichés.
     const PROBLEM_MESSAGES = {
@@ -33,16 +83,27 @@
     };
     const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
     const POLL_INTERVAL_MS = 2000;
+    const SEARCH_DELAY_MS = 300;
 
     const summary = document.getElementById('wardrobe-summary');
     const progress = document.getElementById('scan-progress');
     const problemMessage = document.getElementById('wardrobe-problem');
     const scanButton = document.getElementById('scan');
-    const listings = document.getElementById('listings');
     const backupSummary = document.getElementById('backup-summary');
     const backupProgress = document.getElementById('backup-progress');
     const backupProblem = document.getElementById('backup-problem');
     const backupButton = document.getElementById('backup');
+    const rows = document.querySelector('#listings tbody');
+    const listingCount = document.getElementById('listing-count');
+    const listingsProblem = document.getElementById('listings-problem');
+    // Ordre des paramètres de GET /api/listings, chacun lu dans la commande du même nom.
+    const CRITERIA = {
+        presence: document.getElementById('presence'),
+        backup: document.getElementById('backup-filter'),
+        search: document.getElementById('search'),
+        sort: document.getElementById('sort'),
+        direction: document.getElementById('direction')
+    };
 
     // Application arrêtée ou en erreur : on réessaie jusqu'à ce qu'elle réponde.
     async function refresh() {
@@ -59,59 +120,22 @@
         }
     }
 
+    function dateOf(instant) {
+        return new Date(instant).toLocaleString('fr-FR');
+    }
+
     function summaryOf(overview) {
         if (!overview.lastScanAt) {
             return "Aucun scan terminé pour l'instant.";
         }
-        const count = overview.listings.length;
-        const date = new Date(overview.lastScanAt).toLocaleString('fr-FR');
-        return `${count} annonce${count > 1 ? 's' : ''}, dernier scan le ${date}.`;
+        return `Dernier scan terminé le ${dateOf(overview.lastScanAt)}.`;
     }
 
     function backupSummaryOf(overview) {
         if (!overview.lastBackupAt) {
             return "Aucune sauvegarde terminée pour l'instant.";
         }
-        return `Dernière sauvegarde terminée le ${new Date(overview.lastBackupAt).toLocaleString('fr-FR')}.`;
-    }
-
-    function backupStateOf(listing) {
-        if (!listing.savedAt) {
-            return 'non sauvegardée';
-        }
-        const saved = 'sauvegardée le ' + new Date(listing.savedAt).toLocaleString('fr-FR');
-        const photos = listing.photoCount
-            ? ` · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}` : '';
-        const validated = listing.validatedAt
-            ? ' · validée le ' + new Date(listing.validatedAt).toLocaleString('fr-FR') : '';
-        return saved + photos + validated;
-    }
-
-    function statisticsOf(listing) {
-        if (!listing.statistics) {
-            return '';
-        }
-        const {viewCount, favouriteCount} = listing.statistics;
-        return `${viewCount} ${viewCount > 1 ? 'vues' : 'vue'} · ${favouriteCount} ${favouriteCount > 1 ? 'favoris' : 'favori'} – `;
-    }
-
-    // Titres et liens viennent de Vinted : jamais d'innerHTML.
-    function rowOf(listing) {
-        const link = document.createElement('a');
-        link.href = listing.url;
-        link.rel = 'noopener noreferrer';
-        link.textContent = listing.title;
-        const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
-            .format(listing.price.amount);
-        const row = document.createElement('li');
-        row.append(link, ' – ' + price + ' – ' + statisticsOf(listing) + backupStateOf(listing));
-        if (listing.savedAt) {
-            const preview = document.createElement('a');
-            preview.href = 'listing-backup.html?id=' + encodeURIComponent(listing.vintedId);
-            preview.textContent = 'Voir la sauvegarde';
-            row.append(' – ', preview);
-        }
-        return row;
+        return `Dernière sauvegarde terminée le ${dateOf(overview.lastBackupAt)}.`;
     }
 
     function show(overview) {
@@ -127,14 +151,99 @@
         backupProblem.hidden = !overview.backupProblem;
         problemMessage.textContent = PROBLEM_MESSAGES[overview.problem] ?? '';
         problemMessage.hidden = !overview.problem;
-        listings.replaceChildren(...overview.listings.map(rowOf));
     }
 
+    // La liste est relue à chaque aperçu : pendant un scan elle se remplit, à sa fin elle est à jour.
     function follow(overview) {
         show(overview);
+        loadListings();
         if (overview.scanInProgress || overview.backupInProgress) {
             setTimeout(refresh, POLL_INTERVAL_MS);
         }
+    }
+
+    function criteriaQuery() {
+        const query = new URLSearchParams();
+        for (const [name, control] of Object.entries(CRITERIA)) {
+            const value = control.value.trim();
+            if (value) {
+                query.append(name, value);
+            }
+        }
+        return query.toString();
+    }
+
+    // Seule la réponse à la dernière demande s'affiche : une réponse lente ne remplace pas une plus récente.
+    let lastRequest = 0;
+
+    async function loadListings() {
+        const request = ++lastRequest;
+        try {
+            const response = await fetch('/api/listings?' + criteriaQuery());
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const inventory = await response.json();
+            if (request === lastRequest) {
+                showListings(inventory.listings);
+            }
+        } catch (unavailable) {
+            if (request === lastRequest) {
+                listingsProblem.hidden = false;
+            }
+        }
+    }
+
+    function showListings(listings) {
+        listingsProblem.hidden = true;
+        listingCount.textContent = `${listings.length} annonce${listings.length > 1 ? 's' : ''}`;
+        rows.replaceChildren(...listings.map(rowOf));
+    }
+
+    function cell(...content) {
+        const td = document.createElement('td');
+        td.append(...content);
+        return td;
+    }
+
+    function statisticCell(listing, count) {
+        const td = cell(listing.statistics ? String(count(listing.statistics)) : '');
+        if (listing.statistics) {
+            td.title = 'Relevé le ' + dateOf(listing.statistics.readAt);
+        }
+        return td;
+    }
+
+    function backupCell(listing) {
+        if (!listing.savedAt) {
+            return cell('non sauvegardée');
+        }
+        const photos = listing.photoCount
+            ? ` · ${listing.photoCount} ${listing.photoCount > 1 ? 'photos' : 'photo'}` : '';
+        const preview = document.createElement('a');
+        preview.href = 'listing-backup.html?id=' + encodeURIComponent(listing.vintedId);
+        preview.textContent = 'Voir la sauvegarde';
+        return cell('sauvegardée le ' + dateOf(listing.savedAt) + photos + ' – ', preview);
+    }
+
+    // Titres et liens viennent de Vinted : jamais d'innerHTML.
+    function rowOf(listing) {
+        const link = document.createElement('a');
+        link.href = listing.url;
+        link.rel = 'noopener noreferrer';
+        link.textContent = listing.title;
+        const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
+            .format(listing.price.amount);
+        const row = document.createElement('tr');
+        row.append(
+            cell(link),
+            cell(price),
+            statisticCell(listing, statistics => statistics.viewCount),
+            statisticCell(listing, statistics => statistics.favouriteCount),
+            cell(listing.present ? '' : 'absente'),
+            backupCell(listing),
+            cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''));
+        return row;
     }
 
     // La réponse donne l'action lancée ; en cas d'échec, refresh affiche le problème.
@@ -152,6 +261,14 @@
         }
     }
 
+    let searchTimer;
+    CRITERIA.search.addEventListener('input', () => {
+        clearTimeout(searchTimer);
+        searchTimer = setTimeout(loadListings, SEARCH_DELAY_MS);
+    });
+    for (const control of [CRITERIA.presence, CRITERIA.backup, CRITERIA.sort, CRITERIA.direction]) {
+        control.addEventListener('change', loadListings);
+    }
     scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
     backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
     refresh();
