@@ -20,11 +20,17 @@ import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.domain.inventory.InventoryCriteria;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.stream.LongStream;
@@ -54,7 +60,9 @@ class ScanWardrobeAcceptanceTest {
             new PauseRange(MINIMUM_PAUSE, MAXIMUM_PAUSE), new Random(42));
     private final ScanWardrobe scanWardrobe =
             new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, pace, clock, RIGHT_AWAY);
-    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, listings, statistics, scans);
+    private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, scans);
+    private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics,
+            new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository());
 
     @Test
     void scan_records_every_active_listing() {
@@ -101,7 +109,8 @@ class ScanWardrobeAcceptanceTest {
         // Et la seconde reste en base, marquée absente
         // Et elle n'apparaît plus dans la liste
         assertThat(listings.findAll()).containsExactly(Listing.seen(cheaper, NOW), missing.absent());
-        assertThat(showWardrobe.show().listings()).containsExactly(Listing.seen(cheaper, NOW));
+        assertThat(showListingInventory.show(InventoryCriteria.defaults())).extracting(InventoryEntry::listing)
+                .containsExactly(Listing.seen(cheaper, NOW));
     }
 
     @Test
@@ -272,7 +281,8 @@ class ScanWardrobeAcceptanceTest {
         // Et la page du dressing affiche « 15 vues · 3 favoris »
         Instant nextDay = NOW.plus(Duration.ofDays(1));
         assertThat(statistics.readings()).containsExactly(aReading(1, 12, 3, NOW), aReading(1, 15, 3, nextDay));
-        assertThat(showWardrobe.show().latestStatistics()).containsExactly(aReading(1, 15, 3, nextDay));
+        assertThat(showListingInventory.show(InventoryCriteria.defaults())).extracting(InventoryEntry::statistics)
+                .containsExactly(Optional.of(aReading(1, 15, 3, nextDay)));
     }
 
     @Test

@@ -18,6 +18,8 @@ tags:
     description: Suppression d'une annonce sur Vinted et mode dry-run (US-09, US-10)
   - name: listing-republication
     description: Republication d'une annonce supprimée depuis sa sauvegarde, et son dry-run (US-12)
+  - name: listing-inventory
+    description: Liste de toutes les annonces, filtrée, triée et fouillée (US-18)
 paths:
   /api/vinted-session:
     get:
@@ -121,6 +123,53 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WardrobeOverview'
+  /api/listings:
+    get:
+      tags: [listing-inventory]
+      operationId: showListingInventory
+      summary: Liste des annonces
+      description: >
+        Toutes les annonces connues de l'outil qui répondent aux critères, triées ; sans pagination.
+        Lit les données conservées, sans accéder à Vinted.
+      parameters:
+        - name: presence
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PresenceFilter'
+        - name: backup
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/BackupFilter'
+        - name: search
+          in: query
+          required: false
+          description: >
+            Texte cherché dans le titre, sans tenir compte de la casse ni des accents ; espaces autour ignorés,
+            vide = pas de recherche.
+          schema:
+            type: string
+            maxLength: 100
+        - name: sort
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/InventorySort'
+        - name: direction
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/SortDirection'
+      responses:
+        '200':
+          description: Annonces retenues, dans l'ordre demandé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingInventory'
+        '400':
+          description: Valeur de critère inconnue, ou recherche de plus de 100 caractères.
   /api/listings/{listingId}/backup:
     get:
       tags: [listing-backup]
@@ -403,7 +452,7 @@ components:
     WardrobeOverview:
       type: object
       description: Aperçu du dressing ; un champ absent signifie « aucun ».
-      required: [scanInProgress, backupInProgress, listings]
+      required: [scanInProgress, backupInProgress]
       properties:
         scanInProgress:
           type: boolean
@@ -423,16 +472,21 @@ components:
           description: Date de fin de la dernière sauvegarde terminée ; absente si aucune n'est terminée.
         backupProblem:
           $ref: '#/components/schemas/BackupProblem'
-        listings:
-          type: array
-          description: Annonces présentes, les plus récentes d'abord ; pendant un scan, peut mêler anciennes et nouvelles valeurs.
-          items:
-            $ref: '#/components/schemas/Listing'
       example:
         scanInProgress: false
         lastScanAt: '2026-11-06T10:15:30Z'
         backupInProgress: false
         lastBackupAt: '2026-11-07T11:02:10Z'
+    ListingInventory:
+      type: object
+      description: Annonces qui répondent aux critères, dans l'ordre demandé.
+      required: [listings]
+      properties:
+        listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/Listing'
+      example:
         listings:
           - vintedId: 90000000001
             title: Pull rayé
@@ -440,16 +494,43 @@ components:
               amount: 1.5
               currency: EUR
             url: https://www.vinted.fr/items/90000000001-pull-raye
+            present: true
             savedAt: '2026-11-07T10:31:45Z'
             photoCount: 3
             statistics:
               viewCount: 12
               favouriteCount: 3
               readAt: '2026-11-07T10:05:00Z'
+    PresenceFilter:
+      type: string
+      description: >
+        Présence dans le dressing : présentes (défaut), absentes (plus vues au dernier scan terminé), toutes.
+      enum: [PRESENT, ABSENT, ALL]
+      default: PRESENT
+    BackupFilter:
+      type: string
+      description: >
+        État de la sauvegarde : toutes (défaut), jamais sauvegardées, sauvegardées dont la sauvegarde actuelle n'est
+        pas validée, sauvegarde actuelle validée.
+      enum: [ALL, NOT_BACKED_UP, NOT_VALIDATED, VALIDATED]
+      default: ALL
+    InventorySort:
+      type: string
+      description: >
+        Critère de tri : ordre de mise en ligne (identifiant Vinted, défaut), titre, prix, vues, favoris, date de
+        sauvegarde. Une annonce sans la valeur triée finit la liste quel que soit le sens ; à égalité, la plus récente
+        d'abord.
+      enum: [RECENCY, TITLE, PRICE, VIEWS, FAVOURITES, SAVED_AT]
+      default: RECENCY
+    SortDirection:
+      type: string
+      description: Sens du tri, décroissant par défaut.
+      enum: [ASC, DESC]
+      default: DESC
     Listing:
       type: object
-      description: Annonce active du dressing.
-      required: [vintedId, title, price, url]
+      description: Annonce connue de l'outil.
+      required: [vintedId, title, price, url, present]
       properties:
         vintedId:
           type: integer
@@ -463,6 +544,9 @@ components:
           type: string
           format: uri
           description: Adresse de l'annonce sur Vinted.
+        present:
+          type: boolean
+          description: Vrai si l'annonce était dans le dressing au dernier scan terminé ; fausse, elle est absente.
         savedAt:
           type: string
           format: date-time

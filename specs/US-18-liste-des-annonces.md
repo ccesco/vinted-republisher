@@ -1,5 +1,5 @@
 # US-18 – Liste complète des annonces (filtres, tri, recherche, vues et likes)
-**Statut** : brouillon
+**Statut** : validée
 **Priorité** : MVP
 **Dépend de** : US-04 (inventaire), US-05/US-06 (sauvegarde), US-07 (vues et favoris), US-08 (validation)
 

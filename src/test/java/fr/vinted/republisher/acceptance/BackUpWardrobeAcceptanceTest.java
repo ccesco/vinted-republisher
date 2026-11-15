@@ -16,7 +16,6 @@ import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
-import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
@@ -62,8 +61,7 @@ class BackUpWardrobeAcceptanceTest {
     private final BackUpWardrobe backUpWardrobe =
             new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, photos, pace,
                     clock, RIGHT_AWAY);
-    private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups, listingBackups,
-            new InMemoryBackupValidationRepository());
+    private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups);
 
     @Test
     void backup_saves_the_content_of_every_present_listing() {

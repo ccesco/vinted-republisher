@@ -3,11 +3,9 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.domain.backup.BackupProblem;
-import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
-import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
@@ -15,10 +13,6 @@ import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
-import fr.vinted.republisher.domain.wardrobe.Listing;
-import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
-import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
-import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
@@ -41,10 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.Executor;
 
-import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
-import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
-import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -67,12 +58,6 @@ class WardrobeApiControllerTest {
     private LastScanProblem lastProblem;
 
     @Autowired
-    private InMemoryListingRepository listings;
-
-    @Autowired
-    private InMemoryListingStatisticsRepository statistics;
-
-    @Autowired
     private InMemoryWardrobeScanRepository scans;
 
     @Autowired
@@ -87,32 +72,33 @@ class WardrobeApiControllerTest {
     @Autowired
     private InMemoryWardrobeBackupRepository backups;
 
-    @Autowired
-    private InMemoryListingBackupRepository listingBackups;
-
-    @Autowired
-    private InMemoryBackupValidationRepository validations;
-
     @Test
     void empty_wardrobe_has_no_date_and_no_problem() {
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .hasStatusOk()
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false, \"listings\": []}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false}");
     }
 
     @Test
-    void shows_the_inventory_and_the_date_of_the_last_scan() {
-        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+    void shows_the_date_of_the_last_scan() {
         scans.save(WardrobeScan.startedAt(SCANNED_AT.minusSeconds(60)).finished(SCANNED_AT));
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
                         {"scanInProgress": false, "backupInProgress": false,
-                         "lastScanAt": "2026-11-06T10:15:30Z",
-                         "listings": [{"vintedId": 17, "title": "Pull rayé",
-                                       "price": {"amount": 1.50, "currency": "EUR"},
-                                       "url": "https://vinted.test/items/17"}]}""");
+                         "lastScanAt": "2026-11-06T10:15:30Z"}""");
+    }
+
+    @Test
+    void shows_the_date_of_the_last_backup() {
+        backups.save(WardrobeBackup.startedAt(SAVED_AT).finished(SAVED_AT.plusSeconds(60)));
+
+        assertThat(mvc.get().uri("/api/wardrobe"))
+                .hasStatusOk()
+                .bodyJson().isStrictlyEqualTo("""
+                        {"scanInProgress": false, "backupInProgress": false,
+                         "lastBackupAt": "2026-11-07T10:01:00Z"}""");
     }
 
     @Test
@@ -121,14 +107,14 @@ class WardrobeApiControllerTest {
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .bodyJson().isStrictlyEqualTo(
-                        "{\"scanInProgress\": false, \"backupInProgress\": false, \"problem\": \"VINTED_UNREACHABLE\", \"listings\": []}");
+                        "{\"scanInProgress\": false, \"backupInProgress\": false, \"problem\": \"VINTED_UNREACHABLE\"}");
     }
 
     @Test
     void scan_answers_with_the_scan_in_progress_and_runs_it_in_the_background() {
         assertThat(mvc.post().uri("/api/wardrobe/scan"))
                 .hasStatus(202)
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": true, \"backupInProgress\": false, \"listings\": []}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": true, \"backupInProgress\": false}");
         assertThat(reader.reads()).isZero();
 
         background.runPendingTasks();
@@ -142,7 +128,7 @@ class WardrobeApiControllerTest {
 
         assertThat(mvc.post().uri("/api/wardrobe/scan"))
                 .hasStatus(202)
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false, \"listings\": []}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false}");
         assertThat(background.pendingTasks).isEmpty();
     }
 
@@ -176,74 +162,20 @@ class WardrobeApiControllerTest {
     }
 
     @Test
-    void shows_the_latest_statistics_of_each_listing() {
-        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
-                Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
-        statistics.addAll(List.of(
-                new StatisticsReading(new VintedListingId(17), new ListingStatistics(12, 3), SCANNED_AT.minusSeconds(60)),
-                new StatisticsReading(new VintedListingId(17), new ListingStatistics(15, 4), SCANNED_AT)));
-
-        assertThat(mvc.get().uri("/api/wardrobe"))
-                .hasStatusOk()
-                .bodyJson().isStrictlyEqualTo("""
-                        {"scanInProgress": false, "backupInProgress": false,
-                         "listings": [{"vintedId": 18, "title": "Jupe",
-                                       "price": {"amount": 3.00, "currency": "EUR"},
-                                       "url": "https://vinted.test/items/18"},
-                                      {"vintedId": 17, "title": "Pull rayé",
-                                       "price": {"amount": 1.50, "currency": "EUR"},
-                                       "url": "https://vinted.test/items/17",
-                                       "statistics": {"viewCount": 15, "favouriteCount": 4,
-                                                      "readAt": "%s"}}]}""".formatted(SCANNED_AT));
-    }
-
-    @Test
-    void shows_the_backup_date_of_each_listing_and_of_the_last_backup() {
-        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
-                Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
-        listingBackups.save(aBackup(17, SAVED_AT));
-        backups.save(WardrobeBackup.startedAt(SAVED_AT).finished(SAVED_AT.plusSeconds(60)));
-
-        assertThat(mvc.get().uri("/api/wardrobe"))
-                .hasStatusOk()
-                .bodyJson().isStrictlyEqualTo("""
-                        {"scanInProgress": false, "backupInProgress": false,
-                         "lastBackupAt": "2026-11-07T10:01:00Z",
-                         "listings": [{"vintedId": 18, "title": "Jupe",
-                                       "price": {"amount": 3.00, "currency": "EUR"},
-                                       "url": "https://vinted.test/items/18"},
-                                      {"vintedId": 17, "title": "Pull rayé",
-                                       "price": {"amount": 1.50, "currency": "EUR"},
-                                       "url": "https://vinted.test/items/17",
-                                       "savedAt": "2026-11-07T10:00:00Z", "photoCount": 1}]}""");
-    }
-
-    @Test
-    void shows_the_validation_date_of_each_validated_listing() {
-        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
-        listingBackups.save(aBackup(17, SAVED_AT));
-        validations.save(BackupValidation.of(aBackup(17, SAVED_AT), SAVED_AT.plusSeconds(3600)));
-
-        assertThat(mvc.get().uri("/api/wardrobe"))
-                .hasStatusOk()
-                .bodyJson().extractingPath("$.listings[0].validatedAt").isEqualTo("2026-11-07T11:00:00Z");
-    }
-
-    @Test
     void shows_the_problem_of_the_last_backup() {
         lastBackupProblem.report(BackupProblem.SESSION_DISCONNECTED);
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .bodyJson().isStrictlyEqualTo("""
                         {"scanInProgress": false, "backupInProgress": false,
-                         "backupProblem": "SESSION_DISCONNECTED", "listings": []}""");
+                         "backupProblem": "SESSION_DISCONNECTED"}""");
     }
 
     @Test
     void backup_answers_with_the_backup_in_progress_and_runs_it_in_the_background() {
         assertThat(mvc.post().uri("/api/wardrobe/backup"))
                 .hasStatus(202)
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": true, \"listings\": []}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": true}");
         assertThat(background.pendingTasks).hasSize(1);
 
         background.runPendingTasks();
@@ -322,9 +254,8 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
-        ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryListingRepository listings,
-                                  InMemoryListingStatisticsRepository statistics, InMemoryWardrobeScanRepository scans) {
-            return new ShowWardrobe(session, lastProblem, listings, statistics, scans);
+        ShowWardrobe showWardrobe(VintedSession session, LastScanProblem lastProblem, InMemoryWardrobeScanRepository scans) {
+            return new ShowWardrobe(session, lastProblem, scans);
         }
 
         @Bean
@@ -352,15 +283,9 @@ class WardrobeApiControllerTest {
         }
 
         @Bean
-        InMemoryBackupValidationRepository validations() {
-            return new InMemoryBackupValidationRepository();
-        }
-
-        @Bean
         ShowBackup showBackup(VintedSession session, LastBackupProblem lastBackupProblem,
-                              InMemoryWardrobeBackupRepository backups, InMemoryListingBackupRepository listingBackups,
-                              InMemoryBackupValidationRepository validations) {
-            return new ShowBackup(session, lastBackupProblem, backups, listingBackups, validations);
+                              InMemoryWardrobeBackupRepository backups) {
+            return new ShowBackup(session, lastBackupProblem, backups);
         }
 
         @Bean

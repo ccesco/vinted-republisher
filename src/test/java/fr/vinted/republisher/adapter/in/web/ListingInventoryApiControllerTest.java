@@ -1,0 +1,172 @@
+package fr.vinted.republisher.adapter.in.web;
+
+import fr.vinted.republisher.adapter.in.web.api.model.BackupFilterDto;
+import fr.vinted.republisher.adapter.in.web.api.model.InventorySortDto;
+import fr.vinted.republisher.adapter.in.web.api.model.PresenceFilterDto;
+import fr.vinted.republisher.adapter.in.web.api.model.SortDirectionDto;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.domain.backup.BackupValidation;
+import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.inventory.BackupFilter;
+import fr.vinted.republisher.domain.inventory.InventorySort;
+import fr.vinted.republisher.domain.inventory.PresenceFilter;
+import fr.vinted.republisher.domain.inventory.SortDirection;
+import fr.vinted.republisher.domain.wardrobe.Listing;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
+import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Bean;
+import org.springframework.test.annotation.DirtiesContext;
+import org.springframework.test.web.servlet.assertj.MockMvcTester;
+
+import java.time.Instant;
+import java.util.Arrays;
+import java.util.List;
+
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
+import static org.assertj.core.api.Assertions.assertThat;
+
+/** US-18: the API answers as described by the OpenAPI contract. */
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_EACH_TEST_METHOD)
+@WebMvcTest(ListingInventoryApiController.class)
+class ListingInventoryApiControllerTest {
+
+    private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:15:30Z");
+    private static final Instant SAVED_AT = Instant.parse("2026-11-07T10:00:00Z");
+
+    @Autowired
+    private MockMvcTester mvc;
+
+    @Autowired
+    private InMemoryListingRepository listings;
+
+    @Autowired
+    private InMemoryListingStatisticsRepository statistics;
+
+    @Autowired
+    private InMemoryListingBackupRepository backups;
+
+    @Autowired
+    private InMemoryBackupValidationRepository validations;
+
+    @Test
+    void empty_inventory_has_no_listing() {
+        assertThat(mvc.get().uri("/api/listings"))
+                .hasStatusOk()
+                .bodyJson().isStrictlyEqualTo("{\"listings\": []}");
+    }
+
+    @Test
+    void shows_each_listing_with_its_statistics_backup_and_validation() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
+                Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
+        statistics.addAll(List.of(
+                new StatisticsReading(new VintedListingId(17), new ListingStatistics(12, 3), SCANNED_AT.minusSeconds(60)),
+                new StatisticsReading(new VintedListingId(17), new ListingStatistics(15, 4), SCANNED_AT)));
+        ListingBackup backup = ListingBackup.of(
+                new ListingReading(aContent(17), List.of(aPhoto("A"), aPhoto("B"), aPhoto("C"))), SAVED_AT);
+        backups.save(backup);
+        validations.save(BackupValidation.of(backup, SAVED_AT.plusSeconds(3600)));
+
+        assertThat(mvc.get().uri("/api/listings"))
+                .hasStatusOk()
+                .bodyJson().isStrictlyEqualTo("""
+                        {"listings": [{"vintedId": 18, "title": "Jupe",
+                                       "price": {"amount": 3.00, "currency": "EUR"},
+                                       "url": "https://vinted.test/items/18", "present": true},
+                                      {"vintedId": 17, "title": "Pull rayé",
+                                       "price": {"amount": 1.50, "currency": "EUR"},
+                                       "url": "https://vinted.test/items/17", "present": true,
+                                       "savedAt": "2026-11-07T10:00:00Z", "photoCount": 3,
+                                       "validatedAt": "2026-11-07T11:00:00Z",
+                                       "statistics": {"viewCount": 15, "favouriteCount": 4,
+                                                      "readAt": "2026-11-06T10:15:30Z"}}]}""");
+    }
+
+    @Test
+    void backup_kept_before_photos_has_no_photo_count() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+        backups.save(new ListingBackup(aContent(17), List.of(), SAVED_AT));
+
+        assertThat(mvc.get().uri("/api/listings"))
+                .bodyJson().doesNotHavePath("$.listings[0].photoCount");
+    }
+
+    @Test
+    void passes_the_criteria_to_the_inventory() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT).absent(),
+                Listing.seen(aListing(18, "Pull bleu", "3", ACTIVE), SCANNED_AT).absent(),
+                Listing.seen(aListing(19, "Jupe", "2", ACTIVE), SCANNED_AT).absent()));
+
+        assertThat(mvc.get().uri("/api/listings?presence=ABSENT&backup=NOT_BACKED_UP&search=PULL&sort=PRICE&direction=ASC"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listings[*].vintedId").isEqualTo(List.of(17, 18));
+    }
+
+    @Test
+    void rejects_unknown_values_and_too_long_search() {
+        // Quand la page demande GET /api/listings?sort=COLOUR
+        // Alors la réponse est 400
+        assertThat(mvc.get().uri("/api/listings?sort=COLOUR")).hasStatus(400);
+        // Quand elle demande une recherche de 101 caractères
+        // Alors la réponse est 400
+        assertThat(mvc.get().uri("/api/listings?search=" + "a".repeat(101))).hasStatus(400);
+        assertThat(mvc.get().uri("/api/listings?search=" + "a".repeat(100))).hasStatusOk();
+    }
+
+    @Test
+    void contract_knows_every_criterion() {
+        assertThat(names(PresenceFilterDto.values())).containsExactly(names(PresenceFilter.values()));
+        assertThat(names(BackupFilterDto.values())).containsExactly(names(BackupFilter.values()));
+        assertThat(names(InventorySortDto.values())).containsExactly(names(InventorySort.values()));
+        assertThat(names(SortDirectionDto.values())).containsExactly(names(SortDirection.values()));
+    }
+
+    private static String[] names(Enum<?>[] values) {
+        return Arrays.stream(values).map(Enum::name).toArray(String[]::new);
+    }
+
+    @TestConfiguration
+    static class InventoryUseCase {
+
+        @Bean
+        InMemoryListingRepository listings() {
+            return new InMemoryListingRepository();
+        }
+
+        @Bean
+        InMemoryListingStatisticsRepository statistics() {
+            return new InMemoryListingStatisticsRepository();
+        }
+
+        @Bean
+        InMemoryListingBackupRepository backups() {
+            return new InMemoryListingBackupRepository();
+        }
+
+        @Bean
+        InMemoryBackupValidationRepository validations() {
+            return new InMemoryBackupValidationRepository();
+        }
+
+        @Bean
+        ShowListingInventory showListingInventory(InMemoryListingRepository listings,
+                                                  InMemoryListingStatisticsRepository statistics,
+                                                  InMemoryListingBackupRepository backups,
+                                                  InMemoryBackupValidationRepository validations) {
+            return new ShowListingInventory(listings, statistics, backups, validations);
+        }
+    }
+}
