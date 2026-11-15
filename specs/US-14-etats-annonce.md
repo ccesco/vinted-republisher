@@ -1,6 +1,6 @@
 # US-14 – États d'une annonce en cours de traitement
 
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-08 (validation), US-09 (suppression), US-11 (délai), US-12 (republication, en cours), US-18 et US-18b (liste et fiche, PR #12) ; prépare US-16, US-17, US-19, US-20, US-21, US-23
 
@@ -39,13 +39,13 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - Aucun nouveau chemin, aucun nouveau paramètre.
 
 ## Critères d'acceptation
-- [ ] Chaque étape du tableau est déduite de sa condition, dans l'ordre de priorité.
-- [ ] Une suppression `NOT_DONE` est ignorée.
-- [ ] `WAITING` et `TO_REPUBLISH` dépendent de l'heure de lecture et du délai minimal configuré (US-11).
-- [ ] Une validation qui ne porte pas sur la sauvegarde actuelle ne compte pas (`TO_VALIDATE`).
-- [ ] L'API renvoie `stage` pour chaque annonce de la liste et dans la fiche.
-- [ ] La liste affiche la colonne « Étape », avec les étapes « à vérifier » mises en évidence ; la fiche affiche l'étape.
-- [ ] Rien n'est stocké en plus : aucun changement de schéma.
+- [x] Chaque étape du tableau est déduite de sa condition, dans l'ordre de priorité.
+- [x] Une suppression `NOT_DONE` est ignorée.
+- [x] `WAITING` et `TO_REPUBLISH` dépendent de l'heure de lecture et du délai minimal configuré (US-11).
+- [x] Une validation qui ne porte pas sur la sauvegarde actuelle ne compte pas (`TO_VALIDATE`).
+- [x] L'API renvoie `stage` pour chaque annonce de la liste et dans la fiche.
+- [x] La liste affiche la colonne « Étape », avec les étapes « à vérifier » mises en évidence ; la fiche affiche l'étape.
+- [x] Rien n'est stocké en plus : aucun changement de schéma.
 
 ## Tests d'acceptation
 
@@ -165,7 +165,7 @@ Test : `ListingDetailPageTest.shows_the_stage()`
 
 ## Cas limites et erreurs
 - Base indisponible : la liste et la fiche échouent comme aujourd'hui (US-18, US-18b) ; aucune étape partielle.
-- Plusieurs suppressions ou republications pour une annonce : seule la dernière (par date de tentative) compte.
+- Plusieurs suppressions ou republications pour une annonce : seule la dernière (par date de tentative) compte. Deux suppressions de même date (impossible en principe : une à la fois, derrière le verrou du navigateur) ne font pas échouer la liste : celle qui n'est pas « non faite » est la dernière, car seule cette issue permet une nouvelle tentative (proposé à l'implémentation après la revue, 2026-11-15).
 - Republication réussie mais annonce encore marquée présente (scan pas encore refait) : la règle 1 l'emporte, « Republiée ».
 - Annonce absente avec suppression `NOT_DONE` : « Absente de Vinted ».
 

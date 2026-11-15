@@ -2,6 +2,7 @@ package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -10,14 +11,24 @@ import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.time.Instant;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /** Every listing known to the tool, present or not, with what the member needs to choose the ones to handle. */
 public record ListingInventory(List<InventoryEntry> entries) {
+
+    /**
+     * Two attempts clicked at the same instant should not happen (one deletion at a time, behind the browser lock);
+     * if they do, the attempt not found "not done" is the later one, since only that outcome allows a new attempt.
+     */
+    private static final Comparator<ListingDeletion> LATEST_DELETION = Comparator
+            .comparing(ListingDeletion::attemptedAt)
+            .thenComparing(deletion -> deletion.outcome() != DeletionOutcome.NOT_DONE);
 
     public ListingInventory {
         entries = List.copyOf(entries);
@@ -38,7 +49,8 @@ public record ListingInventory(List<InventoryEntry> entries) {
         Map<VintedListingId, BackupValidation> validationOf = validations.stream()
                 .collect(Collectors.toMap(BackupValidation::listingId, Function.identity()));
         Map<VintedListingId, ListingDeletion> deletionOf = deletions.stream()
-                .collect(Collectors.toMap(ListingDeletion::listingId, Function.identity()));
+                .collect(Collectors.toMap(ListingDeletion::listingId, Function.identity(),
+                        BinaryOperator.maxBy(LATEST_DELETION)));
         Map<VintedListingId, ListingRepublication> republicationOf = republications.stream()
                 .collect(Collectors.toMap(ListingRepublication::listingId, Function.identity()));
         return new ListingInventory(listings.stream().map(listing -> {

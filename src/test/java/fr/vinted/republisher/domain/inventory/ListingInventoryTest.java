@@ -1,15 +1,16 @@
 package fr.vinted.republisher.domain.inventory;
 
-import java.time.Duration;
-import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Test;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -133,6 +134,21 @@ class ListingInventoryTest {
 
         assertThat(ids(inventory, sorted(InventorySort.PRICE, SortDirection.ASC))).containsExactly(2L, 1L);
         assertThat(ids(inventory, sorted(InventorySort.PRICE, SortDirection.DESC))).containsExactly(2L, 1L);
+    }
+
+    @Test
+    void two_deletions_clicked_at_the_same_instant_keep_the_one_not_settled_as_not_done() {
+        ListingBackup backup = aBackup(1, SAVED_AT);
+        Instant clickedAt = SAVED_AT.plusSeconds(3600);
+        ListingDeletion notDone = ListingDeletion.attempted(backup, clickedAt).notDone(clickedAt.plusSeconds(60));
+        ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
+
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(backup),
+                List.of(), List.of(notDone, unconfirmed), List.of(), new RepublicationDelay(Duration.ofMinutes(5)),
+                clickedAt);
+
+        assertThat(inventory.entries()).singleElement()
+                .satisfies(entry -> assertThat(entry.stage()).isEqualTo(ListingStage.DELETION_TO_CHECK));
     }
 
     private static Listing present(long id, String title, String price) {
