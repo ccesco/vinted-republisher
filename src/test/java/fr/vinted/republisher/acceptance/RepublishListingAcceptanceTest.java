@@ -199,10 +199,16 @@ class RepublishListingAcceptanceTest {
         Throwable republished = catchThrowable(() ->
                 republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
         assertThat(republished).isInstanceOf(ListingAlreadyRepublished.class);
+        assertThat(vinted.formsOpened()).isEqualTo(formsOpened);
+    }
+
+    @Test
+    void refusesRepublicationInError() {
+        aDeletedListing(Duration.ofMinutes(6));
         republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), NOW));
         Throwable inError = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
         assertThat(inError).isInstanceOf(RepublicationInError.class);
-        assertThat(vinted.formsOpened()).isEqualTo(formsOpened);
+        assertThat(vinted.formsOpened()).isZero();
     }
 
     @Test
@@ -323,7 +329,7 @@ class RepublishListingAcceptanceTest {
         assertThat(vinted.publishClicks()).isEqualTo(1);
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
                 .contains(RepublicationOutcome.FAILED);
-        assertThat(republications.find(LISTING)).map(ListingRepublication::outcome)
+        assertThat(republications.findLatest(LISTING)).map(ListingRepublication::outcome)
                 .contains(RepublicationOutcome.FAILED);
         assertThat(listings.find(NEW_LISTING)).isEmpty();
         assertThat(session.overview().currentAction()).isEmpty();

@@ -6,10 +6,12 @@ import fr.vinted.republisher.adapter.in.web.api.model.RepublicationRefusalDto.Re
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
+import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
+import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
 import fr.vinted.republisher.domain.republication.RepublicationInError;
 import fr.vinted.republisher.domain.republication.RepublicationTooEarly;
@@ -74,6 +76,11 @@ public class ListingRepublicationRefusals {
     }
 
     @ExceptionHandler
+    ResponseEntity<RepublicationRefusalDto> nothingToVerify(NoRepublicationToVerify refusal) {
+        return refused(HttpStatus.CONFLICT, ReasonEnum.NO_REPUBLICATION_TO_VERIFY);
+    }
+
+    @ExceptionHandler
     ResponseEntity<RepublicationRefusalDto> busy(BrowserBusy refusal) {
         return refused(HttpStatus.CONFLICT, ReasonEnum.BROWSER_BUSY);
     }
@@ -112,6 +119,11 @@ public class ListingRepublicationRefusals {
     @ExceptionHandler
     ResponseEntity<RepublicationRefusalDto> formUnreadable(ListingFormUnreadable problem) {
         return failed(ReasonEnum.FORM_UNREADABLE, problem);
+    }
+
+    @ExceptionHandler
+    ResponseEntity<RepublicationRefusalDto> listingUnreadable(ListingUnreadable problem) {
+        return failed(ReasonEnum.LISTING_UNREADABLE, problem);
     }
 
     /** Spring's own refusals of a malformed request, which the generic handler below would turn into failures. */

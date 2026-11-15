@@ -7,6 +7,8 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Repository
 class JpaListingRepublicationRepository implements ListingRepublicationRepository {
@@ -18,13 +20,20 @@ class JpaListingRepublicationRepository implements ListingRepublicationRepositor
     }
 
     @Override
-    public Optional<ListingRepublication> find(VintedListingId listing) {
-        return repository.findByListingId(listing.value()).map(ListingRepublicationJpaEntity::toListingRepublication);
+    public Optional<ListingRepublication> findLatest(VintedListingId listing) {
+        return repository.findFirstByListingIdOrderByAttemptedAtDesc(listing.value())
+                .map(ListingRepublicationJpaEntity::toListingRepublication);
     }
 
     @Override
-    public List<ListingRepublication> findAll() {
-        return repository.findAll().stream().map(ListingRepublicationJpaEntity::toListingRepublication).toList();
+    public Set<VintedListingId> findNewListings() {
+        return repository.findNewListingIds().stream().map(VintedListingId::new)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    @Override
+    public List<ListingRepublication> findAllLatest() {
+        return repository.findAllLatest().stream().map(ListingRepublicationJpaEntity::toListingRepublication).toList();
     }
 
     /** Flushed at once: the attempt must be in the database before Publish is clicked. */

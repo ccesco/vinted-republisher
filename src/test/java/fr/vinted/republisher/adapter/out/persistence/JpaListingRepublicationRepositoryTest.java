@@ -74,7 +74,7 @@ class JpaListingRepublicationRepositoryTest {
 
     @Test
     void nothing_is_found_before_the_first_attempt() {
-        assertThat(republications.find(PUBLISHED_LISTING)).isEmpty();
+        assertThat(republications.findLatest(PUBLISHED_LISTING)).isEmpty();
     }
 
     @Test
@@ -88,9 +88,9 @@ class JpaListingRepublicationRepositoryTest {
         republications.save(failed);
         // Quand l'outil redémarre (rien n'est gardé en mémoire : tout est relu en base)
         // Alors les deux sont relues à l'identique, avec le lien entre ancienne et nouvelle annonce
-        assertThat(republications.find(PUBLISHED_LISTING)).contains(published);
-        assertThat(republications.find(FAILED_LISTING)).contains(failed);
-        assertThat(republications.findAll()).containsExactlyInAnyOrder(published, failed);
+        assertThat(republications.findLatest(PUBLISHED_LISTING)).contains(published);
+        assertThat(republications.findLatest(FAILED_LISTING)).contains(failed);
+        assertThat(republications.findAllLatest()).containsExactlyInAnyOrder(published, failed);
         assertThat(database.queryForObject("SELECT count(*) FROM listing_republication", Long.class)).isEqualTo(2);
     }
 
@@ -101,6 +101,30 @@ class JpaListingRepublicationRepositoryTest {
         assertThatThrownBy(() -> republications.save(
                 ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT.plusSeconds(60))))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void a_listing_checked_not_published_can_be_attempted_again_and_keeps_its_history() {
+        ListingRepublication notPublished = ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT)
+                .notPublished(PROVEN_AT);
+        republications.save(notPublished);
+        ListingRepublication again =
+                ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT.plusSeconds(600));
+        republications.save(again);
+
+        assertThat(republications.findLatest(FAILED_LISTING)).contains(again);
+        assertThat(republications.findAllLatest()).containsExactly(again);
+        assertThat(database.queryForObject("SELECT checked_at FROM listing_republication WHERE id = ?", Instant.class,
+                notPublished.id().value())).isEqualTo(PROVEN_AT);
+    }
+
+    @Test
+    void the_new_listings_of_published_republications_are_found() {
+        ListingRepublication attempt = ListingRepublication.attempted(backupOf(PUBLISHED_LISTING), CLICKED_AT);
+        republications.save(attempt.published(NEW_LISTING, PROVEN_AT));
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT));
+
+        assertThat(republications.findNewListings()).containsExactly(NEW_LISTING);
     }
 
     @Test

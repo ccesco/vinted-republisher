@@ -41,6 +41,9 @@ class ListingRepublicationJpaEntity {
     @Column(name = "new_listing_id")
     private Long newListingId;
 
+    @Column(name = "checked_at")
+    private Instant checkedAt;
+
     protected ListingRepublicationJpaEntity() {
     }
 
@@ -52,11 +55,12 @@ class ListingRepublicationJpaEntity {
         outcome = republication.outcome();
         publishedAt = republication.publishedAt().orElse(null);
         newListingId = republication.newListingId().map(VintedListingId::value).orElse(null);
+        checkedAt = republication.checkedAt().orElse(null);
     }
 
     ListingRepublication toListingRepublication() {
         return new ListingRepublication(new ListingRepublicationId(id), new VintedListingId(listingId), backupSavedAt,
                 attemptedAt, outcome, Optional.ofNullable(publishedAt),
-                Optional.ofNullable(newListingId).map(VintedListingId::new));
+                Optional.ofNullable(newListingId).map(VintedListingId::new), Optional.ofNullable(checkedAt));
     }
 }

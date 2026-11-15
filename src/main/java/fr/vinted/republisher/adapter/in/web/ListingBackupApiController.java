@@ -8,6 +8,8 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingDeletionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.KeptPhotoDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupContentDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupViewDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ListingFieldDifferenceDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ListingFormFieldDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingRepublicationDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RepublicationOutcomeDto;
@@ -28,6 +30,7 @@ import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.ListingFieldDifference;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationReport;
@@ -96,6 +99,9 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .republicationDryRunPassed(republicationReport.dryRunPassed() ? Boolean.TRUE : null)
                 .republication(republicationReport.lastRepublication()
                         .map(republication -> toDto(republication, republicationReport.newListing())).orElse(null))
+                .republicationComparison(republicationReport.comparison()
+                        .map(differences -> differences.stream().map(ListingBackupApiController::toDto).toList())
+                        .orElse(null))
                 .savedAt(view.backup().savedAt().atOffset(ZoneOffset.UTC))
                 .validatedAt(view.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .verification(toDto(view.verification()))
@@ -119,7 +125,13 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .publishedAt(republication.publishedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .newListingId(republication.newListingId().map(VintedListingId::value).orElse(null))
                 .newListingUrl(newListing.map(Listing::url).orElse(null))
-                .backupSavedAt(republication.backupSavedAt().atOffset(ZoneOffset.UTC));
+                .backupSavedAt(republication.backupSavedAt().atOffset(ZoneOffset.UTC))
+                .checkedAt(republication.checkedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null));
+    }
+
+    private static ListingFieldDifferenceDto toDto(ListingFieldDifference difference) {
+        return new ListingFieldDifferenceDto().field(ListingFormFieldDto.valueOf(difference.field().name()))
+                .saved(difference.saved()).read(difference.read());
     }
 
     static BackupVerificationDto toDto(BackupVerification verification) {

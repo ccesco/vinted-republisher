@@ -5,6 +5,7 @@ import fr.vinted.republisher.application.republication.NewListingSearch;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.application.republication.VerifyListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
@@ -13,10 +14,12 @@ import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
@@ -39,9 +42,11 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
+import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
@@ -81,6 +86,9 @@ class ListingRepublicationApiControllerTest {
 
     @Autowired
     private VintedSession session;
+
+    @Autowired
+    private FakeListingContentReader contents;
 
     @Test
     void published_republication_answers_with_its_new_listing() {
@@ -275,6 +283,70 @@ class ListingRepublicationApiControllerTest {
         assertThat(vinted.formsOpened()).isZero();
     }
 
+    @Test
+    void failed_republication_missing_from_vinted_answers_not_published() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+
+        assertThat(verify())
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"vintedId": 1, "republication": {"outcome": "NOT_PUBLISHED",
+                          "attemptedAt": "2026-11-11T10:00:00Z", "checkedAt": "2026-11-11T10:00:00Z"}}""");
+    }
+
+    @Test
+    void published_republication_answers_with_its_comparison() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        listings.saveAll(List.of(Listing.seen(aListing(2, "Pull rayé 1", "12.50", ACTIVE), NOW)));
+        republications.save(ListingRepublication.attempted(backup, NOW).published(new VintedListingId(2), NOW));
+        contents.showing(new ListingReading(aContent(2), List.of(aPhoto("a"), aPhoto("b"))));
+
+        assertThat(verify())
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.republicationComparison").isEqualTo(List.of(
+                        Map.of("field", "PHOTOS", "saved", "1", "read", "2"),
+                        Map.of("field", "TITLE", "saved", "Pull rayé 1", "read", "Pull rayé 2")));
+    }
+
+    @Test
+    void nothing_to_verify_is_a_conflict() {
+        aDeletedListing(Duration.ofMinutes(6));
+
+        assertThat(verify())
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"NO_REPUBLICATION_TO_VERIFY\"}");
+    }
+
+    @Test
+    void unreadable_new_listing_is_a_bad_gateway() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        listings.saveAll(List.of(Listing.seen(aListing(2, "Pull rayé 1", "12.50", ACTIVE), NOW)));
+        republications.save(ListingRepublication.attempted(backup, NOW).published(new VintedListingId(2), NOW));
+        contents.whereFormIsUnreadable(2, "no title");
+
+        assertThat(verify())
+                .hasStatus(502)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"LISTING_UNREADABLE\"}");
+    }
+
+    // AT-13-12
+    @Test
+    void refusesCrossSiteVerification() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+
+        assertThat(mvc.post().uri("/api/listings/1/republication/verification")
+                .header("Origin", "https://example.test"))
+                .hasStatus(403);
+        assertThat(republications.findLatest(new VintedListingId(1))).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.FAILED);
+    }
+
+    private MockMvcTester.MockMvcRequestBuilder verify() {
+        return mvc.post().uri("/api/listings/1/republication/verification");
+    }
+
     private MockMvcTester.MockMvcRequestBuilder republish(String savedAt) {
         return mvc.post().uri("/api/listings/1/republication").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"savedAt\": \"" + savedAt + "\"}");
@@ -369,6 +441,23 @@ class ListingRepublicationApiControllerTest {
                     deletions, republications, new RepublicationDelay(Duration.ofMinutes(5)), clock),
                     republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
                     RepublicationMode.REAL, clock, show);
+        }
+        @Bean
+        FakeListingContentReader contents() {
+            return new FakeListingContentReader();
+        }
+
+        @Bean
+        VerifyListingRepublication verifyListingRepublication(VintedSession session,
+                                                              InMemoryListingBackupRepository listingBackups,
+                                                              InMemoryListingRepublicationRepository republications,
+                                                              InMemoryListingRepository listings,
+                                                              FakeWardrobeReader wardrobe,
+                                                              FakeListingContentReader contents,
+                                                              ShowListingRepublication show) {
+            return new VerifyListingRepublication(session, listingBackups, republications, listings,
+                    new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(),
+                    Clock.fixed(NOW, ZoneOffset.UTC), show);
         }
     }
 }

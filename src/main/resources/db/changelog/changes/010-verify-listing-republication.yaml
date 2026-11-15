@@ -1,0 +1,38 @@
+# US-13 : une republication en erreur se vérifie sur Vinted. Rien trouvé → NOT_PUBLISHED, date de la vérification,
+# et une nouvelle tentative devient possible : plusieurs tentatives par annonce, jamais supprimées, mais au plus une
+# réussie ou en erreur à la fois (pas de doublon sur Vinted).
+databaseChangeLog:
+  - changeSet:
+      id: 010-verify-listing-republication
+      author: vinted-republisher
+      changes:
+        - addColumn:
+            tableName: listing_republication
+            columns:
+              - column: {name: checked_at, type: timestamptz}
+        - dropUniqueConstraint:
+            tableName: listing_republication
+            constraintName: listing_republication_one_per_listing
+        - sql:
+            sql: >
+              ALTER TABLE listing_republication DROP CONSTRAINT listing_republication_outcome_check;
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_outcome_check
+                CHECK (outcome IN ('PUBLISHED', 'FAILED', 'NOT_PUBLISHED')
+                       AND (outcome = 'PUBLISHED') = (published_at IS NOT NULL)
+                       AND (outcome = 'PUBLISHED') = (new_listing_id IS NOT NULL)
+                       AND (outcome = 'NOT_PUBLISHED') = (checked_at IS NOT NULL));
+              CREATE UNIQUE INDEX listing_republication_one_in_force ON listing_republication (listing_id)
+                WHERE outcome IN ('PUBLISHED', 'FAILED');
+      # Le rollback remet « une tentative par annonce » : il échoue tant qu'une annonce en a plusieurs.
+      rollback:
+        - sql:
+            sql: >
+              DROP INDEX listing_republication_one_in_force;
+              ALTER TABLE listing_republication DROP CONSTRAINT listing_republication_outcome_check;
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_outcome_check
+                CHECK (outcome IN ('PUBLISHED', 'FAILED')
+                       AND (outcome = 'PUBLISHED') = (published_at IS NOT NULL)
+                       AND (outcome = 'PUBLISHED') = (new_listing_id IS NOT NULL));
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_one_per_listing
+                UNIQUE (listing_id);
+              ALTER TABLE listing_republication DROP COLUMN checked_at;

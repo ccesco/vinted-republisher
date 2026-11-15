@@ -16,11 +16,12 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Proves a republication: one reading of the wardrobe right after Publish, opening as a scan does only the listings
- * the tool does not know, without waiting or reading again.
+ * Looks for the new listing of a republication with one reading of the wardrobe, opening as a scan does only the
+ * listings that may be it, without waiting or reading again.
  */
 public class NewListingSearch {
 
@@ -34,26 +35,44 @@ public class NewListingSearch {
         this.listings = listings;
     }
 
-    /** The only unknown listing with the saved title and price; empty if there is none or more than one. */
+    /** Right after Publish: the only unknown listing with the saved title and price; empty if none or several. */
     Optional<ScannedListing> find(ListingContent saved) {
-        UnknownListings unknown = new UnknownListings(listings.findAll().stream().map(Listing::id)
-                .collect(Collectors.toUnmodifiableSet()));
-        wardrobe.read(pace, unknown);
-        return ListingRepublication.newListingAmong(unknown.read, saved);
+        Set<VintedListingId> known = listings.findAll().stream().map(Listing::id)
+                .collect(Collectors.toUnmodifiableSet());
+        return ListingRepublication.newListingAmong(read(link -> !known.contains(link.id())), saved);
     }
 
-    private static final class UnknownListings implements WardrobeVisit {
+    /**
+     * Later, to verify a republication: the listings with the saved title and price, among those unknown and those a
+     * scan may have recorded since, leaving out the old listing and the new listings of other republications.
+     */
+    List<ScannedListing> findAgain(ListingContent saved, Set<VintedListingId> otherNewListings) {
+        Set<VintedListingId> unlikely = listings.findAll().stream()
+                .filter(known -> !known.title().equals(saved.title()) || !known.price().equals(saved.price()))
+                .map(Listing::id).collect(Collectors.toSet());
+        unlikely.add(saved.id());
+        unlikely.addAll(otherNewListings);
+        return ListingRepublication.matching(read(link -> !unlikely.contains(link.id())), saved);
+    }
 
-        private final Set<VintedListingId> known;
+    private List<ScannedListing> read(Predicate<ListingLink> toOpen) {
+        Opening opening = new Opening(toOpen);
+        wardrobe.read(pace, opening);
+        return opening.read;
+    }
+
+    private static final class Opening implements WardrobeVisit {
+
+        private final Predicate<ListingLink> toOpen;
         private final List<ScannedListing> read = new ArrayList<>();
 
-        private UnknownListings(Set<VintedListingId> known) {
-            this.known = known;
+        private Opening(Predicate<ListingLink> toOpen) {
+            this.toOpen = toOpen;
         }
 
         @Override
         public List<ListingLink> listingsToOpen(WardrobeListing found) {
-            return found.links().stream().filter(link -> !known.contains(link.id())).toList();
+            return found.links().stream().filter(toOpen).toList();
         }
 
         @Override

@@ -4,6 +4,7 @@ import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -25,17 +26,16 @@ public enum ListingStage {
 
     /**
      * The first rule that applies wins, in the order of the constants. {@code validated} means a validation holds for
-     * the current backup; a deletion found not done counts as no deletion.
+     * the current backup; a deletion found not done, or a republication checked not published, counts as none.
      */
     public static ListingStage of(boolean present, boolean backedUp, boolean validated,
                                   Optional<ListingDeletion> lastDeletion,
-                                  Optional<ListingRepublication> republication, RepublicationDelay delay,
+                                  Optional<ListingRepublication> lastRepublication, RepublicationDelay delay,
                                   Instant now) {
+        Optional<ListingRepublication> republication =
+                lastRepublication.filter(last -> last.outcome() != RepublicationOutcome.NOT_PUBLISHED);
         if (republication.isPresent()) {
-            return switch (republication.get().outcome()) {
-                case PUBLISHED -> REPUBLISHED;
-                case FAILED -> REPUBLICATION_TO_CHECK;
-            };
+            return republication.get().outcome() == RepublicationOutcome.PUBLISHED ? REPUBLISHED : REPUBLICATION_TO_CHECK;
         }
         Optional<ListingDeletion> deletion = lastDeletion.filter(last -> last.outcome() != DeletionOutcome.NOT_DONE);
         if (deletion.isPresent()) {

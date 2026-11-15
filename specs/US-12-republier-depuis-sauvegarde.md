@@ -101,7 +101,7 @@ Test : `RepublishListingAcceptanceTest.refusesMissingOrAlteredPhotos()`
 Quand le membre demande leur republication
 Alors elles sont refusées (ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR) et Chrome n'est pas ouvert
 ```
-Test : `RepublishListingAcceptanceTest.refusesSecondRepublication()`
+Test : `RepublishListingAcceptanceTest.refusesSecondRepublication()`, `RepublishListingAcceptanceTest.refusesRepublicationInError()`
 
 ### AT-12-07 – Champ impossible à remplir
 ```gherkin

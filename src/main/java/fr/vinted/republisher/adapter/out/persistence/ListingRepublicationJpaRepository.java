@@ -1,11 +1,21 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 interface ListingRepublicationJpaRepository extends JpaRepository<ListingRepublicationJpaEntity, UUID> {
 
-    Optional<ListingRepublicationJpaEntity> findByListingId(Long listingId);
+    Optional<ListingRepublicationJpaEntity> findFirstByListingIdOrderByAttemptedAtDesc(Long listingId);
+
+    @Query("select republication from ListingRepublicationJpaEntity republication where republication.attemptedAt = "
+            + "(select max(other.attemptedAt) from ListingRepublicationJpaEntity other"
+            + " where other.listingId = republication.listingId)")
+    List<ListingRepublicationJpaEntity> findAllLatest();
+
+    @Query("select r.newListingId from ListingRepublicationJpaEntity r where r.newListingId is not null")
+    List<Long> findNewListingIds();
 }

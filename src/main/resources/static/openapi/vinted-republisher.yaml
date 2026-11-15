@@ -460,6 +460,54 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RepublicationRefusal'
+  /api/listings/{listingId}/republication/verification:
+    post:
+      tags: [listing-republication]
+      operationId: verifyListingRepublication
+      summary: Vérifier sur Vinted la dernière republication d'une annonce (US-13)
+      description: >
+        Regarde Vinted dans le Chrome piloté, sans jamais cliquer. Une republication en erreur (FAILED) se lève par une
+        lecture du dressing : une seule annonce avec le titre et le prix de la sauvegarde → PUBLISHED, reliée ; aucune
+        → NOT_PUBLISHED, une nouvelle republication redevient possible ; plusieurs → reste FAILED. Une republication
+        réussie (PUBLISHED) est comparée champ par champ à la sauvegarde (republicationComparison), sans rien
+        enregistrer ni corriger. Répond une fois l'action finie.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      responses:
+        '200':
+          description: Aperçu à jour, avec republicationComparison si la nouvelle annonce a été comparée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: >
+            Aucune republication en erreur ou réussie à vérifier, ou autre action navigateur en cours. Chrome n'est
+            pas ouvert.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '500':
+          description: Échec inattendu (détail dans les logs) ; l'aperçu rechargé montre l'état en base.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée ou nouvelle annonce illisible
+            (LISTING_UNREADABLE). Pendant la lecture du dressing, la republication reste telle qu'elle était ;
+            pendant la comparaison, une republication tout juste prouvée reste réussie, seule la comparaison manque.
+            L'aperçu rechargé fait foi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
 components:
   parameters:
     ListingId:
@@ -730,6 +778,13 @@ components:
             rien n'a été publié.
         republication:
           $ref: '#/components/schemas/ListingRepublication'
+        republicationComparison:
+          type: array
+          description: >
+            Présente seulement dans la réponse d'une vérification qui a comparé la nouvelle annonce à la sauvegarde :
+            les champs qui diffèrent ; vide si la nouvelle annonce est identique à la sauvegarde.
+          items:
+            $ref: '#/components/schemas/ListingFieldDifference'
         savedAt:
           type: string
           format: date-time
@@ -998,6 +1053,10 @@ components:
           type: string
           format: date-time
           description: Version de la sauvegarde republiée.
+        checkedAt:
+          type: string
+          format: date-time
+          description: Date de la vérification sur Vinted qui n'a rien trouvé ; présente si NOT_PUBLISHED.
       example:
         outcome: PUBLISHED
         attemptedAt: '2026-11-11T10:06:00Z'
@@ -1009,8 +1068,9 @@ components:
       type: string
       description: >
         PUBLISHED : la nouvelle annonce a été retrouvée, seule, dans le dressing. FAILED : erreur de republication,
-        à vérifier sur Vinted ; bloque toute nouvelle republication de l'annonce.
-      enum: [PUBLISHED, FAILED]
+        à vérifier sur Vinted ; bloque toute nouvelle republication de l'annonce. NOT_PUBLISHED : vérifiée sur Vinted,
+        aucune annonce avec le titre et le prix de la sauvegarde ; une nouvelle republication est possible.
+      enum: [PUBLISHED, FAILED, NOT_PUBLISHED]
     RepublicationRefusal:
       type: object
       description: Raison pour laquelle la republication n'a pas eu lieu ; rien n'est publié ni enregistré.
@@ -1020,7 +1080,8 @@ components:
           type: string
           enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, TOO_EARLY, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
                  BROWSER_BUSY, PHOTOS_NOT_VERIFIED, FIELD_NOT_FILLABLE, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
-                 SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED]
+                 SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED, NO_REPUBLICATION_TO_VERIFY,
+                 LISTING_UNREADABLE]
         republishableAt:
           type: string
           format: date-time
@@ -1037,8 +1098,27 @@ components:
         reason: FIELD_NOT_FILLABLE
         field: SIZE
         optionId: 588
+    ListingFieldDifference:
+      type: object
+      description: >
+        Champ dont la valeur lue sur la nouvelle annonce n'est pas celle sauvegardée. Les options sont comparées par
+        leur identifiant Vinted et montrées « libellé (identifiant) » ; les photos par leur nombre.
+      required: [field, saved, read]
+      properties:
+        field:
+          $ref: '#/components/schemas/ListingFormField'
+        saved:
+          type: string
+          description: Valeur sauvegardée ; vide si le champ n'était pas rempli.
+        read:
+          type: string
+          description: Valeur lue sur la nouvelle annonce ; vide si le champ n'y est pas rempli.
+      example:
+        field: SIZE
+        saved: 1-3 mois / 56 cm (613)
+        read: 3-6 mois / 62 cm (614)
     ListingFormField:
       type: string
-      description: Champ du formulaire de mise en vente impossible à remplir.
+      description: Champ du formulaire de mise en vente impossible à remplir, ou qui diffère de la sauvegarde.
       enum: [PHOTOS, TITLE, DESCRIPTION, PRICE, CATEGORY, BRAND, CONDITION, SIZE, COLORS, MATERIALS, PACKAGE_SIZE,
              ISBN, BOOK_TITLE, AUTHOR, MANUFACTURER, MODEL, MEASUREMENTS]
