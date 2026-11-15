@@ -1,5 +1,5 @@
 # US-18 – Liste complète des annonces (filtres, tri, recherche, vues et likes)
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-04 (inventaire), US-05/US-06 (sauvegarde), US-07 (vues et favoris), US-08 (validation)
 
@@ -34,15 +34,15 @@ En tant que membre, je veux voir toutes mes annonces dans un tableau que je peux
 `Listing` gagne `present` (booléen, obligatoire) ; sa description devient « Annonce connue de l'outil ». Ses autres champs sont inchangés (`statistics` = dernier relevé, `savedAt`, `photoCount`, `validatedAt`).
 
 ## Critères d'acceptation
-- [ ] Sans paramètre, la liste contient les annonces présentes, les plus récentes d'abord.
-- [ ] Le filtre de présence montre les présentes, les absentes ou toutes.
-- [ ] Le filtre de sauvegarde distingue non sauvegardées, sauvegardées non validées et validées (validation de la sauvegarde actuelle seulement).
-- [ ] La recherche trouve sur le titre sans tenir compte de la casse ni des accents.
-- [ ] Le tri se fait sur chaque critère, dans les deux sens ; les annonces sans la valeur triée finissent la liste ; à égalité, la plus récente d'abord.
-- [ ] Chaque annonce montre son dernier relevé de vues et favoris, sa sauvegarde, sa validation et sa présence.
-- [ ] Une valeur de paramètre inconnue ou une recherche trop longue est refusée (400).
-- [ ] La page affiche le tableau, ses commandes, et le redemande à chaque changement de critère.
-- [ ] Titres et liens venus de Vinted sont affichés comme texte, jamais interprétés comme HTML.
+- [x] Sans paramètre, la liste contient les annonces présentes, les plus récentes d'abord.
+- [x] Le filtre de présence montre les présentes, les absentes ou toutes.
+- [x] Le filtre de sauvegarde distingue non sauvegardées, sauvegardées non validées et validées (validation de la sauvegarde actuelle seulement).
+- [x] La recherche trouve sur le titre sans tenir compte de la casse ni des accents.
+- [x] Le tri se fait sur chaque critère, dans les deux sens ; les annonces sans la valeur triée finissent la liste ; à égalité, la plus récente d'abord.
+- [x] Chaque annonce montre son dernier relevé de vues et favoris, sa sauvegarde, sa validation et sa présence.
+- [x] Une valeur de paramètre inconnue ou une recherche trop longue est refusée (400).
+- [x] La page affiche le tableau, ses commandes, et le redemande à chaque changement de critère.
+- [x] Titres et liens venus de Vinted sont affichés comme texte, jamais interprétés comme HTML.
 
 ## Tests d'acceptation
 ### AT-18-01 – Par défaut, les annonces présentes, les plus récentes d'abord
@@ -129,10 +129,10 @@ Test : `ListingInventoryApiControllerTest.rejects_unknown_values_and_too_long_se
 
 ### AT-18-09 – Page : tableau et commandes
 ```gherkin
-Étant donné une API qui renvoie deux annonces, dont une au titre "<b>gras</b>"
+Étant donné une API qui renvoie deux annonces, dont une au titre "Pull <b>rayé</b>"
 Quand le membre ouvre wardrobe.html
 Alors il voit un tableau de deux lignes avec titre, prix, vues, favoris, présence, sauvegarde et validation
-  et le titre "<b>gras</b>" affiché tel quel
+  et le titre "Pull <b>rayé</b>" affiché tel quel
 Quand il choisit « toutes », « validées », tape "pull" et trie par vues croissantes
 Alors la page demande GET /api/listings?presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC
 ```
@@ -161,6 +161,7 @@ Test : `WardrobePageTest.shows_listing_table_and_requests_chosen_criteria()` (`@
 - Filtrage et tri en mémoire, en Java, sur `findAll` : ~150 annonces, aucun index ni requête dédiée (YAGNI).
 - Filtre de sauvegarde en trois états, dérivés de l'existant (sauvegarde actuelle, validation de sa version) ; aucun état d'US-14.
 - Tri : six critères, sans valeur en fin de liste quel que soit le sens, égalité départagée par la plus récente. Défaut = ordre actuel.
+- Tri par titre sans casse ni accents (« A » avant « b »), comme la recherche ; deux titres égaux ainsi se départagent par la plus récente.
 - Recherche : titre seul, contient, insensible à la casse et aux accents, 100 caractères au plus.
 - Vues et favoris : dernier relevé seul ; le cumul attend le lien d'US-12.
 - Pas de pagination (~150 lignes).

@@ -23,6 +23,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.ZoneOffset;
+import java.util.List;
 
 /** Implements the contract-first API: the inventory as the member filters, sorts and searches it. */
 @RestController
@@ -55,7 +56,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .present(listing.present())
                 .savedAt(entry.backup().map(backup -> backup.savedAt().atOffset(ZoneOffset.UTC)).orElse(null))
                 .photoCount(entry.backup().map(ListingBackup::photos).filter(photos -> !photos.isEmpty())
-                        .map(photos -> photos.size()).orElse(null))
+                        .map(List::size).orElse(null))
                 .validatedAt(entry.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .statistics(entry.statistics().map(ListingInventoryApiController::statisticsOf).orElse(null));
     }

@@ -267,7 +267,10 @@
         searchTimer = setTimeout(loadListings, SEARCH_DELAY_MS);
     });
     for (const control of [CRITERIA.presence, CRITERIA.backup, CRITERIA.sort, CRITERIA.direction]) {
-        control.addEventListener('change', loadListings);
+        control.addEventListener('change', () => {
+            clearTimeout(searchTimer);
+            loadListings();
+        });
     }
     scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
     backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
