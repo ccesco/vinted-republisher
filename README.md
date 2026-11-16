@@ -66,6 +66,8 @@ Dressing : page `http://localhost:8080/wardrobe.html`. « Scanner » parcourt le
 
 Fiche et validation : sur la page du dressing, le titre d'une annonce ouvre sa fiche (`listing.html`) : l'annonce, l'historique de ses vues et favoris, puis l'aperçu de sa sauvegarde : photos gardées, contenu par ses libellés et vérification faite à l'ouverture (au moins une photo, fichiers présents et intacts, annonce présente, titre et prix identiques au dernier scan). « Valider » confirme cette version de la sauvegarde ; une nouvelle sauvegarde de l'annonce annule la validation. Rien n'est demandé à Vinted.
 
+Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui liste les actions de l'outil (scans, sauvegardes du dressing, validations, suppressions, revérifications, republications) avec leur issue, refus, dry-runs et erreurs compris, 50 par page ; la fiche d'une annonce montre les siennes. Les lignes ne sont jamais supprimées.
+
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
 | `DB_NAME` | nom de la base | `appdb` |

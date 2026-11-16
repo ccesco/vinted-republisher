@@ -1,6 +1,6 @@
 # US-23 – Journal des actions
 
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-04 (scan), US-05 à US-08 (sauvegarde, validation), US-09 et US-10 (suppression, dry-run), US-12 (republication), US-18 et US-18b (liste et fiche)
 
@@ -42,14 +42,14 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - `ListingDetail` (`GET /api/listings/{listingId}`, US-18b) gagne `journal` : liste de `JournalEntry` de l'annonce, plus récentes d'abord (vide si aucune).
 
 ## Critères d'acceptation
-- [ ] Chaque action du tableau écrit une ligne avec l'issue et la raison attendues.
-- [ ] Les actions non journalisées n'écrivent rien.
-- [ ] Un échec d'écriture du journal ne change ni l'action ni sa réponse, et apparaît dans les logs.
-- [ ] L'API donne les lignes par pages de 50, plus récentes d'abord, avec `hasMore` ; `before` donne la page suivante.
-- [ ] La fiche d'une annonce donne toutes ses lignes.
-- [ ] La page `journal.html` affiche les lignes en clair, met en évidence refus, doutes et échecs, et charge la suite avec « Plus ancien ».
-- [ ] La fiche affiche la section « Journal ».
-- [ ] Les lignes survivent à un redémarrage (base PostgreSQL).
+- [x] Chaque action du tableau écrit une ligne avec l'issue et la raison attendues.
+- [x] Les actions non journalisées n'écrivent rien.
+- [x] Un échec d'écriture du journal ne change ni l'action ni sa réponse, et apparaît dans les logs.
+- [x] L'API donne les lignes par pages de 50, plus récentes d'abord, avec `hasMore` ; `before` donne la page suivante.
+- [x] La fiche d'une annonce donne toutes ses lignes.
+- [x] La page `journal.html` affiche les lignes en clair, met en évidence refus, doutes et échecs, et charge la suite avec « Plus ancien ».
+- [x] La fiche affiche la section « Journal ».
+- [x] Les lignes survivent à un redémarrage (base PostgreSQL).
 
 ## Tests d'acceptation
 
@@ -59,7 +59,7 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 Quand le membre lance un scan qui se termine sans problème
 Alors le journal contient « Scan du dressing : lancé » puis « Scan du dressing : terminé »
 ```
-Test : `ActionJournalAcceptanceTest.scan_writes_its_start_and_its_end()`
+Test : `ScanWardrobeAcceptanceTest.scan_writes_its_start_and_its_end()`
 
 ### AT-23-02 – Sauvegarde du dressing en échec
 ```gherkin
@@ -67,7 +67,7 @@ Test : `ActionJournalAcceptanceTest.scan_writes_its_start_and_its_end()`
 Quand le membre lance la sauvegarde du dressing
 Alors le journal contient « Sauvegarde du dressing : lancée » puis « en échec », raison « session non connectée »
 ```
-Test : `ActionJournalAcceptanceTest.failed_wardrobe_backup_writes_its_problem()`
+Test : `BackUpWardrobeAcceptanceTest.failed_wardrobe_backup_writes_its_problem()`, `finished_wardrobe_backup_is_written()`
 
 ### AT-23-03 – Lancement ignoré
 ```gherkin
@@ -76,7 +76,7 @@ Quand le membre lance un scan
 Alors le scan est ignoré comme aujourd'hui
 Et le journal ne contient aucune ligne de scan
 ```
-Test : `ActionJournalAcceptanceTest.ignored_launch_writes_nothing()`
+Test : `ScanWardrobeAcceptanceTest.ignored_launch_writes_nothing()`
 
 ### AT-23-04 – Validation et son refus
 ```gherkin
@@ -86,7 +86,7 @@ Alors le journal contient « Validation : validée » pour l'annonce 101
 Quand il valide une version remplacée depuis
 Alors le journal contient « Validation : refusée », raison « sauvegarde remplacée »
 ```
-Test : `ActionJournalAcceptanceTest.validation_and_its_refusal_are_written()`
+Test : `ValidateListingBackupAcceptanceTest.validation_and_its_refusal_are_written()`
 
 ### AT-23-05 – Suppression en dry-run
 ```gherkin
@@ -94,7 +94,7 @@ Test : `ActionJournalAcceptanceTest.validation_and_its_refusal_are_written()`
 Quand le membre demande sa suppression
 Alors le journal contient « Suppression : dry-run » pour l'annonce 101
 ```
-Test : `ActionJournalAcceptanceTest.deletion_dry_run_is_written()`
+Test : `DeleteListingAcceptanceTest.deletion_dry_run_is_written()`
 
 ### AT-23-06 – Suppression confirmée, non confirmée, refusée
 ```gherkin
@@ -102,7 +102,7 @@ Test : `ActionJournalAcceptanceTest.deletion_dry_run_is_written()`
 Quand la suppression de 101 est prouvée, celle de 102 reste dans le doute et celle de 103 est refusée car non validée
 Alors le journal contient « Suppression : confirmée » (101), « non confirmée » (102) et « refusée », raison « sauvegarde non validée » (103)
 ```
-Test : `ActionJournalAcceptanceTest.deletion_outcomes_are_written()`
+Test : `DeleteListingAcceptanceTest.confirmed_deletion_is_written()`, `unconfirmed_deletion_is_written()`, `refused_deletion_is_written_with_its_reason()` (une annonce par test, avec la mise en place existante)
 
 ### AT-23-07 – Revérification
 ```gherkin
@@ -110,7 +110,7 @@ Test : `ActionJournalAcceptanceTest.deletion_outcomes_are_written()`
 Quand le membre la revérifie et que l'annonce est toujours sur Vinted
 Alors le journal contient « Revérification : non faite » pour l'annonce 101
 ```
-Test : `ActionJournalAcceptanceTest.recheck_is_written()`
+Test : `DeleteListingAcceptanceTest.recheck_is_written()`
 
 ### AT-23-08 – Republication
 ```gherkin
@@ -119,7 +119,7 @@ Quand sa republication réussit
 Alors le journal contient « Republication : réussie » pour l'annonce 101
 Et une republication trop tôt d'une autre annonce écrit « Republication : refusée », raison « trop tôt »
 ```
-Test : `ActionJournalAcceptanceTest.republication_outcomes_are_written()`
+Test : `RepublishListingAcceptanceTest.republication_outcomes_are_written()`, `republication_dry_run_and_error_are_written()`
 
 ### AT-23-09 – Échec inattendu
 ```gherkin
@@ -127,7 +127,7 @@ Test : `ActionJournalAcceptanceTest.republication_outcomes_are_written()`
 Quand le membre demande sa suppression
 Alors le journal contient « Suppression : échec », raison « échec de la suppression »
 ```
-Test : `ActionJournalAcceptanceTest.unexpected_failure_is_written()`
+Test : `DeleteListingAcceptanceTest.unexpected_failure_is_written()`
 
 ### AT-23-10 – Le journal en panne ne bloque rien
 ```gherkin
@@ -136,7 +136,7 @@ Quand le membre valide une sauvegarde
 Alors la validation est enregistrée et la réponse est la même que sans panne
 Et l'échec du journal est écrit dans les logs
 ```
-Test : `ActionJournalAcceptanceTest.journal_failure_changes_nothing()`
+Test : `ValidateListingBackupAcceptanceTest.journal_failure_changes_nothing()`, `JournalWriterTest.journal_down_changes_nothing_and_is_logged()`
 
 ### AT-23-11 – Pages de 50
 ```gherkin
@@ -184,6 +184,8 @@ Test : `JpaActionJournalTest.entries_survive_restart()` (`@Tag("docker")`)
 - Base indisponible à la lecture : `GET /api/journal` répond 500, la page affiche « Journal indisponible. ».
 - `before` inconnu ou plus ancien que tout : liste vide, `hasMore` faux.
 - Annonce absente de l'outil (impossible aujourd'hui) : la ligne garde l'identifiant, sans titre.
+- Demande sur une annonce jamais sauvegardée (404) : rien n'est journalisé, comme une demande mal formée.
+- La section « Journal » de la fiche montre l'état à l'ouverture de la page ; elle se met à jour au rechargement.
 - Une action en dry-run qui échoue à un contrôle est un refus (`REFUSED`), pas un dry-run.
 
 ## Hors périmètre
@@ -207,10 +209,12 @@ Test : `JpaActionJournalTest.entries_survive_restart()` (`@Tag("docker")`)
 
 ## Modèle de domaine
 - `ActionJournal` | Journal des actions | Port sortant : écrit une ligne, lit une page (plus récentes d'abord) et les lignes d'une annonce.
+- `ActionRecord` | Action enregistrée | Ce qu'une ligne contient : date, action, issue, annonce et raison éventuelles.
+- `JournalWriter` | Écriture du journal | Service applicatif des cas d'usage : écrit la ligne de l'action (issue de la réponse, refus avec son code, échec) sans jamais faire échouer l'action.
 - `JournalEntry` | Ligne du journal | Date, action, issue, annonce et raison éventuelles ; jamais modifiée ni supprimée.
 - `JournaledAction` | Action journalisée | Scan, sauvegarde du dressing, validation, suppression, revérification, republication.
 - `ActionOutcome` | Issue d'une action | Lancée, réussie, dry-run, refusée, dans le doute, non faite, en échec.
-- Écriture depuis les cas d'usage (`ScanWardrobe`, `BackUpWardrobe`, `ValidateListingBackup`, `DeleteListing`, `RecheckListingDeletion`, `RepublishListing`), sans faire échouer l'action.
+- Écriture depuis les cas d'usage `ScanWardrobe`, `BackUpWardrobe`, `ValidateListingBackup`, `DeleteListing`, `RecheckListingDeletion`, `RepublishListing`, par `JournalWriter`, sans faire échouer l'action. Les tests d'acceptation du journal sont dans les classes d'acceptation de chaque action, qui en ont déjà la mise en place (choix d'implémentation, 2026-11-16).
 - Cas d'usage de lecture : `ShowActionJournal` ; `ShowListingDetail` lit en plus les lignes de l'annonce.
 - Persistance (Liquibase) : table `action_journal_entry` (identifiant croissant, date, action, issue, annonce facultative, raison facultative), index sur l'annonce.
 

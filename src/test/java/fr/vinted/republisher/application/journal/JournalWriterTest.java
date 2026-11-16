@@ -9,6 +9,9 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.boot.test.system.CapturedOutput;
+import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -16,6 +19,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+@ExtendWith(OutputCaptureExtension.class)
 class JournalWriterTest {
 
     private static final Instant NOW = Instant.parse("2026-11-15T10:00:00Z");
@@ -67,11 +71,12 @@ class JournalWriterTest {
     }
 
     @Test
-    void journal_down_changes_nothing() {
+    void journal_down_changes_nothing_and_is_logged(CapturedOutput logs) {
         JournalWriter downWriter = new JournalWriter(new InMemoryActionJournal().whereDatabaseIsDown(),
                 new AdjustableClock(NOW));
 
         assertThat(downWriter.journaled(JournaledAction.DELETION, LISTING, () -> "done",
                 done -> ActionOutcome.SUCCEEDED, Optional.empty())).isEqualTo("done");
+        assertThat(logs.getOut()).contains("Journal not written: DELETION");
     }
 }

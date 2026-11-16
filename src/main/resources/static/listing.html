@@ -6,6 +6,7 @@
     <style>
         #photos img { max-width: 100%; max-height: 80vh; display: block; margin-bottom: 1em; }
     </style>
+    <script src="journal.js"></script>
 </head>
 <body>
 <p><a href="wardrobe.html">Retour à la liste</a></p>
@@ -24,6 +25,19 @@
             <th scope="col">Date</th>
             <th scope="col">Vues</th>
             <th scope="col">Favoris</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+    <h2>Journal</h2>
+    <p id="no-journal" hidden>Aucune action</p>
+    <table id="listing-journal" hidden>
+        <thead>
+        <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Action</th>
+            <th scope="col">Issue</th>
+            <th scope="col">Raison</th>
         </tr>
         </thead>
         <tbody></tbody>
@@ -151,6 +165,8 @@
     const stage = document.getElementById('stage');
     const noReading = document.getElementById('no-reading');
     const history = document.getElementById('history');
+    const noJournal = document.getElementById('no-journal');
+    const listingJournal = document.getElementById('listing-journal');
     const notBackedUp = document.getElementById('not-backed-up');
     const section = document.getElementById('backup');
     const verification = document.getElementById('verification');
@@ -455,6 +471,9 @@
         vintedLink.href = listing.url;
         presence.textContent = listing.present ? 'Présente dans le dressing.'
             : 'Absente du dressing, vue pour la dernière fois le ' + dateOf(detail.lastSeenAt) + '.';
+        noJournal.hidden = detail.journal.length > 0;
+        listingJournal.hidden = detail.journal.length === 0;
+        listingJournal.tBodies[0].replaceChildren(...detail.journal.map(entry => journalRow(entry, false)));
         noReading.hidden = detail.statisticsHistory.length > 0;
         history.hidden = detail.statisticsHistory.length === 0;
         history.tBodies[0].replaceChildren(...detail.statisticsHistory.map(reading => {
