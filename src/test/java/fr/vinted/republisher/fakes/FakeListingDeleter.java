@@ -1,5 +1,6 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.deletion.DeletionVisit;
 import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
@@ -9,6 +10,7 @@ import fr.vinted.republisher.domain.session.VintedUnreachable;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 
+import java.time.Instant;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -71,6 +73,11 @@ public class FakeListingDeleter implements ListingDeleter {
 
     public FakeListingDeleter whereTheDeleteButtonIsMissing() {
         return failingBeforeAnyClick(() -> new ListingPageUnreadable("no delete button"));
+    }
+
+    /** Stands for the cadence check, which refuses before the page of the listing opens. */
+    public FakeListingDeleter whereCadenceLimitIsReachedUntil(Instant allowedAt) {
+        return failingBeforeAnyClick(() -> new CadenceLimitReached(allowedAt));
     }
 
     public FakeListingDeleter whereBrowserStopsAfterTheConfirmation() {

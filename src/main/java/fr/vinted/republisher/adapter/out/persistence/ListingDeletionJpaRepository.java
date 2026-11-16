@@ -3,6 +3,7 @@ package fr.vinted.republisher.adapter.out.persistence;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -14,4 +15,7 @@ interface ListingDeletionJpaRepository extends JpaRepository<ListingDeletionJpaE
     @Query("select deletion from ListingDeletionJpaEntity deletion where deletion.attemptedAt = "
             + "(select max(other.attemptedAt) from ListingDeletionJpaEntity other where other.listingId = deletion.listingId)")
     List<ListingDeletionJpaEntity> findAllLatest();
+
+    @Query("select attempt.attemptedAt from ListingDeletionJpaEntity attempt where attempt.attemptedAt > :since")
+    List<Instant> findAttemptedAtAfter(Instant since);
 }

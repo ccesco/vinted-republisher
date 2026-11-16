@@ -1,6 +1,10 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.backup.ShowListingBackup;
+import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -57,6 +61,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aReading;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
@@ -80,6 +85,7 @@ class DeleteListingAcceptanceTest {
     private final InMemoryPhotoStorage photos = new InMemoryPhotoStorage();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
+    private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
     private final FakeListingDeleter vinted = new FakeListingDeleter();
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
@@ -338,6 +344,64 @@ class DeleteListingAcceptanceTest {
     }
 
     @Test
+    void refusesDeletionTooSoonAfterAnotherWrite() {
+        // Étant donné une suppression tentée à 10:00
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        anotherDeletionAttemptedAt(NOW);
+        // Quand le membre lance la suppression d'une autre annonce à 10:01
+        clock.advance(Duration.ofMinutes(1));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:02), rien n'est touché sur Vinted ni
+        // enregistré, et le verrou est libéré
+        assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
+                limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofMinutes(2))));
+        assertNothingTouchedOnVinted();
+        // Et le journal contient « Suppression : refusée », raison « limite de cadence atteinte » (US-23)
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(tuple(JournaledAction.DELETION, ActionOutcome.REFUSED,
+                        Optional.of("CADENCE_LIMIT_REACHED")));
+        // Quand il la relance à 10:02
+        clock.advance(Duration.ofMinutes(1));
+        // Alors elle a lieu
+        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
+                .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+    }
+
+    @Test
+    void refusesDeletionOverTheDailyLimit() {
+        // Étant donné deux suppressions tentées hier à 11:00 et à 13:00
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        anotherDeletionAttemptedAt(Instant.parse("2026-11-10T11:00:00Z"));
+        anotherDeletionAttemptedAt(Instant.parse("2026-11-10T13:00:00Z"));
+        // Quand le membre lance une suppression aujourd'hui à 10:00
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir d'aujourd'hui 11:00)
+        assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
+                limit -> assertThat(limit.allowedAt()).isEqualTo(Instant.parse("2026-11-11T11:00:00Z")));
+        assertNothingTouchedOnVinted();
+        // Quand il la relance aujourd'hui à 11:00
+        clock.set(Instant.parse("2026-11-11T11:00:00Z"));
+        // Alors elle a lieu
+        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
+                .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+    }
+
+    @Test
+    void dryRunIsNotLimitedByCadence() {
+        // Étant donné le dry-run de la suppression et une suppression tentée il y a une minute
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        anotherDeletionAttemptedAt(NOW.minus(Duration.ofMinutes(1)));
+        // Quand le membre lance une suppression
+        DeletionReport report = deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT);
+        // Alors le dry-run a lieu et rien n'est enregistré
+        assertThat(report.dryRunPassed()).isTrue();
+        assertThat(deletions.findAll()).hasSize(1);
+    }
+
+    @Test
     void recheck_confirms_a_deletion_vinted_no_longer_shows() {
         // Étant donné une suppression non confirmée
         // Et Vinted ne montre plus l'annonce
@@ -363,9 +427,11 @@ class DeleteListingAcceptanceTest {
         DeletionReport report = recheckListingDeletion().recheck(LISTING);
         // Alors la suppression est enregistrée « non faite »
         // Et une nouvelle demande de suppression redevient possible, avec tous les contrôles
+        // (la revérification, faite aussitôt, n'est pas limitée par la cadence ; la nouvelle suppression attend
+        // l'intervalle minimal depuis la tentative)
         assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.NOT_DONE);
         vinted.whereTheListingGoesOnceConfirmed();
-        clock.advance(Duration.ofMinutes(1));
+        clock.advance(Duration.ofMinutes(2));
         assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
                 .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
     }
@@ -535,6 +601,16 @@ class DeleteListingAcceptanceTest {
         assertThat(session.overview().currentAction()).isEmpty();
     }
 
+    private void anotherDeletionAttemptedAt(Instant attemptedAt) {
+        deletions.save(ListingDeletion.attempted(aBackup(2, SAVED_AT), attemptedAt));
+    }
+
+    private void assertNothingTouchedOnVinted() {
+        assertThat(vinted.pagesOpened()).isZero();
+        assertThat(deletions.findAll()).noneMatch(deletion -> deletion.listingId().equals(LISTING));
+        assertThat(session.overview().currentAction()).isEmpty();
+    }
+
     private void assertNoClickAndNoDeletion() {
         assertThat(vinted.confirmationClicks()).isZero();
         assertThat(deletions.findAll()).isEmpty();
@@ -549,7 +625,9 @@ class DeleteListingAcceptanceTest {
 
     private DeleteListing deleteListing(DeletionMode mode) {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted, mode,
-                new RepublicationDelay(Duration.ofMinutes(5)), clock, new JournalWriter(journal, clock));
+                new RepublicationDelay(Duration.ofMinutes(5)),
+                new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 2, 2), clock),
+                clock, new JournalWriter(journal, clock));
     }
 
     /** Present, scanned, backed up with its photo kept, and validated by the member. */

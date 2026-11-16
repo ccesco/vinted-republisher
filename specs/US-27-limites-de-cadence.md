@@ -1,5 +1,5 @@
 # US-27 – Limites de cadence
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-09, US-12
 
@@ -17,18 +17,18 @@ En tant que membre, je veux que l'outil refuse toute écriture sur Vinted qui d�
 3. **Contrôle** : en mode réel seulement, au lancement d'une suppression ou d'une republication, après les contrôles existants et une fois le verrou du navigateur pris (deux demandes ne peuvent pas passer le contrôle ensemble), avant toute navigation dans Chrome.
 4. **Refus** : limite atteinte → refus 409 `CADENCE_LIMIT_REACHED`, avec `allowedAt`, la date la plus tardive imposée par les limites. Rien n'est touché sur Vinted ni enregistré ; le verrou est libéré. La fiche de l'annonce affiche « limite de cadence atteinte (à partir du <date>). »
 5. **Persistance** : les limites se calculent à partir des tentatives déjà enregistrées (US-09, US-12) ; rien de nouveau n'est stocké et un redémarrage ne remet aucun compteur à zéro.
-6. **Configuration** : `cadence.minimum-interval` (2 minutes), `cadence.daily-deletions` (20), `cadence.daily-republications` (20), dans `application.yml`. Valeur absente, nulle, négative ou illisible → l'application ne démarre pas.
+6. **Configuration** : `cadence.minimum-interval` (2 minutes), `cadence.daily-deletions` (20), `cadence.daily-republications` (20), dans `application.yml`. Valeur absente, nulle, négative ou illisible, ou intervalle d'au moins 24 heures (seules les écritures des 24 dernières heures sont lues) → l'application ne démarre pas.
 
 ## Critères d'acceptation
-- [ ] Une écriture demandée avant la fin de l'intervalle minimal depuis la dernière écriture, quel que soit son type, est refusée avec la date à partir de laquelle elle est possible.
-- [ ] Une suppression au-delà du plafond de suppressions sur 24 heures glissantes est refusée avec sa date ; de même pour les republications.
-- [ ] Les plafonds sont propres à chaque type.
-- [ ] Toute tentative enregistrée compte, quelle que soit son issue ; dry-run, refus et vérifications ne comptent pas.
-- [ ] Le dry-run et les vérifications ne sont pas soumis aux limites.
-- [ ] Un refus ne touche rien sur Vinted, n'enregistre rien et libère le verrou.
-- [ ] Les limites tiennent après un redémarrage.
-- [ ] La fiche affiche le refus et sa date.
-- [ ] Une configuration invalide empêche l'application de démarrer.
+- [x] Une écriture demandée avant la fin de l'intervalle minimal depuis la dernière écriture, quel que soit son type, est refusée avec la date à partir de laquelle elle est possible.
+- [x] Une suppression au-delà du plafond de suppressions sur 24 heures glissantes est refusée avec sa date ; de même pour les republications.
+- [x] Les plafonds sont propres à chaque type.
+- [x] Toute tentative enregistrée compte, quelle que soit son issue ; dry-run, refus et vérifications ne comptent pas.
+- [x] Le dry-run et les vérifications ne sont pas soumis aux limites.
+- [x] Un refus ne touche rien sur Vinted, n'enregistre rien et libère le verrou.
+- [x] Les limites tiennent après un redémarrage.
+- [x] La fiche affiche le refus et sa date.
+- [x] Une configuration invalide empêche l'application de démarrer.
 
 ## Tests d'acceptation
 Valeurs des scénarios : intervalle 2 minutes, plafonds de 2 suppressions et 2 republications (les tests fixent leurs propres valeurs).
@@ -70,7 +70,7 @@ Alors elle est refusée (CADENCE_LIMIT_REACHED, 24 heures après la plus ancienn
 Quand il lance une suppression
 Alors elle a lieu
 ```
-Test : `RepublishListingAcceptanceTest.refusesRepublicationOverTheDailyLimitButNotDeletion()`
+Test : `RepublishListingAcceptanceTest.refusesRepublicationOverTheDailyLimitButNotDeletion()` (la suppression est vérifiée par le contrôle de cadence lui-même)
 
 ### AT-27-05 – Le dry-run n'est ni limité ni compté
 ```gherkin
@@ -87,7 +87,7 @@ Quand le membre la revérifie sur Vinted
 Alors la revérification a lieu
 Et une suppression lancée 2 minutes après la tentative a lieu
 ```
-Test : `DeleteListingAcceptanceTest.recheckIsNotLimitedByCadence()`
+Test : `DeleteListingAcceptanceTest.recheck_finds_the_listing_still_there()` (revérification aussitôt après la tentative, nouvelle suppression 2 minutes après)
 
 ### AT-27-07 – Les limites tiennent après un redémarrage
 ```gherkin
@@ -103,7 +103,7 @@ Test : `JpaListingDeletionRepositoryTest.attemptsSinceSurviveRestart()` et `JpaL
 Quand la réponse arrive sur la fiche de l'annonce
 Alors la fiche affiche « limite de cadence atteinte (à partir du <date>). »
 ```
-Test : `ListingDetailPageTest.showsCadenceRefusalWithItsDate()`
+Test : `ListingDetailPageTest.Deletion.showsCadenceRefusalWithItsDate()` et `ListingDetailPageTest.Republication.showsCadenceRefusalWithItsDate()`
 
 ### AT-27-09 – Configuration invalide
 ```gherkin
@@ -111,7 +111,7 @@ Test : `ListingDetailPageTest.showsCadenceRefusalWithItsDate()`
 Quand l'application démarre
 Alors elle refuse de démarrer
 ```
-Test : `ApplicationStartupAcceptanceTest.refusesInvalidCadence()`
+Test : `CadenceConfigurationTest` (`missingValuePreventsStartup`, `invalidValuePreventsStartup`)
 
 ## Cas limites et erreurs
 - Plusieurs limites atteintes : la date annoncée est la plus tardive.
@@ -137,6 +137,8 @@ Test : `ApplicationStartupAcceptanceTest.refusesInvalidCadence()`
   - dry-run, refus et vérifications ni limités ni comptés ;
   - contrôle sous le verrou du navigateur ;
   - aucune table nouvelle : calcul à partir des tentatives enregistrées.
+  - intervalle minimal strictement inférieur à 24 heures (relevé par la revue) : seules les écritures des 24 dernières heures sont lues.
+- Au rebase sur US-23 (2026-11-16), règle du journal appliquée : un refus pour cadence est écrit « refusée » avec le code `CADENCE_LIMIT_REACHED`, comme la réponse de l'API (`DeleteListingAcceptanceTest.refusesDeletionTooSoonAfterAnotherWrite()`).
 
 ## Questions ouvertes
 - Aucune.
@@ -151,6 +153,7 @@ Test : `ApplicationStartupAcceptanceTest.refusesInvalidCadence()`
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : `WriteCadenceTest` (intervalle, plafond par type, fenêtre glissante, date la plus tardive, valeurs invalides).
-- Application : scénarios d'acceptation ci-dessus.
+- Application : scénarios d'acceptation ci-dessus ; contre-épreuve faite : sans l'appel au contrôle, les 4 scénarios de refus échouent.
 - Persistance : `findAttemptedSince` sur PostgreSQL (`@Tag("docker")`).
-- Web : `ListingDeletionApiControllerTest`, `ListingRepublicationApiControllerTest` (409 et `allowedAt`) ; page `ListingDetailPageTest`.
+- Configuration : `CadenceConfigurationTest`.
+- Web : `ListingDeletionApiControllerTest`, `ListingRepublicationApiControllerTest` (`cadence_limit_is_a_conflict_with_the_date_it_ends` : 409 et `allowedAt`) ; page `ListingDetailPageTest`.

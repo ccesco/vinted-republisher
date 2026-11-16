@@ -1,5 +1,7 @@
 package fr.vinted.republisher.acceptance;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
@@ -321,6 +323,7 @@ class VerifyListingRepublicationAcceptanceTest {
         RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
+                new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 20, 20), clock),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
                 RepublicationMode.REAL, clock, show(), new JournalWriter(new InMemoryActionJournal(), clock));
     }

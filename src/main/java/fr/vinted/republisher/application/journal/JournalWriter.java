@@ -3,6 +3,7 @@ package fr.vinted.republisher.application.journal;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingAlreadyDeleted;
@@ -55,7 +56,8 @@ public class JournalWriter {
             Map.entry(ListingAlreadyRepublished.class, "ALREADY_REPUBLISHED"),
             Map.entry(RepublicationInError.class, "REPUBLICATION_IN_ERROR"),
             Map.entry(FieldNotFillable.class, "FIELD_NOT_FILLABLE"),
-            Map.entry(BrowserBusy.class, "BROWSER_BUSY"));
+            Map.entry(BrowserBusy.class, "BROWSER_BUSY"),
+            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"));
 
     /** A republication refuses a backup not verified with its own code, as its API answer does. */
     private static final Map<Class<?>, String> REPUBLICATION_REFUSAL_REASONS =

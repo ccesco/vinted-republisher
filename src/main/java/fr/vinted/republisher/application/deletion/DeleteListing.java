@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.deletion;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
@@ -9,6 +10,7 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
+import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
@@ -51,6 +53,7 @@ public class DeleteListing {
     private final ListingDeletionRepository deletions;
     private final ListingDeleter deleter;
     private final DeletionMode mode;
+    private final CadenceCheck cadence;
     private final Clock clock;
     private final JournalWriter journal;
     private final ShowListingDeletion showListingDeletion;
@@ -58,8 +61,10 @@ public class DeleteListing {
     public DeleteListing(VintedSession session, ListingRepository listings, ListingBackupRepository listingBackups,
                          PhotoStorage photos, BackupValidationRepository validations,
                          ListingDeletionRepository deletions, ListingDeleter deleter, DeletionMode mode,
-                         RepublicationDelay republicationDelay, Clock clock, JournalWriter journal) {
+                         RepublicationDelay republicationDelay, CadenceCheck cadence, Clock clock,
+                         JournalWriter journal) {
         this.session = session;
+        this.cadence = cadence;
         this.listings = listings;
         this.listingBackups = listingBackups;
         this.photos = photos;
@@ -75,7 +80,8 @@ public class DeleteListing {
 
     /**
      * {@code seen} is the date of the backup the member saw. Every check is made before Chrome opens, then again on
-     * the page of the listing before any click: a refusal touches nothing on Vinted.
+     * the page of the listing before any click: a refusal touches nothing on Vinted. The write cadence is checked under
+     * the browser lock, and only for a real deletion.
      */
     public DeletionReport delete(VintedListingId id, Instant seen) {
         return journal.journaled(JournaledAction.DELETION, id, () -> deleteNow(id, seen), DeleteListing::outcomeOf,
@@ -111,6 +117,9 @@ public class DeleteListing {
         }
         Attempt attempt = new Attempt(backup);
         try {
+            if (mode == DeletionMode.REAL) {
+                cadence.check(VintedWrite.DELETION);
+            }
             Optional<ScannedListing> shownAfterwards =
                     deleter.delete(new ListingLink(listing.id(), listing.url()), attempt);
             attempt.started().ifPresent(deletion -> settle(deletion, listing, shownAfterwards));

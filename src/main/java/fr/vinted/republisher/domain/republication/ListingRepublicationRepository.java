@@ -2,6 +2,7 @@ package fr.vinted.republisher.domain.republication;
 
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -14,6 +15,9 @@ public interface ListingRepublicationRepository {
 
     /** The last attempt of every listing. */
     List<ListingRepublication> findAllLatest();
+
+    /** The dates of the attempts made after {@code since}, whatever their outcome. */
+    List<Instant> findAttemptedSince(Instant since);
 
     /** The new listings of every published republication. */
     Set<VintedListingId> findNewListings();

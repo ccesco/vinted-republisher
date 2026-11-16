@@ -468,6 +468,20 @@ class ListingDetailPageTest {
         }
 
         @Test
+        void showsCadenceRefusalWithItsDate() {
+            backup.set(VALIDATED);
+            deletionStatus.set(409);
+            deletionAnswer.set("{\"reason\": \"CADENCE_LIMIT_REACHED\", \"allowedAt\": \"2026-11-11T10:02:00Z\"}");
+            open();
+
+            deleteButton().click();
+            confirmButton().click();
+
+            assertThat(problem()).containsText(
+                    "Suppression refusée, rien n'a été supprimé : limite de cadence atteinte (à partir du 11/11/2026");
+        }
+
+        @Test
         void unconfirmed_deletion_asks_to_check_on_vinted() {
             // Étant donné une suppression non confirmée
             backup.set(UNCONFIRMED);
@@ -700,6 +714,22 @@ class ListingDetailPageTest {
 
             assertThat(problem()).hasText(
                     "Republication refusée, rien n'a été publié : Taille impossible à remplir (identifiant 588).");
+            assertThat(republishButton()).isEnabled();
+        }
+
+        @Test
+        void showsCadenceRefusalWithItsDate() {
+            backup.set(REPUBLISHABLE);
+            republicationStatus.set(409);
+            republicationAnswer.set("{\"reason\": \"CADENCE_LIMIT_REACHED\", \"allowedAt\": \"2026-11-11T10:08:00Z\"}");
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+
+            republishButton().click();
+            confirmButton().click();
+
+            assertThat(problem()).containsText(
+                    "Republication refusée, rien n'a été publié : limite de cadence atteinte (à partir du 11/11/2026");
             assertThat(republishButton()).isEnabled();
         }
 

@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.republication.ListingRepublicationRepository
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -34,6 +35,11 @@ class JpaListingRepublicationRepository implements ListingRepublicationRepositor
     @Override
     public List<ListingRepublication> findAllLatest() {
         return repository.findAllLatest().stream().map(ListingRepublicationJpaEntity::toListingRepublication).toList();
+    }
+
+    @Override
+    public List<Instant> findAttemptedSince(Instant since) {
+        return repository.findAttemptedAtAfter(since);
     }
 
     /** Flushed at once: the attempt must be in the database before Publish is clicked. */

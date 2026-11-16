@@ -3,6 +3,7 @@ package fr.vinted.republisher.adapter.out.persistence;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,4 +19,7 @@ interface ListingRepublicationJpaRepository extends JpaRepository<ListingRepubli
 
     @Query("select r.newListingId from ListingRepublicationJpaEntity r where r.newListingId is not null")
     List<Long> findNewListingIds();
+
+    @Query("select attempt.attemptedAt from ListingRepublicationJpaEntity attempt where attempt.attemptedAt > :since")
+    List<Instant> findAttemptedAtAfter(Instant since);
 }

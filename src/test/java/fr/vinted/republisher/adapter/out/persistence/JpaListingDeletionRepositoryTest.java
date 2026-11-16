@@ -115,4 +115,17 @@ class JpaListingDeletionRepositoryTest extends ApplicationWithDatabaseTest {
                 ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(60)).confirmed(CLICKED_AT)))
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
+
+    @Test
+    void attemptsSinceSurviveRestart() {
+        // Étant donné des tentatives de suppression enregistrées, quelle que soit leur issue
+        ListingDeletion older = ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600));
+        deletions.save(older.notDone(CLICKED_AT));
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT));
+        // Quand l'outil redémarre (tout est relu en base)
+        // Alors leurs dates sont relues et comptent toujours, sauf celles d'avant la date demandée
+        assertThat(deletions.findAttemptedSince(CLICKED_AT.minusSeconds(3600))).containsExactly(CLICKED_AT);
+        assertThat(deletions.findAttemptedSince(CLICKED_AT.minusSeconds(3601)))
+                .containsExactlyInAnyOrder(CLICKED_AT.minusSeconds(3600), CLICKED_AT);
+    }
 }
