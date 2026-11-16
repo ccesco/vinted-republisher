@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.deletion;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
@@ -11,6 +12,8 @@ import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.deletion.NoUnconfirmedDeletion;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
@@ -37,19 +40,21 @@ public class RecheckListingDeletion {
     private final ListingDeletionRepository deletions;
     private final ListingDeleter deleter;
     private final Clock clock;
+    private final JournalWriter journal;
     private final ShowListingDeletion showListingDeletion;
 
     public RecheckListingDeletion(VintedSession session, ListingRepository listings,
                                   ListingBackupRepository listingBackups, PhotoStorage photos,
                                   BackupValidationRepository validations, ListingDeletionRepository deletions,
                                   ListingDeleter deleter, DeletionMode mode, RepublicationDelay republicationDelay,
-                                  Clock clock) {
+                                  Clock clock, JournalWriter journal) {
         this.session = session;
         this.listings = listings;
         this.listingBackups = listingBackups;
         this.deletions = deletions;
         this.deleter = deleter;
         this.clock = clock;
+        this.journal = journal;
         this.showListingDeletion = new ShowListingDeletion(listings, listingBackups, photos, validations, deletions,
                 mode, republicationDelay);
     }
@@ -59,6 +64,19 @@ public class RecheckListingDeletion {
      * a browser failure leaves the doubt as it was.
      */
     public DeletionReport recheck(VintedListingId id) {
+        return journal.journaled(JournaledAction.DELETION_RECHECK, id, () -> recheckNow(id),
+                RecheckListingDeletion::outcomeOf, Optional.of("DELETION_FAILED"));
+    }
+
+    private static ActionOutcome outcomeOf(DeletionReport report) {
+        return switch (report.lastDeletion().orElseThrow().outcome()) {
+            case CONFIRMED -> ActionOutcome.SUCCEEDED;
+            case NOT_DONE -> ActionOutcome.NOT_DONE;
+            case UNCONFIRMED -> ActionOutcome.IN_DOUBT;
+        };
+    }
+
+    private DeletionReport recheckNow(VintedListingId id) {
         listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         ListingDeletion deletion = deletions.findLatest(id)
                 .filter(latest -> latest.outcome() == DeletionOutcome.UNCONFIRMED)

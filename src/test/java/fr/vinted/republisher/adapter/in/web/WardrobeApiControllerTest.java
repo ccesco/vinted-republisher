@@ -2,10 +2,12 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
@@ -264,7 +266,8 @@ class WardrobeApiControllerTest {
                                   InMemoryListingRepository listings, InMemoryListingStatisticsRepository statistics,
                                   Background background) {
             return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(),
-                    Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background);
+                    Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background,
+                    new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
 
         @Bean
@@ -294,7 +297,7 @@ class WardrobeApiControllerTest {
                                       InMemoryListingBackupRepository listingBackups, Background background) {
             return new BackUpWardrobe(session, lastBackupProblem, backups, new FakeListingContentReader(), listings,
                     listingBackups, new InMemoryPhotoStorage(), noBackupPause(), Clock.fixed(SAVED_AT, ZoneOffset.UTC),
-                    background);
+                    background, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
     }
 }

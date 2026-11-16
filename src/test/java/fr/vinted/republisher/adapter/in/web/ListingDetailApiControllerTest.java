@@ -6,6 +6,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -63,7 +64,8 @@ class ListingDetailApiControllerTest {
                          "lastSeenAt": "2026-11-02T09:00:00Z",
                          "statisticsHistory": [
                            {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
-                           {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}]}""");
+                           {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}],
+                         "journal": []}""");
     }
 
     @Test
@@ -103,7 +105,7 @@ class ListingDetailApiControllerTest {
             return new ShowListingDetail(listings, statistics, new InMemoryListingBackupRepository(),
                     new InMemoryBackupValidationRepository(),
                     new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(), new InMemoryActionJournal());
         }
     }
 }

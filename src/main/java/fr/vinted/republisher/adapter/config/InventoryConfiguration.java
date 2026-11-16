@@ -5,6 +5,7 @@ import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
@@ -33,8 +34,9 @@ class InventoryConfiguration {
                                         ListingBackupRepository backups, BackupValidationRepository validations,
                                         ListingDeletionRepository deletions,
                                         ListingRepublicationRepository republications,
-                                        RepublicationDelay republicationDelay, Clock clock) {
+                                        RepublicationDelay republicationDelay, Clock clock,
+                                        ActionJournal journal) {
         return new ShowListingDetail(listings, statistics, backups, validations, deletions, republications,
-                republicationDelay, clock);
+                republicationDelay, clock, journal);
     }
 }

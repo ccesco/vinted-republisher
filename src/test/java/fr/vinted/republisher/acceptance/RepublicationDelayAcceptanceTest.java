@@ -3,6 +3,7 @@ package fr.vinted.republisher.acceptance;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
@@ -15,6 +16,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -22,6 +24,7 @@ import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -121,12 +124,12 @@ class RepublicationDelayAcceptanceTest {
 
     private DeleteListing deleteListing() {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
-                DeletionMode.REAL, FIVE_MINUTES, clock);
+                DeletionMode.REAL, FIVE_MINUTES, clock, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
     }
 
     private RecheckListingDeletion recheckListingDeletion() {
         return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions, vinted,
-                DeletionMode.REAL, FIVE_MINUTES, clock);
+                DeletionMode.REAL, FIVE_MINUTES, clock, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
     }
 
     private void aValidatedListing(long listing) {

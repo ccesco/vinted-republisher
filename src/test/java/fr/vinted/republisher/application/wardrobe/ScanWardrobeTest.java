@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.wardrobe;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionOverview;
 import fr.vinted.republisher.domain.session.SessionStatus;
@@ -13,6 +14,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
@@ -21,6 +23,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -249,6 +252,7 @@ class ScanWardrobeTest {
     }
 
     private ScanWardrobe scanWardrobe(Executor executor) {
-        return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(), clock, executor);
+        return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(), clock, executor,
+                new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
     }
 }

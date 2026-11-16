@@ -3,8 +3,10 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -331,7 +333,8 @@ class ListingDeletionApiControllerTest {
                                     InMemoryListingDeletionRepository deletions, FakeListingDeleter vinted) {
             return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
                     DeletionMode.DRY_RUN,
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
+                    new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
 
         @Bean
@@ -354,7 +357,8 @@ class ListingDeletionApiControllerTest {
                                                       FakeListingDeleter vinted) {
             return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions,
                     vinted, DeletionMode.DRY_RUN,
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
+                    new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
     }
 }

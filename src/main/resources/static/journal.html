@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Journal</title>
+    <script src="journal.js"></script>
+</head>
+<body>
+<p><a href="wardrobe.html">Retour au dressing</a></p>
+<h1>Journal des actions</h1>
+<p id="journal-problem" role="alert" hidden>Journal indisponible.</p>
+<table id="journal">
+    <thead>
+    <tr>
+        <th scope="col">Date</th>
+        <th scope="col">Action</th>
+        <th scope="col">Issue</th>
+        <th scope="col">Raison</th>
+        <th scope="col">Annonce</th>
+    </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+<p><button id="older" type="button" hidden>Plus ancien</button></p>
+<script>
+    const rows = document.querySelector('#journal tbody');
+    const olderButton = document.getElementById('older');
+    const journalProblem = document.getElementById('journal-problem');
+    let lastEntryId;
+
+    // Les lignes les plus récentes d'abord ; « Plus ancien » ajoute les 50 suivantes.
+    async function loadPage() {
+        olderButton.disabled = true;
+        try {
+            const query = lastEntryId === undefined ? '' : '?before=' + encodeURIComponent(lastEntryId);
+            const response = await fetch('/api/journal' + query);
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const journal = await response.json();
+            rows.append(...journal.entries.map(entry => journalRow(entry, true)));
+            if (journal.entries.length > 0) {
+                lastEntryId = journal.entries[journal.entries.length - 1].entryId;
+            }
+            olderButton.hidden = !journal.hasMore;
+            journalProblem.hidden = true;
+        } catch (unavailable) {
+            journalProblem.hidden = false;
+        } finally {
+            olderButton.disabled = false;
+        }
+    }
+
+    olderButton.addEventListener('click', loadPage);
+    loadPage();
+</script>
+</body>
+</html>

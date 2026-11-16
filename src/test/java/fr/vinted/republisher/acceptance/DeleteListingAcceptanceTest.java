@@ -4,6 +4,7 @@ import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupValidation;
@@ -15,6 +16,9 @@ import fr.vinted.republisher.domain.deletion.ListingDifference;
 import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
 import fr.vinted.republisher.domain.deletion.NoUnconfirmedDeletion;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
@@ -33,6 +37,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -44,9 +49,11 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigDecimal;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -57,9 +64,11 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveLis
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anInactiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 
 class DeleteListingAcceptanceTest {
 
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
     private static final VintedListingId LISTING = new VintedListingId(1);
     private static final Instant SCANNED_AT = Instant.parse("2026-11-10T09:00:00Z");
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00Z");
@@ -413,6 +422,107 @@ class DeleteListingAcceptanceTest {
                 .isInstanceOf(DeletionUnconfirmed.class);
     }
 
+    @Test
+    void deletion_dry_run_is_written() {
+        // US-23 AT-23-05. Étant donné le dry-run de suppression actif et l'annonce validée
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        // Quand le membre demande sa suppression
+        deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT);
+        // Alors le journal contient « Suppression : dry-run » pour l'annonce
+        assertThat(journal.records()).containsExactly(new ActionRecord(NOW, JournaledAction.DELETION,
+                ActionOutcome.DRY_RUN, Optional.of(LISTING), Optional.empty()));
+    }
+
+    @Test
+    void confirmed_deletion_is_written() {
+        // US-23 AT-23-06. Quand la suppression de l'annonce est prouvée
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        // Alors le journal contient « Suppression : confirmée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.SUCCEEDED, Optional.empty()));
+    }
+
+    @Test
+    void unconfirmed_deletion_is_written() {
+        // US-23 AT-23-06. Quand la suppression reste dans le doute
+        anUnconfirmedDeletion();
+        // Alors le journal contient « Suppression : non confirmée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.IN_DOUBT, Optional.empty()));
+    }
+
+    @Test
+    void refused_deletion_is_written_with_its_reason() {
+        // US-23 AT-23-06. Quand la suppression est refusée car la sauvegarde n'est pas validée
+        aValidatedListing();
+        validations.save(new BackupValidation(LISTING, SAVED_AT.minusSeconds(3600), VALIDATED_AT));
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        // Alors le journal contient « Suppression : refusée », raison « sauvegarde non validée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.REFUSED, Optional.of("NOT_VALIDATED")));
+    }
+
+    @Test
+    void failure_on_vinteds_side_is_written_with_its_reason() {
+        // US-23. Étant donné une session Vinted non connectée
+        aValidatedListing();
+        vinted.showing(anActiveListing(1)).whereSessionIsDisconnected();
+        // Quand le membre demande la suppression
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        // Alors le journal contient « Suppression : en échec », raison « session non connectée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.FAILED, Optional.of("SESSION_DISCONNECTED")));
+    }
+
+    @Test
+    void dry_run_refusal_is_a_refusal() {
+        // US-23. Étant donné le dry-run actif et une annonce dont le prix a changé sur Vinted
+        aValidatedListing();
+        vinted.showing(aListing(1, "Pull rayé 1", "10.00", ACTIVE));
+        // Quand le membre demande la suppression
+        catchThrowable(() -> deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT));
+        // Alors le journal contient « Suppression : refusée », raison « annonce différente », pas un dry-run
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.REFUSED, Optional.of("LISTING_CHANGED")));
+    }
+
+    @Test
+    void refused_recheck_is_written() {
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        catchThrowable(() -> recheckListingDeletion().recheck(LISTING));
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION_RECHECK, ActionOutcome.REFUSED, Optional.of("NO_UNCONFIRMED_DELETION")));
+    }
+
+    @Test
+    void recheck_is_written() {
+        // US-23 AT-23-07. Étant donné une suppression non confirmée de l'annonce
+        anUnconfirmedDeletion();
+        // Quand le membre la revérifie et que l'annonce est toujours sur Vinted
+        recheckListingDeletion().recheck(LISTING);
+        // Alors le journal contient « Revérification : non faite »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.IN_DOUBT, Optional.empty()),
+                tuple(JournaledAction.DELETION_RECHECK, ActionOutcome.NOT_DONE, Optional.empty()));
+    }
+
+    @Test
+    void unexpected_failure_is_written() {
+        // US-23 AT-23-09. Étant donné une erreur inattendue pendant la suppression (base indisponible)
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        deletions.whereDatabaseIsDown();
+        // Quand le membre demande sa suppression
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        // Alors le journal contient « Suppression : échec », raison « échec de la suppression »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.FAILED, Optional.of("DELETION_FAILED")));
+    }
+
     private void anUnconfirmedDeletion() {
         aValidatedListing();
         vinted.showing(anActiveListing(1)).whereTheListingStaysOnceConfirmed();
@@ -434,12 +544,12 @@ class DeleteListingAcceptanceTest {
 
     private RecheckListingDeletion recheckListingDeletion() {
         return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions, vinted,
-                DeletionMode.REAL, new RepublicationDelay(Duration.ofMinutes(5)), clock);
+                DeletionMode.REAL, new RepublicationDelay(Duration.ofMinutes(5)), clock, new JournalWriter(journal, clock));
     }
 
     private DeleteListing deleteListing(DeletionMode mode) {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted, mode,
-                new RepublicationDelay(Duration.ofMinutes(5)), clock);
+                new RepublicationDelay(Duration.ofMinutes(5)), clock, new JournalWriter(journal, clock));
     }
 
     /** Present, scanned, backed up with its photo kept, and validated by the member. */

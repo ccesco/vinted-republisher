@@ -41,13 +41,14 @@ class ListingDetailPageTest {
             {"listing": {"vintedId": 3, "title": "Pull <b>rayé</b>", "price": {"amount": 12.5, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
              "lastSeenAt": "2026-11-03T09:00:00Z",
+             "journal": [],
              "statisticsHistory": [
                {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
                {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}]}""";
     private static final String NEVER_READ = """
             {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
-             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": []}""";
+             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": [], "journal": []}""";
     private static final String ABSENT = NEVER_READ.replace("\"present\": true", "\"present\": false");
 
     private static final String VERIFIED = """
@@ -116,6 +117,11 @@ class ListingDetailPageTest {
         fakeApi.createContext("/listing.html", exchange -> {
             try (InputStream html = getClass().getResourceAsStream("/static/listing.html")) {
                 respond(exchange, 200, "text/html; charset=utf-8", html.readAllBytes());
+            }
+        });
+        fakeApi.createContext("/journal.js", exchange -> {
+            try (InputStream script = getClass().getResourceAsStream("/static/journal.js")) {
+                respond(exchange, 200, "text/javascript; charset=utf-8", script.readAllBytes());
             }
         });
         fakeApi.createContext("/api/listings/abc", exchange -> respond(exchange, 400, "text/plain", new byte[0]));
@@ -303,6 +309,25 @@ class ListingDetailPageTest {
         open();
         // Alors l'étape « À republier » est affichée sous le titre
         assertThat(page.locator("#stage")).hasText("Étape : À republier");
+    }
+
+    @Test
+    void shows_the_journal_of_the_listing() {
+        // US-23 AT-23-14. Étant donné une annonce avec une validation et une suppression en dry-run
+        detail.set(NEVER_READ.replace("\"journal\": []", """
+                "journal": [
+                  {"entryId": 2, "occurredAt": "2026-11-15T10:01:00Z", "action": "DELETION", "outcome": "DRY_RUN",
+                   "listingId": 3, "listingTitle": "Jupe"},
+                  {"entryId": 1, "occurredAt": "2026-11-15T10:00:00Z", "action": "BACKUP_VALIDATION",
+                   "outcome": "SUCCEEDED", "listingId": 3, "listingTitle": "Jupe"}]"""));
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors la section « Journal » montre ces deux lignes
+        assertThat(page.locator("#listing-journal tbody tr")).hasCount(2);
+        assertThat(page.locator("#listing-journal tbody tr").nth(0)).containsText("Suppression");
+        assertThat(page.locator("#listing-journal tbody tr").nth(0)).containsText("dry-run réussi");
+        assertThat(page.locator("#listing-journal tbody tr").nth(1)).containsText("Validation");
+        assertThat(page.locator("#no-journal")).isHidden();
     }
 
     @Test

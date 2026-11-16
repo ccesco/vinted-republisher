@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.backup;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
@@ -11,6 +12,8 @@ import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.domain.backup.WardrobeBackupRepository;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
@@ -24,6 +27,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -44,11 +48,12 @@ public class BackUpWardrobe {
     private final BackupPace pace;
     private final Clock clock;
     private final Executor background;
+    private final JournalWriter journal;
 
     public BackUpWardrobe(VintedSession session, LastBackupProblem lastProblem, WardrobeBackupRepository backups,
                           ListingContentReader reader, ListingRepository listings,
                           ListingBackupRepository listingBackups, PhotoStorage photos, BackupPace pace, Clock clock,
-                          Executor background) {
+                          Executor background, JournalWriter journal) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.backups = backups;
@@ -59,6 +64,7 @@ public class BackUpWardrobe {
         this.pace = pace;
         this.clock = clock;
         this.background = background;
+        this.journal = journal;
     }
 
     /** Starts right away, so that the backup shows as in progress, then visits Vinted in the background. */
@@ -67,12 +73,15 @@ public class BackUpWardrobe {
             return;
         }
         lastProblem.clear();
+        journal.write(JournaledAction.WARDROBE_BACKUP, Optional.empty(), ActionOutcome.STARTED, Optional.empty());
         background.execute(this::backUpUntilDone);
     }
 
     private void backUpUntilDone() {
         try {
             backUpToTheEnd();
+            journal.write(JournaledAction.WARDROBE_BACKUP, Optional.empty(), ActionOutcome.SUCCEEDED,
+                    Optional.empty());
             session.finish();
         } catch (SessionDisconnected disconnected) {
             fail(BackupProblem.SESSION_DISCONNECTED, disconnected);
@@ -86,6 +95,7 @@ public class BackUpWardrobe {
         } catch (RuntimeException unexpected) {
             // The backup must end whatever happens; the failure is rethrown for the executor to log it.
             lastProblem.report(BackupProblem.BACKUP_FAILED);
+            journalFailure(BackupProblem.BACKUP_FAILED);
             session.finish();
             throw unexpected;
         }
@@ -100,6 +110,12 @@ public class BackUpWardrobe {
     private void fail(BackupProblem problem, RuntimeException cause) {
         LOG.warn("Wardrobe backup failed", cause);
         lastProblem.report(problem);
+        journalFailure(problem);
+    }
+
+    private void journalFailure(BackupProblem problem) {
+        journal.write(JournaledAction.WARDROBE_BACKUP, Optional.empty(), ActionOutcome.FAILED,
+                Optional.of(problem.name()));
     }
 
     private void backUpToTheEnd() {

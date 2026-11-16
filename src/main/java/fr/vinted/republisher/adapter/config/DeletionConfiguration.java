@@ -5,6 +5,7 @@ import fr.vinted.republisher.adapter.out.browser.PlaywrightListingDeleter;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
@@ -47,9 +48,9 @@ public class DeletionConfiguration {
                                 ListingBackupRepository listingBackups, PhotoStorage photos,
                                 BackupValidationRepository validations, ListingDeletionRepository deletions,
                                 ListingDeleter deleter, DeletionMode mode, RepublicationDelay republicationDelay,
-                                Clock clock) {
+                                Clock clock, JournalWriter journal) {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter, mode,
-                republicationDelay, clock);
+                republicationDelay, clock, journal);
     }
 
     @Bean
@@ -58,8 +59,8 @@ public class DeletionConfiguration {
                                                   BackupValidationRepository validations,
                                                   ListingDeletionRepository deletions, ListingDeleter deleter,
                                                   DeletionMode mode, RepublicationDelay republicationDelay,
-                                                  Clock clock) {
+                                                  Clock clock, JournalWriter journal) {
         return new RecheckListingDeletion(session, listings, listingBackups, photos, validations, deletions, deleter,
-                mode, republicationDelay, clock);
+                mode, republicationDelay, clock, journal);
     }
 }

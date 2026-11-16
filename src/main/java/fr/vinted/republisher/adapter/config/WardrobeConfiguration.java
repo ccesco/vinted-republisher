@@ -3,6 +3,7 @@ package fr.vinted.republisher.adapter.config;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightWardrobeReader;
 import fr.vinted.republisher.adapter.out.browser.WardrobeProperties;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -51,9 +52,10 @@ public class WardrobeConfiguration {
     ScanWardrobe scanWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeScanRepository scans,
                               WardrobeReader reader, ListingRepository listings, ListingStatisticsRepository statistics,
                               WardrobeProperties wardrobe,
-                              Clock clock, @Qualifier("applicationTaskExecutor") Executor background) {
+                              Clock clock, @Qualifier("applicationTaskExecutor") Executor background,
+                              JournalWriter journal) {
         return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, paceOf(wardrobe.scan()), clock,
-                new FailureLoggingExecutor(background));
+                new FailureLoggingExecutor(background), journal);
     }
 
     static ScanPace paceOf(WardrobeProperties.Scan scan) {

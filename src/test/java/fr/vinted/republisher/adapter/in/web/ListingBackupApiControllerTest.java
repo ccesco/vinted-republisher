@@ -3,8 +3,10 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -225,7 +227,7 @@ class ListingBackupApiControllerTest {
                                                     InMemoryPhotoStorage photos,
                                                     InMemoryBackupValidationRepository validations) {
             return new ValidateListingBackup(listings, listingBackups, photos, validations,
-                    Clock.fixed(NOW, ZoneOffset.UTC));
+                    Clock.fixed(NOW, ZoneOffset.UTC), new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
 
         @Bean

@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.backup;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
@@ -15,6 +16,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
@@ -25,6 +27,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.io.UncheckedIOException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -261,6 +264,6 @@ class BackUpWardrobeTest {
 
     private BackUpWardrobe backUpWardrobe(Executor executor, BackupPace pace) {
         return new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, photos, pace, clock,
-                executor);
+                executor, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
     }
 }

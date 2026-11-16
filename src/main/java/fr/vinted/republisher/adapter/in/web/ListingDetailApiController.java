@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.ZoneOffset;
+import java.util.Optional;
 
 /** Implements the contract-first API: everything the tool keeps about one listing. */
 @RestController
@@ -26,6 +27,9 @@ public class ListingDetailApiController implements ListingDetailApi {
         return ResponseEntity.ok(new ListingDetailDto()
                 .listing(ListingInventoryApiController.toDto(detail.entry()))
                 .lastSeenAt(detail.entry().listing().lastSeenAt().atOffset(ZoneOffset.UTC))
-                .statisticsHistory(detail.history().stream().map(ListingInventoryApiController::statisticsOf).toList()));
+                .statisticsHistory(detail.history().stream().map(ListingInventoryApiController::statisticsOf).toList())
+                .journal(detail.journal().stream()
+                        .map(entry -> ActionJournalApiController.toDto(entry, Optional.of(detail.entry().listing().title())))
+                        .toList()));
     }
 }

@@ -6,6 +6,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
+import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -28,11 +29,12 @@ public class ShowListingDetail {
     private final ListingRepublicationRepository republications;
     private final RepublicationDelay delay;
     private final Clock clock;
+    private final ActionJournal journal;
 
     public ShowListingDetail(ListingRepository listings, ListingStatisticsRepository statistics,
                              ListingBackupRepository backups, BackupValidationRepository validations,
                              ListingDeletionRepository deletions, ListingRepublicationRepository republications,
-                             RepublicationDelay delay, Clock clock) {
+                             RepublicationDelay delay, Clock clock, ActionJournal journal) {
         this.listings = listings;
         this.statistics = statistics;
         this.backups = backups;
@@ -41,6 +43,7 @@ public class ShowListingDetail {
         this.republications = republications;
         this.delay = delay;
         this.clock = clock;
+        this.journal = journal;
     }
 
     public ListingDetail show(VintedListingId id) {
@@ -50,6 +53,6 @@ public class ShowListingDetail {
                 backups.find(id).stream().toList(), validations.find(id).stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
                 clock.instant());
-        return new ListingDetail(inventory.entries().getFirst(), history);
+        return new ListingDetail(inventory.entries().getFirst(), history, journal.of(id));
     }
 }

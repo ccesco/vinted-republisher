@@ -1,6 +1,7 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
@@ -16,6 +17,9 @@ import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormField;
@@ -40,6 +44,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -52,9 +57,11 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
@@ -66,9 +73,11 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveLis
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 
 class RepublishListingAcceptanceTest {
 
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
     private static final VintedListingId LISTING = new VintedListingId(1);
     private static final VintedListingId NEW_LISTING = new VintedListingId(2);
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00Z");
@@ -325,6 +334,54 @@ class RepublishListingAcceptanceTest {
         assertThat(vinted.formsOpened()).isZero();
     }
 
+    @Test
+    void republication_outcomes_are_written() {
+        // US-23 AT-23-08. Étant donné l'annonce supprimée, date de republication atteinte
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.showingOncePublished(REPUBLISHED, anActiveListing(3));
+        listings.saveAll(List.of(Listing.seen(anActiveListing(3), NOW)));
+        // Quand sa republication réussit
+        republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        // Alors le journal contient « Republication : réussie »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.REPUBLICATION, ActionOutcome.SUCCEEDED, Optional.empty()));
+
+        // Et une republication trop tôt d'une autre annonce écrit « Republication : refusée », raison « trop tôt »
+        RepublishListingAcceptanceTest tooEarly = new RepublishListingAcceptanceTest();
+        tooEarly.aDeletedListing(Duration.ofMinutes(2));
+        catchThrowable(() -> tooEarly.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        assertThat(tooEarly.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.REPUBLICATION, ActionOutcome.REFUSED, Optional.of("TOO_EARLY")));
+    }
+
+    @Test
+    void republication_refused_on_photos_is_written_with_the_republication_code() {
+        // US-23. Étant donné une sauvegarde dont une photo manque sur disque
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        photos.lose(1, backup.photos().get(1));
+        // Quand le membre demande la republication
+        catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        // Alors le journal contient « Republication : refusée » avec le code de la réponse de l'API
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.REPUBLICATION, ActionOutcome.REFUSED, Optional.of("PHOTOS_NOT_VERIFIED")));
+    }
+
+    @Test
+    void republication_dry_run_and_error_are_written() {
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.showingOncePublished(REPUBLISHED);
+        republishListing(RepublicationMode.DRY_RUN).republish(LISTING, SAVED_AT);
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.REPUBLICATION, ActionOutcome.DRY_RUN, Optional.empty()));
+
+        RepublishListingAcceptanceTest inError = new RepublishListingAcceptanceTest();
+        inError.aDeletedListing(Duration.ofMinutes(6));
+        inError.vinted.showingOncePublished(aListing(2, "Robe bleue", "15.00", ACTIVE));
+        inError.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        assertThat(inError.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, Optional.empty()));
+    }
+
     private void assertLeftInError(RepublicationReport report) {
         assertThat(vinted.publishClicks()).isEqualTo(1);
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
@@ -365,7 +422,7 @@ class RepublishListingAcceptanceTest {
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings, mode, clock,
-                show);
+                show, new JournalWriter(journal, clock));
     }
 
     /** Backed up with two photos kept, validated by the member, absent from the wardrobe: not deleted yet. */

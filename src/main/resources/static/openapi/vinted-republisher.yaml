@@ -22,6 +22,8 @@ tags:
     description: Liste de toutes les annonces, filtrée, triée et fouillée (US-18)
   - name: listing-detail
     description: Fiche d'une annonce et historique de ses vues et favoris (US-18b)
+  - name: action-journal
+    description: Journal des actions de l'outil, refus, dry-runs et erreurs compris (US-23)
 paths:
   /api/vinted-session:
     get:
@@ -193,6 +195,33 @@ paths:
           description: Identifiant qui n'est pas un entier d'au moins 1.
         '404':
           description: Annonce inconnue de l'outil.
+  /api/journal:
+    get:
+      tags: [action-journal]
+      operationId: showActionJournal
+      summary: Journal des actions
+      description: >
+        Les actions de l'outil (scans, sauvegardes du dressing, validations, suppressions, revérifications,
+        republications) avec leur issue, des plus récentes aux plus anciennes, par pages de 50. Lit les données
+        conservées, sans accéder à Vinted.
+      parameters:
+        - name: before
+          in: query
+          required: false
+          description: Identifiant de la dernière ligne déjà vue ; absent, la page commence par la plus récente.
+          schema:
+            type: integer
+            format: int64
+            minimum: 1
+      responses:
+        '200':
+          description: Une page du journal.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActionJournal'
+        '400':
+          description: before qui n'est pas un entier d'au moins 1.
   /api/listings/{listingId}/backup:
     get:
       tags: [listing-backup]
@@ -572,10 +601,71 @@ components:
               viewCount: 12
               favouriteCount: 3
               readAt: '2026-11-07T10:05:00Z'
+    ActionJournal:
+      type: object
+      description: Une page du journal, des lignes les plus récentes aux plus anciennes.
+      required: [entries, hasMore]
+      properties:
+        entries:
+          type: array
+          maxItems: 50
+          items:
+            $ref: '#/components/schemas/JournalEntry'
+        hasMore:
+          type: boolean
+          description: Vrai s'il reste des lignes plus anciennes (à demander avec before = entryId de la dernière ligne).
+    JournalEntry:
+      type: object
+      description: Une action de l'outil et son issue ; jamais modifiée ni supprimée.
+      required: [entryId, occurredAt, action, outcome]
+      properties:
+        entryId:
+          type: integer
+          format: int64
+          description: Identifiant de la ligne, croissant dans l'ordre d'écriture.
+        occurredAt:
+          type: string
+          format: date-time
+        action:
+          $ref: '#/components/schemas/JournaledAction'
+        outcome:
+          $ref: '#/components/schemas/ActionOutcome'
+        listingId:
+          type: integer
+          format: int64
+          description: Annonce concernée ; absente pour le scan et la sauvegarde du dressing.
+        listingTitle:
+          type: string
+          description: Titre actuel de l'annonce concernée ; absent sans annonce ou si l'outil ne la connaît pas.
+        reason:
+          type: string
+          description: >
+            Raison, avec le même code que la réponse de l'API (refus de suppression, de republication ou de
+            validation, problème du scan ou de la sauvegarde) ; absente sans raison.
+      example:
+        entryId: 42
+        occurredAt: '2026-11-15T10:00:00Z'
+        action: DELETION
+        outcome: REFUSED
+        listingId: 90000000001
+        listingTitle: Pull rayé
+        reason: NOT_VALIDATED
+    JournaledAction:
+      type: string
+      description: >
+        Action journalisée : scan du dressing, sauvegarde du dressing, validation d'une sauvegarde, suppression,
+        revérification d'une suppression, republication.
+      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, DELETION, DELETION_RECHECK, REPUBLICATION]
+    ActionOutcome:
+      type: string
+      description: >
+        Issue : lancée (scan, sauvegarde du dressing), réussie, dry-run réussi, refusée, dans le doute (suppression
+        non confirmée, erreur de republication), non faite (revérification), en échec.
+      enum: [STARTED, SUCCEEDED, DRY_RUN, REFUSED, IN_DOUBT, NOT_DONE, FAILED]
     ListingDetail:
       type: object
       description: Fiche d'une annonce.
-      required: [listing, lastSeenAt, statisticsHistory]
+      required: [listing, lastSeenAt, statisticsHistory, journal]
       properties:
         listing:
           $ref: '#/components/schemas/Listing'
@@ -588,6 +678,11 @@ components:
           description: Tous les relevés de vues et favoris de l'annonce, du plus récent au plus ancien ; vide si jamais relevée.
           items:
             $ref: '#/components/schemas/ListingStatistics'
+        journal:
+          type: array
+          description: Toutes les lignes du journal de l'annonce, de la plus récente à la plus ancienne ; vide si aucune.
+          items:
+            $ref: '#/components/schemas/JournalEntry'
       example:
         listing:
           vintedId: 90000000001

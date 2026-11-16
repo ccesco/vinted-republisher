@@ -1,5 +1,8 @@
 package fr.vinted.republisher.application.wardrobe;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -23,6 +26,7 @@ import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
 import java.util.List;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 /**
@@ -41,10 +45,11 @@ public class ScanWardrobe {
     private final ScanPace pace;
     private final Clock clock;
     private final Executor background;
+    private final JournalWriter journal;
 
     public ScanWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeScanRepository scans,
                         WardrobeReader reader, ListingRepository listings, ListingStatisticsRepository statistics,
-                        ScanPace pace, Clock clock, Executor background) {
+                        ScanPace pace, Clock clock, Executor background, JournalWriter journal) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.scans = scans;
@@ -54,6 +59,7 @@ public class ScanWardrobe {
         this.pace = pace;
         this.clock = clock;
         this.background = background;
+        this.journal = journal;
     }
 
     /** Starts right away, so that the scan shows as in progress, then visits Vinted in the background. */
@@ -62,12 +68,14 @@ public class ScanWardrobe {
             return;
         }
         lastProblem.clear();
+        journal.write(JournaledAction.SCAN, Optional.empty(), ActionOutcome.STARTED, Optional.empty());
         background.execute(this::scanUntilDone);
     }
 
     private void scanUntilDone() {
         try {
             scanToTheEnd();
+            journal.write(JournaledAction.SCAN, Optional.empty(), ActionOutcome.SUCCEEDED, Optional.empty());
         } catch (BrowserUnavailable unavailable) {
             fail(ScanProblem.BROWSER_UNAVAILABLE, unavailable);
         } catch (VintedUnreachable unreachable) {
@@ -77,6 +85,7 @@ public class ScanWardrobe {
         } catch (RuntimeException unexpected) {
             // The scan must end whatever happens; the failure is rethrown for the executor to log it.
             lastProblem.report(ScanProblem.SCAN_FAILED);
+            journalFailure(ScanProblem.SCAN_FAILED);
             throw unexpected;
         } finally {
             session.finish();
@@ -87,6 +96,11 @@ public class ScanWardrobe {
     private void fail(ScanProblem problem, RuntimeException cause) {
         LOG.warn("Wardrobe scan failed", cause);
         lastProblem.report(problem);
+        journalFailure(problem);
+    }
+
+    private void journalFailure(ScanProblem problem) {
+        journal.write(JournaledAction.SCAN, Optional.empty(), ActionOutcome.FAILED, Optional.of(problem.name()));
     }
 
     private void scanToTheEnd() {
