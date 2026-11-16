@@ -1,0 +1,28 @@
+# US-23 : journal des actions, une ligne par action (refus, dry-runs et erreurs compris), jamais supprimée.
+# Pas de clé étrangère vers les annonces : le journal est un témoin, son écriture ne doit pas pouvoir échouer pour ça.
+databaseChangeLog:
+  - changeSet:
+      id: 011-create-action-journal-entry
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: action_journal_entry
+            columns:
+              - column: {name: id, type: bigint, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: occurred_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: action, type: text, constraints: {nullable: false}}
+              - column: {name: outcome, type: text, constraints: {nullable: false}}
+              - column: {name: listing_id, type: bigint}
+              - column: {name: reason, type: text}
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'DELETION', 'DELETION_RECHECK',
+                                  'REPUBLICATION'));
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_outcome_check
+                CHECK (outcome IN ('STARTED', 'SUCCEEDED', 'DRY_RUN', 'REFUSED', 'IN_DOUBT', 'NOT_DONE', 'FAILED'));
+              CREATE INDEX action_journal_entry_listing ON action_journal_entry (listing_id, id DESC)
+                WHERE listing_id IS NOT NULL;
+      rollback:
+        - dropTable:
+            tableName: action_journal_entry

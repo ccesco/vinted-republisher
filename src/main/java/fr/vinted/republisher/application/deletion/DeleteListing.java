@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.deletion;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
@@ -9,6 +10,7 @@ import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
+import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.deletion.DeletionVisit;
@@ -17,6 +19,8 @@ import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingDifference;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
@@ -48,12 +52,13 @@ public class DeleteListing {
     private final ListingDeleter deleter;
     private final DeletionMode mode;
     private final Clock clock;
+    private final JournalWriter journal;
     private final ShowListingDeletion showListingDeletion;
 
     public DeleteListing(VintedSession session, ListingRepository listings, ListingBackupRepository listingBackups,
                          PhotoStorage photos, BackupValidationRepository validations,
                          ListingDeletionRepository deletions, ListingDeleter deleter, DeletionMode mode,
-                         RepublicationDelay republicationDelay, Clock clock) {
+                         RepublicationDelay republicationDelay, Clock clock, JournalWriter journal) {
         this.session = session;
         this.listings = listings;
         this.listingBackups = listingBackups;
@@ -63,6 +68,7 @@ public class DeleteListing {
         this.deleter = deleter;
         this.mode = mode;
         this.clock = clock;
+        this.journal = journal;
         this.showListingDeletion = new ShowListingDeletion(listings, listingBackups, photos, validations, deletions,
                 mode, republicationDelay);
     }
@@ -72,6 +78,20 @@ public class DeleteListing {
      * the page of the listing before any click: a refusal touches nothing on Vinted.
      */
     public DeletionReport delete(VintedListingId id, Instant seen) {
+        return journal.journaled(JournaledAction.DELETION, id, () -> deleteNow(id, seen), DeleteListing::outcomeOf,
+                Optional.of("DELETION_FAILED"));
+    }
+
+    /** A dry run deletes nothing; otherwise the attempt just made is proven or in doubt. */
+    private static ActionOutcome outcomeOf(DeletionReport report) {
+        if (report.dryRunPassed()) {
+            return ActionOutcome.DRY_RUN;
+        }
+        return report.lastDeletion().filter(deletion -> deletion.outcome() == DeletionOutcome.CONFIRMED).isPresent()
+                ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
+    }
+
+    private DeletionReport deleteNow(VintedListingId id, Instant seen) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         if (!backup.savedAt().equals(seen)) {
             throw new BackupReplaced(id, seen);

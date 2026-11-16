@@ -3,6 +3,7 @@ package fr.vinted.republisher.acceptance;
 import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupFixtures;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
@@ -17,11 +18,15 @@ import fr.vinted.republisher.domain.backup.VerificationFailure.PriceChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.TitleChanged;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -46,9 +51,11 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 
 class ValidateListingBackupAcceptanceTest {
 
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
     private static final VintedListingId LISTING = new VintedListingId(1);
     private static final Instant SCANNED_AT = Instant.parse("2026-11-10T09:00:00Z");
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00Z");
@@ -62,7 +69,7 @@ class ValidateListingBackupAcceptanceTest {
     private final ShowListingBackup showListingBackup =
             new ShowListingBackup(listings, listingBackups, photos, validations);
     private final ValidateListingBackup validateListingBackup =
-            new ValidateListingBackup(listings, listingBackups, photos, validations, clock);
+            new ValidateListingBackup(listings, listingBackups, photos, validations, clock, new JournalWriter(journal, clock));
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), listingBackups, validations,
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
@@ -199,6 +206,37 @@ class ValidateListingBackupAcceptanceTest {
         // Alors elle reste validée le 11/11 à 10 h
         assertThat(again.validatedAt()).contains(NOW);
         assertThat(showListingBackup.show(LISTING).validatedAt()).contains(NOW);
+    }
+
+    @Test
+    void validation_and_its_refusal_are_written() {
+        // US-23 AT-23-04. Étant donné l'annonce sauvegardée, vérification réussie
+        aScannedListing();
+        aKeptBackup(SAVED_AT, "front");
+        // Quand le membre valide la version vue
+        validateListingBackup.validate(LISTING, SAVED_AT);
+        // Et qu'il valide ensuite une version remplacée depuis
+        aKeptBackup(NOW, "front");
+        catchThrowable(() -> validateListingBackup.validate(LISTING, SAVED_AT));
+        // Alors le journal contient « Validation : validée » puis « refusée », raison « sauvegarde remplacée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.BACKUP_VALIDATION, ActionOutcome.SUCCEEDED, Optional.empty()),
+                tuple(JournaledAction.BACKUP_VALIDATION, ActionOutcome.REFUSED, Optional.of("BACKUP_REPLACED")));
+        assertThat(journal.records()).extracting(ActionRecord::listingId).containsOnly(Optional.of(LISTING));
+    }
+
+    @Test
+    void journal_failure_changes_nothing() {
+        // US-23 AT-23-10. Étant donné un journal impossible à écrire
+        ValidateListingBackup withJournalDown = new ValidateListingBackup(listings, listingBackups, photos,
+                validations, clock, new JournalWriter(new InMemoryActionJournal().whereDatabaseIsDown(), Clock.systemUTC()));
+        aScannedListing();
+        aKeptBackup(SAVED_AT, "front");
+        // Quand le membre valide une sauvegarde
+        ListingBackupView validated = withJournalDown.validate(LISTING, SAVED_AT);
+        // Alors la validation est enregistrée et la réponse est la même que sans panne
+        assertThat(validated.validatedAt()).contains(NOW);
+        assertThat(validations.findAll()).hasSize(1);
     }
 
     private void aScannedListing() {

@@ -1,11 +1,15 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.session.CheckVintedSession;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -21,6 +25,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeVintedAccount;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -44,9 +49,11 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anInactiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 class ScanWardrobeAcceptanceTest {
 
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
     private static final Instant NOW = Instant.parse("2026-11-06T10:00:00Z");
     private static final Instant EARLIER = NOW.minusSeconds(3600);
     private static final Duration MINIMUM_PAUSE = Duration.ofSeconds(10);
@@ -63,7 +70,8 @@ class ScanWardrobeAcceptanceTest {
     private final ScanPace pace = new ScanPace(new PauseRange(Duration.ofSeconds(3), Duration.ofSeconds(6)),
             new PauseRange(MINIMUM_PAUSE, MAXIMUM_PAUSE), new Random(42));
     private final ScanWardrobe scanWardrobe =
-            new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, pace, clock, RIGHT_AWAY);
+            new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, pace, clock, RIGHT_AWAY,
+                    new JournalWriter(journal, clock));
     private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, scans);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics,
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
@@ -341,6 +349,29 @@ class ScanWardrobeAcceptanceTest {
 
     private static StatisticsReading aReading(long listing, int views, int favourites, Instant readAt) {
         return new StatisticsReading(new VintedListingId(listing), new ListingStatistics(views, favourites), readAt);
+    }
+
+    @Test
+    void scan_writes_its_start_and_its_end() {
+        // US-23 AT-23-01. Étant donné aucune action navigateur en cours
+        reader.holding(anActiveListing(1));
+        // Quand le membre lance un scan qui se termine sans problème
+        scanWardrobe.scan();
+        // Alors le journal contient « Scan du dressing : lancé » puis « Scan du dressing : terminé »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.SCAN, ActionOutcome.STARTED, Optional.empty()),
+                tuple(JournaledAction.SCAN, ActionOutcome.SUCCEEDED, Optional.empty()));
+    }
+
+    @Test
+    void ignored_launch_writes_nothing() {
+        // US-23 AT-23-03. Étant donné une action navigateur en cours
+        session.start(BrowserAction.BACKING_UP);
+        // Quand le membre lance un scan
+        scanWardrobe.scan();
+        // Alors le scan est ignoré comme aujourd'hui, et le journal ne contient aucune ligne de scan
+        assertThat(reader.reads()).isZero();
+        assertThat(journal.records()).isEmpty();
     }
 
     private Listing anInventoryOfOneListing() {

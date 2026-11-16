@@ -1,11 +1,15 @@
 package fr.vinted.republisher.application.republication;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.RepublicationChecks.RepublishableBackup;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.republication.RepublicationReport;
 import fr.vinted.republisher.domain.republication.RepublicationVisit;
 import fr.vinted.republisher.domain.session.BrowserAction;
@@ -36,12 +40,14 @@ public class RepublishListing {
     private final ListingRepository listings;
     private final RepublicationMode mode;
     private final Clock clock;
+    private final JournalWriter journal;
     private final ShowListingRepublication showListingRepublication;
 
     public RepublishListing(VintedSession session, RepublicationChecks checks,
                             ListingRepublicationRepository republications, ListingPublisher publisher,
                             NewListingSearch newListingSearch, ListingRepository listings, RepublicationMode mode,
-                            Clock clock, ShowListingRepublication showListingRepublication) {
+                            Clock clock, ShowListingRepublication showListingRepublication,
+                            JournalWriter journal) {
         this.session = session;
         this.checks = checks;
         this.republications = republications;
@@ -50,6 +56,7 @@ public class RepublishListing {
         this.listings = listings;
         this.mode = mode;
         this.clock = clock;
+        this.journal = journal;
         this.showListingRepublication = showListingRepublication;
     }
 
@@ -58,6 +65,20 @@ public class RepublishListing {
      * Publish, any failure leaves the republication in error rather than risk a duplicate.
      */
     public RepublicationReport republish(VintedListingId id, Instant seen) {
+        return journal.journaled(JournaledAction.REPUBLICATION, id, () -> republishNow(id, seen),
+                RepublishListing::outcomeOf, Optional.of("REPUBLICATION_FAILED"));
+    }
+
+    /** A dry run publishes nothing; otherwise the attempt just made is found in the wardrobe or in error. */
+    private static ActionOutcome outcomeOf(RepublicationReport report) {
+        if (report.dryRunPassed()) {
+            return ActionOutcome.DRY_RUN;
+        }
+        return report.lastRepublication().filter(republication -> republication.outcome() == RepublicationOutcome.PUBLISHED)
+                .isPresent() ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
+    }
+
+    private RepublicationReport republishNow(VintedListingId id, Instant seen) {
         RepublishableBackup republishable = checks.check(id, seen);
         if (!session.start(BrowserAction.REPUBLISHING)) {
             throw new BrowserBusy();

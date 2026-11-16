@@ -8,6 +8,7 @@ import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
@@ -54,8 +55,8 @@ public class BackupConfiguration {
     @Bean
     ValidateListingBackup validateListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
                                                 PhotoStorage photos, BackupValidationRepository validations,
-                                                Clock clock) {
-        return new ValidateListingBackup(listings, listingBackups, photos, validations, clock);
+                                                Clock clock, JournalWriter journal) {
+        return new ValidateListingBackup(listings, listingBackups, photos, validations, clock, journal);
     }
 
     @Bean
@@ -73,10 +74,11 @@ public class BackupConfiguration {
                                   WardrobeBackupRepository backups, ListingContentReader reader,
                                   ListingRepository listings, ListingBackupRepository listingBackups,
                                   PhotoStorage photos, BackupProperties backup, Clock clock,
-                                  @Qualifier("applicationTaskExecutor") Executor background) {
+                                  @Qualifier("applicationTaskExecutor") Executor background,
+                                  JournalWriter journal) {
         BackupPace pace = new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()),
                 new Random());
         return new BackUpWardrobe(session, lastBackupProblem, backups, reader, listings, listingBackups, photos, pace,
-                clock, new FailureLoggingExecutor(background));
+                clock, new FailureLoggingExecutor(background), journal);
     }
 }

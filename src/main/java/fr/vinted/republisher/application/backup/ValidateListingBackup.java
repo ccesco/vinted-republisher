@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.backup;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupValidation;
@@ -10,6 +11,8 @@ import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupView;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
@@ -28,14 +31,17 @@ public class ValidateListingBackup {
     private final PhotoStorage photos;
     private final BackupValidationRepository validations;
     private final Clock clock;
+    private final JournalWriter journal;
 
     public ValidateListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
-                                 PhotoStorage photos, BackupValidationRepository validations, Clock clock) {
+                                 PhotoStorage photos, BackupValidationRepository validations, Clock clock,
+                                 JournalWriter journal) {
         this.listings = listings;
         this.listingBackups = listingBackups;
         this.photos = photos;
         this.validations = validations;
         this.clock = clock;
+        this.journal = journal;
     }
 
     /**
@@ -44,6 +50,11 @@ public class ValidateListingBackup {
      * Answers with the version validated, even if another backup replaced it in the meantime.
      */
     public ListingBackupView validate(VintedListingId listing, Instant seen) {
+        return journal.journaled(JournaledAction.BACKUP_VALIDATION, listing, () -> validateNow(listing, seen),
+                validated -> ActionOutcome.SUCCEEDED, Optional.empty());
+    }
+
+    private ListingBackupView validateNow(VintedListingId listing, Instant seen) {
         ListingBackup backup = listingBackups.find(listing).orElseThrow(() -> new ListingNotBackedUp(listing));
         if (!backup.savedAt().equals(seen)) {
             throw new BackupReplaced(listing, seen);

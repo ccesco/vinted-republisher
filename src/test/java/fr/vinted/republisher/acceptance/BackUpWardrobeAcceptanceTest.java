@@ -2,12 +2,16 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingPhoto;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionStatus;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -16,6 +20,7 @@ import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
@@ -25,10 +30,12 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.Executor;
 import java.util.stream.LongStream;
@@ -40,10 +47,12 @@ import static fr.vinted.republisher.domain.backup.BackupFixtures.aReading;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
+import static org.assertj.core.api.Assertions.tuple;
 
 @ExtendWith(OutputCaptureExtension.class)
 class BackUpWardrobeAcceptanceTest {
 
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
     private static final Instant NOW = Instant.parse("2026-11-07T10:00:00Z");
     private static final Instant EARLIER = NOW.minusSeconds(3600);
     private static final Executor RIGHT_AWAY = Runnable::run;
@@ -60,7 +69,7 @@ class BackUpWardrobeAcceptanceTest {
             new PauseRange(Duration.ofSeconds(10), Duration.ofSeconds(15)), new Random(42));
     private final BackUpWardrobe backUpWardrobe =
             new BackUpWardrobe(session, lastProblem, backups, reader, listings, listingBackups, photos, pace,
-                    clock, RIGHT_AWAY);
+                    clock, RIGHT_AWAY, new JournalWriter(journal, clock));
     private final ShowBackup showBackup = new ShowBackup(session, lastProblem, backups);
 
     @Test
@@ -273,6 +282,29 @@ class BackUpWardrobeAcceptanceTest {
         // Alors la demande est ignorée
         assertThat(reader.tabs()).isZero();
         assertThat(session.overview().currentAction()).contains(BrowserAction.SCANNING);
+    }
+
+    @Test
+    void failed_wardrobe_backup_writes_its_problem() {
+        // US-23 AT-23-02. Étant donné une session Vinted non connectée
+        anInventoryOf(1);
+        reader.whereFormRedirectsToLogin(1);
+        // Quand le membre lance la sauvegarde du dressing
+        backUpWardrobe.backUp();
+        // Alors le journal contient « Sauvegarde du dressing : lancée » puis « en échec », raison « session non connectée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.WARDROBE_BACKUP, ActionOutcome.STARTED, Optional.empty()),
+                tuple(JournaledAction.WARDROBE_BACKUP, ActionOutcome.FAILED, Optional.of("SESSION_DISCONNECTED")));
+    }
+
+    @Test
+    void finished_wardrobe_backup_is_written() {
+        anInventoryOf(1);
+        reader.showing(aContent(1));
+        backUpWardrobe.backUp();
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.WARDROBE_BACKUP, ActionOutcome.STARTED, Optional.empty()),
+                tuple(JournaledAction.WARDROBE_BACKUP, ActionOutcome.SUCCEEDED, Optional.empty()));
     }
 
     private void anInventoryOf(long... ids) {
