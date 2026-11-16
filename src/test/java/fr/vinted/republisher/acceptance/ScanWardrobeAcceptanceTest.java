@@ -364,6 +364,19 @@ class ScanWardrobeAcceptanceTest {
     }
 
     @Test
+    void failed_scan_writes_its_problem() {
+        // US-23. Étant donné un navigateur injoignable
+        anInventoryOfOneListing();
+        reader.whereBrowserCannotStart();
+        // Quand le membre lance le scan
+        scanWardrobe.scan();
+        // Alors le journal contient « Scan du dressing : lancé » puis « en échec », raison « navigateur indisponible »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.SCAN, ActionOutcome.STARTED, Optional.empty()),
+                tuple(JournaledAction.SCAN, ActionOutcome.FAILED, Optional.of("BROWSER_UNAVAILABLE")));
+    }
+
+    @Test
     void ignored_launch_writes_nothing() {
         // US-23 AT-23-03. Étant donné une action navigateur en cours
         session.start(BrowserAction.BACKING_UP);

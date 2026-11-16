@@ -19,9 +19,9 @@ En tant que membre, je veux un journal de ce que l'outil a fait ou refusé de fa
 | Scan du dressing (`SCAN`) | lancement ; fin | lancé (`STARTED`) ; terminé (`SUCCEEDED`) ou en échec (`FAILED`, problème du scan) |
 | Sauvegarde du dressing (`WARDROBE_BACKUP`) | lancement ; fin | comme le scan, problème de la sauvegarde |
 | Validation d'une sauvegarde (`BACKUP_VALIDATION`) | réponse | validée (`SUCCEEDED`) ; refusée (`REFUSED`, `BACKUP_REPLACED` ou `VERIFICATION_FAILED`) |
-| Suppression (`DELETION`) | réponse | confirmée (`SUCCEEDED`) ; non confirmée (`IN_DOUBT`) ; dry-run réussi (`DRY_RUN`) ; refusée (`REFUSED`, code de `DeletionRefusal`) ; échec inattendu (`FAILED`, `DELETION_FAILED`) |
-| Revérification d'une suppression (`DELETION_RECHECK`) | réponse | confirmée (`SUCCEEDED`) ; non faite (`NOT_DONE`) ; doute qui reste (`IN_DOUBT`) ; refusée (`REFUSED`) |
-| Republication (`REPUBLICATION`) | réponse | réussie (`SUCCEEDED`) ; erreur de republication (`IN_DOUBT`) ; dry-run réussi (`DRY_RUN`) ; refusée (`REFUSED`, code de `RepublicationRefusal`) ; échec inattendu (`FAILED`, `REPUBLICATION_FAILED`) |
+| Suppression (`DELETION`) | réponse | confirmée (`SUCCEEDED`) ; non confirmée (`IN_DOUBT`) ; dry-run réussi (`DRY_RUN`) ; refusée (`REFUSED`, code d'un refus 409 ou 422 de `DeletionRefusal`) ; en échec côté navigateur ou Vinted (`FAILED`, code d'une réponse 502 : `BROWSER_UNAVAILABLE`, `VINTED_UNREACHABLE`, `SESSION_DISCONNECTED`, `LISTING_PAGE_UNREADABLE`) ; échec inattendu (`FAILED`, `DELETION_FAILED`) |
+| Revérification d'une suppression (`DELETION_RECHECK`) | réponse | confirmée (`SUCCEEDED`) ; non faite (`NOT_DONE`) ; doute qui reste (`IN_DOUBT`) ; refusée (`REFUSED`) ; en échec comme la suppression (`FAILED`, code 502 ou `DELETION_FAILED`) |
+| Republication (`REPUBLICATION`) | réponse | réussie (`SUCCEEDED`) ; erreur de republication (`IN_DOUBT`) ; dry-run réussi (`DRY_RUN`) ; refusée (`REFUSED`, code d'un refus 409 ou 422 de `RepublicationRefusal`, dont `PHOTOS_NOT_VERIFIED`) ; en échec côté navigateur ou Vinted (`FAILED`, code 502, dont `FORM_UNREADABLE`) ; échec inattendu (`FAILED`, `REPUBLICATION_FAILED`) |
 
    Ne sont pas journalisés : lancement de scan ou de sauvegarde ignoré parce qu'une action navigateur est déjà en cours (rien ne se passe, comme aujourd'hui), vérifications de session et connexions, lectures (pages, aperçus), demandes mal formées (400) ou venues d'un autre site (403).
 3. **Échec de l'écriture** : si la ligne ne peut pas être écrite (base indisponible à ce moment), l'action continue et sa réponse ne change pas ; l'échec est écrit dans les logs de l'application.
@@ -194,6 +194,7 @@ Test : `JpaActionJournalTest.entries_survive_restart()` (`@Tag("docker")`)
 - Purge ou rotation (lignes gardées pour toujours).
 - Journal des changements d'étape (US-14) : l'étape se déduit, seules les actions sont journalisées.
 - Actions automatiques (US-19 à US-21) : elles réutiliseront ce journal.
+- Vérification de la republication (US-13, fusionnée pendant cette US) : pas journalisée ici, hors du périmètre validé ; à ajouter dans une US de suite.
 
 ## Décisions
 - Source, décidé par l'utilisateur (2026-11-15) : table dédiée ; chaque action écrit sa ligne au moment où elle se produit, refus, dry-runs et erreurs compris.
@@ -203,6 +204,7 @@ Test : `JpaActionJournalTest.entries_survive_restart()` (`@Tag("docker")`)
 - Parcours, décidé par l'utilisateur (2026-11-15) : plus récentes d'abord, pages de 50, « Plus ancien » pour la suite ; aucun filtre (le filtre par annonce, c'est la fiche).
 - Échec d'écriture, décidé par l'utilisateur (2026-11-15) : l'action continue et sa réponse ne change pas ; l'échec est écrit dans les logs.
 - Proposés à la rédaction, validés par l'utilisateur avec la spec (« fait comme tu recommandes », 2026-11-15) : issues et codes de raison du tableau (mêmes codes que l'API) ; pagination par identifiant de ligne (`before`) ; journal de la fiche porté par `ListingDetail` (pas de requête en plus) ; titre actuel de l'annonce lu à l'affichage, pas copié dans la ligne.
+- Après la revue, proposé par Claude sur délégation de l'utilisateur (« fait comme tu recommandes », 2026-11-16) : un problème côté navigateur ou Vinted (réponse 502 de l'API) est un échec (`FAILED`) avec son code, comme pour le scan et la sauvegarde du dressing, et non un refus ; seuls les refus 409 et 422 sont `REFUSED`. Chaque raison garde le code exact de la réponse de l'API de l'action (`PHOTOS_NOT_VERIFIED` pour la republication, `VERIFICATION_FAILED` ailleurs).
 
 ## Questions ouvertes
 - Aucune.

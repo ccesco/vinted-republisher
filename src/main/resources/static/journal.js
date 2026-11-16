@@ -12,6 +12,7 @@ const JOURNAL_OUTCOMES = {
 const JOURNAL_HIGHLIGHTED = ['REFUSED', 'IN_DOUBT', 'FAILED'];
 const JOURNAL_REASONS = {
     BACKUP_REPLACED: 'sauvegarde remplacée', VERIFICATION_FAILED: 'vérification échouée',
+    PHOTOS_NOT_VERIFIED: 'photos gardées non intactes',
     NOT_VALIDATED: 'sauvegarde non validée', ALREADY_DELETED: 'déjà supprimée',
     DELETION_UNCONFIRMED: 'suppression précédente non confirmée', NO_UNCONFIRMED_DELETION: 'aucune suppression à revérifier',
     LISTING_CHANGED: 'annonce différente sur Vinted', LISTING_PAGE_UNREADABLE: "page de l'annonce illisible",

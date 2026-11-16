@@ -1,6 +1,7 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
@@ -37,6 +38,7 @@ import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -320,7 +322,7 @@ class VerifyListingRepublicationAcceptanceTest {
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
-                RepublicationMode.REAL, clock, show());
+                RepublicationMode.REAL, clock, show(), new JournalWriter(new InMemoryActionJournal(), clock));
     }
 
     private ShowListingRepublication show() {

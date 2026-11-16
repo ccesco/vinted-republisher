@@ -355,6 +355,18 @@ class RepublishListingAcceptanceTest {
     }
 
     @Test
+    void republication_refused_on_photos_is_written_with_the_republication_code() {
+        // US-23. Étant donné une sauvegarde dont une photo manque sur disque
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        photos.lose(1, backup.photos().get(1));
+        // Quand le membre demande la republication
+        catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        // Alors le journal contient « Republication : refusée » avec le code de la réponse de l'API
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.REPUBLICATION, ActionOutcome.REFUSED, Optional.of("PHOTOS_NOT_VERIFIED")));
+    }
+
+    @Test
     void republication_dry_run_and_error_are_written() {
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(REPUBLISHED);

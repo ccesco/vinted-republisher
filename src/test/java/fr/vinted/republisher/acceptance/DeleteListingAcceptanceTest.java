@@ -466,6 +466,39 @@ class DeleteListingAcceptanceTest {
     }
 
     @Test
+    void failure_on_vinteds_side_is_written_with_its_reason() {
+        // US-23. Étant donné une session Vinted non connectée
+        aValidatedListing();
+        vinted.showing(anActiveListing(1)).whereSessionIsDisconnected();
+        // Quand le membre demande la suppression
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        // Alors le journal contient « Suppression : en échec », raison « session non connectée »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.FAILED, Optional.of("SESSION_DISCONNECTED")));
+    }
+
+    @Test
+    void dry_run_refusal_is_a_refusal() {
+        // US-23. Étant donné le dry-run actif et une annonce dont le prix a changé sur Vinted
+        aValidatedListing();
+        vinted.showing(aListing(1, "Pull rayé 1", "10.00", ACTIVE));
+        // Quand le membre demande la suppression
+        catchThrowable(() -> deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT));
+        // Alors le journal contient « Suppression : refusée », raison « annonce différente », pas un dry-run
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION, ActionOutcome.REFUSED, Optional.of("LISTING_CHANGED")));
+    }
+
+    @Test
+    void refused_recheck_is_written() {
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        catchThrowable(() -> recheckListingDeletion().recheck(LISTING));
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(JournaledAction.DELETION_RECHECK, ActionOutcome.REFUSED, Optional.of("NO_UNCONFIRMED_DELETION")));
+    }
+
+    @Test
     void recheck_is_written() {
         // US-23 AT-23-07. Étant donné une suppression non confirmée de l'annonce
         anUnconfirmedDeletion();
