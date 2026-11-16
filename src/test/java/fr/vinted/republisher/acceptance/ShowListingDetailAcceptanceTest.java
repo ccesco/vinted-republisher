@@ -6,6 +6,10 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournalEntry;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -13,6 +17,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -44,10 +49,11 @@ class ShowListingDetailAcceptanceTest {
     private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
     private final AdjustableClock clock = new AdjustableClock(THIRD);
     private final ShowListingDetail showListingDetail =
             new ShowListingDetail(listings, statistics, backups, validations, deletions,
-                    new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)), clock);
+                    new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)), clock, journal);
 
     @Test
     void shows_listing_statistics_history_most_recent_first() {
@@ -113,6 +119,23 @@ class ShowListingDetailAcceptanceTest {
         // Quand le membre ouvre sa fiche
         // Alors son étape est « En attente avant republication »
         assertThat(showListingDetail.show(new VintedListingId(103)).entry().stage()).isEqualTo(ListingStage.WAITING);
+    }
+
+    @Test
+    void detail_shows_the_journal_of_the_listing() {
+        // US-23 AT-23-12. Étant donné des lignes pour les annonces 101 et 102
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Pull", "6", ACTIVE), THIRD)));
+        ActionRecord validated = new ActionRecord(FIRST, JournaledAction.BACKUP_VALIDATION, ActionOutcome.SUCCEEDED,
+                Optional.of(new VintedListingId(101)), Optional.empty());
+        ActionRecord other = new ActionRecord(SECOND, JournaledAction.DELETION, ActionOutcome.DRY_RUN,
+                Optional.of(new VintedListingId(102)), Optional.empty());
+        ActionRecord dryRun = new ActionRecord(THIRD, JournaledAction.DELETION, ActionOutcome.DRY_RUN,
+                Optional.of(new VintedListingId(101)), Optional.empty());
+        List.of(validated, other, dryRun).forEach(journal::write);
+        // Quand la page demande la fiche de 101
+        // Alors journal contient seulement les lignes de 101, plus récentes d'abord
+        assertThat(showListingDetail.show(new VintedListingId(101)).journal()).extracting(JournalEntry::record)
+                .containsExactly(dryRun, validated);
     }
 
     @Test
