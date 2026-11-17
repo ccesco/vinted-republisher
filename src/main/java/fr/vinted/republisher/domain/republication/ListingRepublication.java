@@ -84,7 +84,8 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
         }
     }
 
-    private void requireFailed() {
+    /** Only a republication in error waits for the member to say what Vinted shows. */
+    public void requireFailed() {
         if (outcome != RepublicationOutcome.FAILED) {
             throw new NoRepublicationToVerify(listingId);
         }

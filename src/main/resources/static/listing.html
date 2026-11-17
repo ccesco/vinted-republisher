@@ -73,6 +73,14 @@
             <button id="republish" type="button" hidden>Republier sur Vinted</button>
             <button id="verify-republication" type="button" hidden>Vérifier sur Vinted</button>
         </p>
+        <div id="republication-validation" hidden>
+            <p>Vous avez regardé sur Vinted ? Dites ce que vous y voyez.</p>
+            <label>Lien de la nouvelle annonce
+                <input id="new-listing-url" type="url" maxlength="2048" placeholder="https://www.vinted.fr/items/…">
+            </label>
+            <button id="validate-published" type="button">Publiée</button>
+            <button id="validate-not-published" type="button">Non publiée</button>
+        </div>
         <div id="republication-confirmation" role="dialog" hidden>
             <p id="republication-summary"></p>
             <button id="confirm-republication" type="button">Republier maintenant</button>
@@ -138,11 +146,17 @@
         FORM_UNREADABLE: "le formulaire de mise en vente de Vinted n'est pas celui attendu.",
         NO_REPUBLICATION_TO_VERIFY: 'aucune republication en erreur ou réussie à vérifier.',
         LISTING_UNREADABLE: "la page de la nouvelle annonce sur Vinted n'est pas celle attendue.",
-        CADENCE_LIMIT_REACHED: 'limite de cadence atteinte'
+        CADENCE_LIMIT_REACHED: 'limite de cadence atteinte',
+        NEW_LISTING_LINK_INVALID: "ce lien n'est pas celui d'une nouvelle annonce sur Vinted.",
+        NEW_LISTING_MISMATCH: "la page de ce lien n'a pas le titre et le prix de la sauvegarde."
     };
+    const VALIDATION_REFUSED_MESSAGE = "Validation refusée, rien n'a été enregistré : ";
     // Une levée du doute peut être enregistrée avant l'échec de la comparaison : l'aperçu relu fait foi.
     const VERIFICATION_FAILED_MESSAGE = 'Vérification interrompue, l\'état affiché est celui enregistré : ';
-    const SEVERAL_CANDIDATES = 'Plusieurs annonces correspondent sur Vinted : supprimez les doublons puis revérifiez.';
+    // Seules les annonces affichées à l'ouverture du dressing sont lues : rien ou plusieurs, le membre tranche.
+    const STILL_IN_ERROR = 'Introuvable parmi les annonces récentes de votre dressing, ou plusieurs annonces'
+        + ' correspondent : vérifiez sur Vinted (supprimez les doublons s\'il y en a), puis validez vous-même'
+        + ' ci-dessous.';
     const FORM_FIELDS = {
         PHOTOS: 'Photos', TITLE: 'Titre', DESCRIPTION: 'Description', PRICE: 'Prix', CATEGORY: 'Catégorie',
         BRAND: 'Marque', CONDITION: 'État', SIZE: 'Taille', COLORS: 'Couleurs', MATERIALS: 'Matières',
@@ -195,6 +209,10 @@
     const cancelRepublicationButton = document.getElementById('cancel-republication');
     const verifyRepublicationButton = document.getElementById('verify-republication');
     const republicationComparison = document.getElementById('republication-comparison');
+    const republicationValidation = document.getElementById('republication-validation');
+    const newListingUrl = document.getElementById('new-listing-url');
+    const validatePublishedButton = document.getElementById('validate-published');
+    const validateNotPublishedButton = document.getElementById('validate-not-published');
     let current;
     let republicationTimer;
 
@@ -308,14 +326,17 @@
         republishButton.hidden = !view.deletion?.republishableAt || !republishable;
         verifyRepublicationButton.hidden = republishable;
         verifyRepublicationButton.disabled = false;
+        republicationValidation.hidden = outcome !== 'FAILED';
+        validatePublishedButton.disabled = false;
+        validateNotPublishedButton.disabled = false;
         republicationOutcome.replaceChildren();
         if (outcome === 'PUBLISHED') {
             showRepublished(republication);
         } else if (outcome === 'FAILED') {
             republicationOutcome.textContent = 'Erreur de republication : vérifiez sur Vinted avant toute relance.';
         } else if (outcome === 'NOT_PUBLISHED') {
-            republicationOutcome.textContent = 'Republication non faite : rien trouvé sur Vinted avec ce titre et ce'
-                + ' prix (vérifié le ' + dateOf(republication.checkedAt) + '). Une nouvelle republication est possible.';
+            republicationOutcome.textContent = "Republication non faite d'après votre vérification sur Vinted (le "
+                + dateOf(republication.checkedAt) + '). Une nouvelle republication est possible.';
         } else if (view.republicationDryRunPassed) {
             republicationOutcome.textContent = REPUBLICATION_DRY_RUN_PASSED;
         }
@@ -434,6 +455,8 @@
         recheckButton.disabled = true;
         republishButton.disabled = true;
         verifyRepublicationButton.disabled = true;
+        validatePublishedButton.disabled = true;
+        validateNotPublishedButton.disabled = true;
         confirmation.hidden = true;
         republicationConfirmation.hidden = true;
         let message = APPLICATION_DOWN_MESSAGE;
@@ -579,9 +602,16 @@
                 + (REPUBLICATION_REFUSALS[refusal.reason] ?? 'échec inattendu (détail dans les logs).'),
             view => {
                 if (view.republication?.outcome === 'FAILED') {
-                    tell(SEVERAL_CANDIDATES);
+                    tell(STILL_IN_ERROR);
                 }
             }));
+    const validationRefusalOf = refusal => VALIDATION_REFUSED_MESSAGE
+        + (REPUBLICATION_REFUSALS[refusal.reason] ?? 'échec inattendu (détail dans les logs).');
+    validatePublishedButton.addEventListener('click', () =>
+        send('/republication/manual-validation', {published: true, newListingUrl: newListingUrl.value.trim()},
+            validationRefusalOf));
+    validateNotPublishedButton.addEventListener('click', () =>
+        send('/republication/manual-validation', {published: false}, validationRefusalOf));
     loadListing().then(known => known && load());
 </script>
 </body>

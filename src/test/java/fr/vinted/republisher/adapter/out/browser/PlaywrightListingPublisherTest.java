@@ -71,6 +71,8 @@ class PlaywrightListingPublisherTest {
     private volatile boolean leavesTheFormOncePublished = true;
     private volatile boolean lateBrandSuggestion;
     private volatile long uploadMillis = 300;
+    private volatile Answer publicationAnswer = new Answer(200, "");
+    private volatile boolean publicationDropped;
     private final RecordingVisit visit = new RecordingVisit();
 
     @BeforeEach
@@ -81,7 +83,13 @@ class PlaywrightListingPublisherTest {
             String path = exchange.getRequestURI().getPath();
             if (path.equals("/items/publish")) {
                 published.add(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-                respond(exchange, 200, leavesTheFormOncePublished ? "/items/77-pyjama-petit-bateau" : "");
+                if (publicationDropped) {
+                    exchange.close();
+                } else if (leavesTheFormOncePublished) {
+                    respond(exchange, 200, "/items/77-pyjama-petit-bateau");
+                } else {
+                    respond(exchange, publicationAnswer.status(), publicationAnswer.body());
+                }
             } else if (path.equals("/items/new") && redirectsToLogin) {
                 exchange.getResponseHeaders().add("Location", "/member/login");
                 respond(exchange, 302, "");
@@ -90,6 +98,10 @@ class PlaywrightListingPublisherTest {
             } else {
                 respond(exchange, 200, "<!DOCTYPE html><html><body>Pyjama petit bateau 3 mois</body></html>");
             }
+        });
+        fakeVinted.createContext("/telemetry", exchange -> {
+            record(exchange);
+            respond(exchange, 200, "datadome=secret-session-token");
         });
         fakeVinted.createContext("/", exchange -> {
             record(exchange);
@@ -147,6 +159,38 @@ class PlaywrightListingPublisherTest {
                     .isInstanceOf(ListingFormUnreadable.class)
                     .hasMessageContaining("Le prix minimum est de 1,00 €");
             assertThat(published).hasSize(1);
+        }
+
+        @Test
+        void form_still_shown_once_published_tells_how_vinted_answered_the_submission() {
+            leavesTheFormOncePublished = false;
+            publicationAnswer = new Answer(403, "{\"code\":\"datadome\"}");
+
+            assertThatThrownBy(() -> publisher().publish(pyjama(), List.of(COVER), visit))
+                    .isInstanceOf(ListingFormUnreadable.class)
+                    .hasMessageContaining("POST /items/publish 403 {\"code\":\"datadome\"}")
+                    .hasMessageNotContaining("GET ");
+        }
+
+        @Test
+        void answers_of_third_parties_are_never_told_they_may_carry_tokens() {
+            leavesTheFormOncePublished = false;
+
+            assertThatThrownBy(() -> publisher().publish(pyjama(), List.of(COVER), visit))
+                    .isInstanceOf(ListingFormUnreadable.class)
+                    .hasMessageContaining("POST /items/publish 200")
+                    .hasMessageNotContaining("telemetry")
+                    .hasMessageNotContaining("datadome=");
+        }
+
+        @Test
+        void submission_that_never_got_an_answer_is_told() {
+            leavesTheFormOncePublished = false;
+            publicationDropped = true;
+
+            assertThatThrownBy(() -> publisher().publish(pyjama(), List.of(COVER), visit))
+                    .isInstanceOf(ListingFormUnreadable.class)
+                    .hasMessageContaining("POST /items/publish failed");
         }
 
         @Test
@@ -312,7 +356,7 @@ class PlaywrightListingPublisherTest {
 
     private PlaywrightListingPublisher publisher(Chrome chrome) {
         return new PlaywrightListingPublisher(URI.create(address("/items/new")), CONTROL_TIMEOUT, CONTROL_TIMEOUT,
-                new ChromeTabs(chrome, LOAD_TIMEOUT));
+                CONTROL_TIMEOUT, new ChromeTabs(chrome, LOAD_TIMEOUT));
     }
 
     private static ListingContent pyjama() {
@@ -407,6 +451,9 @@ class PlaywrightListingPublisherTest {
             exchange.getResponseBody().write(bytes);
         }
         exchange.close();
+    }
+
+    private record Answer(int status, String body) {
     }
 
     /** Records when it was asked, and whether anything had already been published then. */

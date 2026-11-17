@@ -12,6 +12,8 @@ import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
+import fr.vinted.republisher.domain.republication.NewListingLinkInvalid;
+import fr.vinted.republisher.domain.republication.NewListingMismatch;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
 import fr.vinted.republisher.domain.republication.RepublicationInError;
@@ -85,6 +87,16 @@ public class ListingRepublicationRefusals {
     @ExceptionHandler
     ResponseEntity<RepublicationRefusalDto> nothingToVerify(NoRepublicationToVerify refusal) {
         return refused(HttpStatus.CONFLICT, ReasonEnum.NO_REPUBLICATION_TO_VERIFY);
+    }
+
+    @ExceptionHandler
+    ResponseEntity<RepublicationRefusalDto> linkInvalid(NewListingLinkInvalid refusal) {
+        return refused(HttpStatus.BAD_REQUEST, ReasonEnum.NEW_LISTING_LINK_INVALID);
+    }
+
+    @ExceptionHandler
+    ResponseEntity<RepublicationRefusalDto> mismatch(NewListingMismatch refusal) {
+        return refused(HttpStatus.CONFLICT, ReasonEnum.NEW_LISTING_MISMATCH);
     }
 
     @ExceptionHandler

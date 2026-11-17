@@ -11,6 +11,7 @@ import fr.vinted.republisher.application.republication.NewListingSearch;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.application.republication.VerifyListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
@@ -42,10 +43,13 @@ public class ListingRepublicationConfiguration {
     /** Fields and options show up within seconds on the observed form; photos take longer to be sent. */
     private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration PHOTO_TIMEOUT = Duration.ofSeconds(60);
+    /** Twice the tool gave up after 10 s with the form still shown: Vinted gets a full minute to publish. */
+    private static final Duration PUBLICATION_TIMEOUT = Duration.ofSeconds(60);
 
     @Bean
     ListingPublisher listingPublisher(@Value("${vinted.listing-form-url}") URI listingFormUrl, ChromeTabs tabs) {
-        return new PlaywrightListingPublisher(listingFormUrl, CONTROL_TIMEOUT, PHOTO_TIMEOUT, tabs);
+        return new PlaywrightListingPublisher(listingFormUrl, CONTROL_TIMEOUT, PHOTO_TIMEOUT, PUBLICATION_TIMEOUT,
+                tabs);
     }
 
     @Bean
@@ -73,7 +77,21 @@ public class ListingRepublicationConfiguration {
                 new NewListingSearch(wardrobe, WardrobeConfiguration.paceOf(wardrobeProperties.scan()), listings),
                 listings, mode, clock, showListingRepublication, journal);
     }
-    // A verification only reads the wardrobe once, and the new listing once: it runs within the request too.
+    // A manual validation reads one page at most: it runs within the request too.
+    @Bean
+    ValidateListingRepublication validateListingRepublication(VintedSession session,
+                                                              ListingBackupRepository listingBackups,
+                                                              ListingRepublicationRepository republications,
+                                                              ListingRepository listings,
+                                                              ListingContentReader contents, BackupProperties backup,
+                                                              Clock clock, WardrobeProperties wardrobe,
+                                                              ShowListingRepublication showListingRepublication) {
+        return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
+                new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()), new Random()), clock,
+                showListingRepublication, wardrobe.wardrobeUrl());
+    }
+
+    // A verification only reads the newest listings of the wardrobe, and the new listing once: within the request.
     @Bean
     VerifyListingRepublication verifyListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
                                                           ListingRepublicationRepository republications,

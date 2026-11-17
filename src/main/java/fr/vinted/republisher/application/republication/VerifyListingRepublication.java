@@ -94,12 +94,8 @@ public class VerifyListingRepublication {
         Set<VintedListingId> otherNewListings = republications.findNewListings();
         List<ScannedListing> matching = newListingSearch.findAgain(backup.content(), otherNewListings);
         Instant checkedAt = clock.instant();
-        if (matching.isEmpty()) {
-            ListingRepublication notPublished = failed.notPublished(checkedAt);
-            republications.save(notPublished);
-            return notPublished;
-        }
-        if (matching.size() > 1) {
+        // None among the newest listings proves nothing: the member then says what Vinted shows.
+        if (matching.size() != 1) {
             return failed;
         }
         ScannedListing found = matching.getFirst();

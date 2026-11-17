@@ -2,6 +2,9 @@ package fr.vinted.republisher.adapter.out.browser;
 
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
+import com.microsoft.playwright.PlaywrightException;
+import com.microsoft.playwright.Request;
+import com.microsoft.playwright.Response;
 import com.microsoft.playwright.TimeoutError;
 import com.microsoft.playwright.options.FilePayload;
 import com.microsoft.playwright.options.LoadState;
@@ -28,6 +31,8 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -48,21 +53,26 @@ public class PlaywrightListingPublisher implements ListingPublisher {
     private static final String REFUSAL = "[role='alert'], [data-testid$='--validation'], [data-testid$='-error']";
     private static final String CHECKED_COLORS = "[role='checkbox'][data-testid^='filter-grid-option-'][aria-checked='true']";
     private static final String CHECKED_MATERIALS = "[role='checkbox'][data-testid^='material-'][aria-checked='true']";
+    /** How much of Vinted's answer to the submission is told when it keeps the form. */
+    private static final int ANSWER_EXCERPT = 500;
 
     private final URI listingFormUrl;
     private final Duration controlTimeout;
     private final Duration photoTimeout;
+    private final Duration publicationTimeout;
     private final ChromeTabs tabs;
 
     /**
-     * {@code controlTimeout}: how long a field or an option may take to appear, and Vinted to leave the form once
-     * published; {@code photoTimeout}: how long the photos may take to be sent.
+     * {@code controlTimeout}: how long a field or an option may take to appear; {@code photoTimeout}: how long the
+     * photos may take to be sent; {@code publicationTimeout}: how long Vinted may take to leave the form once
+     * published.
      */
     public PlaywrightListingPublisher(URI listingFormUrl, Duration controlTimeout, Duration photoTimeout,
-                                      ChromeTabs tabs) {
+                                      Duration publicationTimeout, ChromeTabs tabs) {
         this.listingFormUrl = listingFormUrl;
         this.controlTimeout = controlTimeout;
         this.photoTimeout = photoTimeout;
+        this.publicationTimeout = publicationTimeout;
         this.tabs = tabs;
     }
 
@@ -87,8 +97,22 @@ public class PlaywrightListingPublisher implements ListingPublisher {
             if (!visit.readyToPublish()) {
                 return;
             }
+            List<Response> answers = new CopyOnWriteArrayList<>();
+            List<Request> failures = new CopyOnWriteArrayList<>();
+            Consumer<Response> answered = response -> {
+                if (sentByTheForm(response.request())) {
+                    answers.add(response);
+                }
+            };
+            Consumer<Request> failed = request -> {
+                if (sentByTheForm(request)) {
+                    failures.add(request);
+                }
+            };
+            page.onResponse(answered);
+            page.onRequestFailed(failed);
             publish.click();
-            awaitLeaving(page);
+            awaitLeaving(page, answers, failures);
         });
     }
 
@@ -259,15 +283,63 @@ public class PlaywrightListingPublisher implements ListingPublisher {
         return control.first();
     }
 
-    /** Vinted goes to the new listing once it is published; still on the form, it has refused it. */
-    private void awaitLeaving(Page page) {
+    /**
+     * Vinted leaves the form once the listing is published; still on the form, it has refused it. The error then
+     * tells what the form shows and how Vinted answered what the form sent, the only trace of a silent refusal.
+     */
+    private void awaitLeaving(Page page, List<Response> answers, List<Request> failures) {
         try {
             page.waitForURL(address -> !URI.create(address).getPath().equals(listingFormUrl.getPath()),
-                    new Page.WaitForURLOptions().setTimeout(controlTimeout.toMillis()));
+                    new Page.WaitForURLOptions().setTimeout(publicationTimeout.toMillis()));
         } catch (TimeoutError stillThere) {
             List<String> shown = page.locator(REFUSAL).allInnerTexts().stream().map(String::strip)
                     .filter(text -> !text.isEmpty()).toList();
-            throw new ListingFormUnreadable("still on the listing form once published, showing " + shown);
+            List<String> sent = new ArrayList<>(answers.stream().map(PlaywrightListingPublisher::described).toList());
+            failures.forEach(request -> sent.add(describedFailure(request)));
+            throw new ListingFormUnreadable("still on the listing form once published, showing " + shown
+                    + ", Vinted answering " + sent);
+        }
+    }
+
+    /**
+     * What the form wrote to Vinted itself: third parties of the page (anti-bot, analytics) are left out, their
+     * answers may carry session tokens.
+     */
+    private boolean sentByTheForm(Request request) {
+        return !request.method().equals("GET") && request.url().startsWith(origin());
+    }
+
+    private String origin() {
+        return listingFormUrl.getScheme() + "://" + listingFormUrl.getRawAuthority() + "/";
+    }
+
+    /** Method, path without its query (it may carry tokens), status and the start of a text or JSON body. */
+    private static String described(Response response) {
+        return request(response.request()) + " " + response.status() + " " + bodyExcerpt(response);
+    }
+
+    private static String describedFailure(Request request) {
+        return request(request) + " failed: " + request.failure();
+    }
+
+    private static String request(Request request) {
+        String url = request.url();
+        int query = url.indexOf('?');
+        String withoutQuery = query < 0 ? url : url.substring(0, query);
+        int path = withoutQuery.indexOf('/', withoutQuery.indexOf("://") + 3);
+        return request.method() + " " + (path < 0 ? "/" : withoutQuery.substring(path));
+    }
+
+    private static String bodyExcerpt(Response response) {
+        String type = Optional.ofNullable(response.headerValue("content-type")).orElse("");
+        if (!type.startsWith("text/") && !type.contains("json")) {
+            return "(" + (type.isEmpty() ? "no body type" : type) + ")";
+        }
+        try {
+            String body = response.text().strip();
+            return body.substring(0, Math.min(body.length(), ANSWER_EXCERPT));
+        } catch (PlaywrightException unreadable) {
+            return "(body unreadable)";
         }
     }
 

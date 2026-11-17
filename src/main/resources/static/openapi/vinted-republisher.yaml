@@ -498,8 +498,9 @@ paths:
       summary: Vérifier sur Vinted la dernière republication d'une annonce (US-13)
       description: >
         Regarde Vinted dans le Chrome piloté, sans jamais cliquer. Une republication en erreur (FAILED) se lève par une
-        lecture du dressing : une seule annonce avec le titre et le prix de la sauvegarde → PUBLISHED, reliée ; aucune
-        → NOT_PUBLISHED, une nouvelle republication redevient possible ; plusieurs → reste FAILED. Une republication
+        lecture des seules annonces affichées à l'ouverture du dressing : une seule annonce avec le titre et le prix de
+        la sauvegarde → PUBLISHED, reliée ; aucune ou plusieurs → reste FAILED, le membre la valide alors lui-même
+        (manual-validation). Une republication
         réussie (PUBLISHED) est comparée champ par champ à la sauvegarde (republicationComparison), sans rien
         enregistrer ni corriger. Répond une fois l'action finie.
       parameters:
@@ -535,6 +536,67 @@ paths:
             (LISTING_UNREADABLE). Pendant la lecture du dressing, la republication reste telle qu'elle était ;
             pendant la comparaison, une republication tout juste prouvée reste réussie, seule la comparaison manque.
             L'aperçu rechargé fait foi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+  /api/listings/{listingId}/republication/manual-validation:
+    post:
+      tags: [listing-republication]
+      operationId: validateListingRepublication
+      summary: Valider soi-même une republication en erreur (US-13)
+      description: >
+        Le membre a regardé lui-même sur Vinted. « Publiée » (published true, avec newListingUrl) : l'outil ouvre la
+        seule page de la nouvelle annonce, à l'adresse qu'il construit depuis l'identifiant lu dans le lien (jamais
+        le lien collé), sans cliquer ; titre et prix de la sauvegarde → PUBLISHED, reliée et comparée, sinon refus.
+        « Non publiée » (published false) : NOT_PUBLISHED sans ouvrir Chrome, une nouvelle republication redevient
+        possible. Répond une fois l'action finie.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepublicationValidation'
+      responses:
+        '200':
+          description: Aperçu à jour, avec republicationComparison si la republication a été validée publiée.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingBackupView'
+        '400':
+          description: >
+            Lien absent alors que published est vrai, sans identifiant d'annonce, ou lien de l'ancienne annonce ou de
+            la nouvelle annonce d'une autre republication (NEW_LISTING_LINK_INVALID). Chrome n'est pas ouvert.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: >
+            Dernière republication pas en erreur (NO_REPUBLICATION_TO_VERIFY) ou autre action navigateur en cours
+            (BROWSER_BUSY), Chrome n'étant pas ouvert ; ou page de la nouvelle annonce avec un autre titre ou un autre
+            prix que la sauvegarde (NEW_LISTING_MISMATCH). Rien n'est enregistré.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '500':
+          description: Échec inattendu (détail dans les logs) ; l'aperçu rechargé montre l'état en base.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée ou nouvelle annonce illisible
+            (LISTING_UNREADABLE) : la republication reste en erreur. L'aperçu rechargé fait foi.
           content:
             application/json:
               schema:
@@ -1157,7 +1219,7 @@ components:
         checkedAt:
           type: string
           format: date-time
-          description: Date de la vérification sur Vinted qui n'a rien trouvé ; présente si NOT_PUBLISHED.
+          description: Date à laquelle le membre l'a validée non publiée ; présente si NOT_PUBLISHED.
       example:
         outcome: PUBLISHED
         attemptedAt: '2026-11-11T10:06:00Z'
@@ -1168,10 +1230,26 @@ components:
     RepublicationOutcome:
       type: string
       description: >
-        PUBLISHED : la nouvelle annonce a été retrouvée, seule, dans le dressing. FAILED : erreur de republication,
-        à vérifier sur Vinted ; bloque toute nouvelle republication de l'annonce. NOT_PUBLISHED : vérifiée sur Vinted,
-        aucune annonce avec le titre et le prix de la sauvegarde ; une nouvelle republication est possible.
+        PUBLISHED : la nouvelle annonce a été retrouvée, seule, parmi les annonces récentes du dressing, ou validée par
+        le membre avec son lien. FAILED : erreur de republication, à vérifier sur Vinted ; bloque toute nouvelle
+        republication de l'annonce. NOT_PUBLISHED : le membre a constaté sur Vinted qu'elle n'est pas publiée ; une
+        nouvelle republication est possible.
       enum: [PUBLISHED, FAILED, NOT_PUBLISHED]
+    RepublicationValidation:
+      type: object
+      description: Ce que le membre a constaté lui-même sur Vinted pour une republication en erreur.
+      required: [published]
+      properties:
+        published:
+          type: boolean
+          description: Vrai si la nouvelle annonce est en ligne sur Vinted.
+        newListingUrl:
+          type: string
+          maxLength: 2048
+          description: Lien de la nouvelle annonce, tel que copié depuis Vinted ; requis si published est vrai.
+      example:
+        published: true
+        newListingUrl: https://www.vinted.fr/items/10302211455-bonnet-1-3-mois-du-pareil-au-meme
     RepublicationRefusal:
       type: object
       description: Raison pour laquelle la republication n'a pas eu lieu ; rien n'est publié ni enregistré.
@@ -1182,7 +1260,7 @@ components:
           enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, TOO_EARLY, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
                  BROWSER_BUSY, PHOTOS_NOT_VERIFIED, FIELD_NOT_FILLABLE, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
                  SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED, NO_REPUBLICATION_TO_VERIFY,
-                 LISTING_UNREADABLE, CADENCE_LIMIT_REACHED]
+                 LISTING_UNREADABLE, CADENCE_LIMIT_REACHED, NEW_LISTING_LINK_INVALID, NEW_LISTING_MISMATCH]
         republishableAt:
           type: string
           format: date-time

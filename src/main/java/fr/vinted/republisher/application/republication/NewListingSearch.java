@@ -20,8 +20,8 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
- * Looks for the new listing of a republication with one reading of the wardrobe, opening as a scan does only the
- * listings that may be it, without waiting or reading again.
+ * Looks for the new listing of a republication among the listings the wardrobe shows on opening, the newest, opening
+ * as a scan does only the listings that may be it, without waiting.
  */
 public class NewListingSearch {
 
@@ -39,12 +39,13 @@ public class NewListingSearch {
     Optional<ScannedListing> find(ListingContent saved) {
         Set<VintedListingId> known = listings.findAll().stream().map(Listing::id)
                 .collect(Collectors.toUnmodifiableSet());
-        return ListingRepublication.newListingAmong(read(link -> !known.contains(link.id())), saved);
+        return ListingRepublication.newListingAmong(readNewest(link -> !known.contains(link.id())), saved);
     }
 
     /**
      * Later, to verify a republication: the listings with the saved title and price, among those unknown and those a
-     * scan may have recorded since, leaving out the old listing and the new listings of other republications.
+     * scan may have recorded since, leaving out the old listing and the new listings of other republications, among
+     * the newest only: none found there proves nothing, the member then says what Vinted shows.
      */
     List<ScannedListing> findAgain(ListingContent saved, Set<VintedListingId> otherNewListings) {
         Set<VintedListingId> unlikely = listings.findAll().stream()
@@ -52,12 +53,12 @@ public class NewListingSearch {
                 .map(Listing::id).collect(Collectors.toSet());
         unlikely.add(saved.id());
         unlikely.addAll(otherNewListings);
-        return ListingRepublication.matching(read(link -> !unlikely.contains(link.id())), saved);
+        return ListingRepublication.matching(readNewest(link -> !unlikely.contains(link.id())), saved);
     }
 
-    private List<ScannedListing> read(Predicate<ListingLink> toOpen) {
+    private List<ScannedListing> readNewest(Predicate<ListingLink> toOpen) {
         Opening opening = new Opening(toOpen);
-        wardrobe.read(pace, opening);
+        wardrobe.readNewest(pace, opening);
         return opening.read;
     }
 

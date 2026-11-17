@@ -97,6 +97,9 @@ class ListingDetailPageTest {
     private final AtomicInteger verificationStatus = new AtomicInteger(200);
     private final AtomicReference<String> verificationAnswer = new AtomicReference<>(VALIDATED);
     private final List<String> verifications = new CopyOnWriteArrayList<>();
+    private final AtomicInteger manualValidationStatus = new AtomicInteger(200);
+    private final AtomicReference<String> manualValidationAnswer = new AtomicReference<>(VALIDATED);
+    private final List<String> manualValidations = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -154,6 +157,11 @@ class ListingDetailPageTest {
         fakeApi.createContext("/api/listings/3/republication/verification", exchange -> {
             verifications.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
             respond(exchange, verificationStatus.get(), "application/json", bytes(verificationAnswer.get()));
+        });
+        fakeApi.createContext("/api/listings/3/republication/manual-validation", exchange -> {
+            manualValidations.add(exchange.getRequestMethod() + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, manualValidationStatus.get(), "application/json", bytes(manualValidationAnswer.get()));
         });
         fakeApi.start();
         page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
@@ -749,39 +757,6 @@ class ListingDetailPageTest {
         }
 
         @Test
-        void failed_republication_is_verified_and_can_be_republished_once_not_published() {
-            // Étant donné une republication en erreur
-            backup.set(FAILED);
-            verificationAnswer.set(NOT_PUBLISHED);
-            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
-            open();
-            assertThat(republishButton()).isHidden();
-            // Quand le membre clique sur « Vérifier sur Vinted »
-            verifyButton().click();
-            // Alors l'issue est affichée et « Republier sur Vinted » redevient possible
-            assertThat(outcome()).containsText("Republication non faite : rien trouvé sur Vinted");
-            assertThat(outcome()).containsText("vérifié le 12/11/2026");
-            assertThat(verifications).containsExactly("POST /api/listings/3/republication/verification");
-            assertThat(republications).isEmpty();
-            assertThat(republishButton()).isVisible();
-            assertThat(republishButton()).isEnabled();
-            assertThat(verifyButton()).isHidden();
-        }
-
-        @Test
-        void several_candidates_ask_to_remove_the_duplicates() {
-            backup.set(FAILED);
-            verificationAnswer.set(FAILED);
-            open();
-
-            verifyButton().click();
-
-            assertThat(problem()).hasText(
-                    "Plusieurs annonces correspondent sur Vinted : supprimez les doublons puis revérifiez.");
-            assertThat(verifyButton()).isEnabled();
-        }
-
-        @Test
         void published_republication_shows_its_differences_as_text() {
             backup.set(PUBLISHED);
             verificationAnswer.set(PUBLISHED.replace("\"republicationDryRun\": false,",
@@ -821,6 +796,105 @@ class ListingDetailPageTest {
             assertThat(problem()).hasText("Vérification interrompue, l'état affiché est celui enregistré : la page"
                     + " de la nouvelle annonce sur Vinted n'est pas celle attendue.");
             assertThat(comparison()).isEmpty();
+        }
+
+        @Test
+        void republication_still_in_error_after_verification_asks_the_member_to_validate() {
+            // AT-13-02 : l'aperçu propose la validation manuelle
+            backup.set(FAILED);
+            verificationAnswer.set(FAILED);
+            open();
+
+            verifyButton().click();
+
+            assertThat(problem()).hasText("Introuvable parmi les annonces récentes de votre dressing, ou plusieurs"
+                    + " annonces correspondent : vérifiez sur Vinted (supprimez les doublons s'il y en a), puis"
+                    + " validez vous-même ci-dessous.");
+            assertThat(validation()).isVisible();
+            assertThat(verifyButton()).isEnabled();
+        }
+
+        @Test
+        void only_a_republication_in_error_offers_the_manual_validation() {
+            backup.set(PUBLISHED);
+            open();
+
+            assertThat(verifyButton()).isVisible();
+            assertThat(validation()).isHidden();
+        }
+
+        @Test
+        void member_validates_published_with_the_link_of_the_new_listing() {
+            // AT-13-22 : coller le lien et valider « publiée »
+            backup.set(FAILED);
+            manualValidationAnswer.set(PUBLISHED);
+            open();
+
+            newListingUrl().fill("https://www.vinted.fr/items/77-bonnet");
+            publishedButton().click();
+
+            assertThat(outcome()).containsText("Republiée sur Vinted le");
+            assertThat(manualValidations).containsExactly(
+                    "POST {\"published\":true,\"newListingUrl\":\"https://www.vinted.fr/items/77-bonnet\"}");
+            assertThat(validation()).isHidden();
+        }
+
+        @Test
+        void member_validates_not_published_and_can_republish() {
+            // AT-13-22 : valider « non publiée », « Republier sur Vinted » redevient possible
+            backup.set(FAILED);
+            manualValidationAnswer.set(NOT_PUBLISHED);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+            assertThat(republishButton()).isHidden();
+
+            notPublishedButton().click();
+
+            assertThat(outcome()).containsText("Republication non faite d'après votre vérification sur Vinted (le"
+                    + " 12/11/2026");
+            assertThat(manualValidations).containsExactly("POST {\"published\":false}");
+            assertThat(republishButton()).isVisible();
+            assertThat(republishButton()).isEnabled();
+            assertThat(verifyButton()).isHidden();
+        }
+
+        @Test
+        void refused_validation_tells_why() {
+            // AT-13-22 : le refus s'affiche
+            backup.set(FAILED);
+            manualValidationStatus.set(409);
+            manualValidationAnswer.set("{\"reason\": \"NEW_LISTING_MISMATCH\"}");
+            open();
+            newListingUrl().fill("https://www.vinted.fr/items/78-pull");
+
+            publishedButton().click();
+
+            assertThat(problem()).hasText("Validation refusée, rien n'a été enregistré : la page de ce lien n'a pas"
+                    + " le titre et le prix de la sauvegarde.");
+            assertThat(validation()).isVisible();
+
+            manualValidationStatus.set(400);
+            manualValidationAnswer.set("{\"reason\": \"NEW_LISTING_LINK_INVALID\"}");
+            publishedButton().click();
+
+            assertThat(problem()).hasText("Validation refusée, rien n'a été enregistré : ce lien n'est pas celui"
+                    + " d'une nouvelle annonce sur Vinted.");
+        }
+
+        private Locator validation() {
+            return page.locator("#republication-validation");
+        }
+
+        private Locator newListingUrl() {
+            return page.getByLabel("Lien de la nouvelle annonce");
+        }
+
+        private Locator publishedButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Publiée").setExact(true));
+        }
+
+        private Locator notPublishedButton() {
+            return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Non publiée").setExact(true));
         }
 
         private Locator verifyButton() {
