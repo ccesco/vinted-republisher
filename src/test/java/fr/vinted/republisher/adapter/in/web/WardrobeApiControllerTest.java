@@ -11,8 +11,13 @@ import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import fr.vinted.republisher.fakes.InMemoryWardrobeBackupRepository;
+import fr.vinted.republisher.application.wardrobe.RefreshStatistics;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
+import fr.vinted.republisher.application.wardrobe.ShowStatisticsRefresh;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
+import fr.vinted.republisher.domain.wardrobe.LastStatisticsRefreshProblem;
+import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
+import fr.vinted.republisher.domain.wardrobe.StatisticsRefreshProblem;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
@@ -38,6 +43,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -74,11 +80,14 @@ class WardrobeApiControllerTest {
     @Autowired
     private InMemoryWardrobeBackupRepository backups;
 
+    @Autowired
+    private LastStatisticsRefreshProblem lastStatisticsRefreshProblem;
+
     @Test
     void empty_wardrobe_has_no_date_and_no_problem() {
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .hasStatusOk()
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false, \"statisticsRefreshInProgress\": false}");
     }
 
     @Test
@@ -88,7 +97,7 @@ class WardrobeApiControllerTest {
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
-                        {"scanInProgress": false, "backupInProgress": false,
+                        {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
                          "lastScanAt": "2026-11-06T10:15:30Z"}""");
     }
 
@@ -99,7 +108,7 @@ class WardrobeApiControllerTest {
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
-                        {"scanInProgress": false, "backupInProgress": false,
+                        {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
                          "lastBackupAt": "2026-11-07T10:01:00Z"}""");
     }
 
@@ -109,14 +118,14 @@ class WardrobeApiControllerTest {
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .bodyJson().isStrictlyEqualTo(
-                        "{\"scanInProgress\": false, \"backupInProgress\": false, \"problem\": \"VINTED_UNREACHABLE\"}");
+                        "{\"scanInProgress\": false, \"backupInProgress\": false, \"statisticsRefreshInProgress\": false, \"problem\": \"VINTED_UNREACHABLE\"}");
     }
 
     @Test
     void scan_answers_with_the_scan_in_progress_and_runs_it_in_the_background() {
         assertThat(mvc.post().uri("/api/wardrobe/scan"))
                 .hasStatus(202)
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": true, \"backupInProgress\": false}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": true, \"backupInProgress\": false, \"statisticsRefreshInProgress\": false}");
         assertThat(reader.reads()).isZero();
 
         background.runPendingTasks();
@@ -130,7 +139,7 @@ class WardrobeApiControllerTest {
 
         assertThat(mvc.post().uri("/api/wardrobe/scan"))
                 .hasStatus(202)
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": false, \"statisticsRefreshInProgress\": false}");
         assertThat(background.pendingTasks).isEmpty();
     }
 
@@ -169,7 +178,7 @@ class WardrobeApiControllerTest {
 
         assertThat(mvc.get().uri("/api/wardrobe"))
                 .bodyJson().isStrictlyEqualTo("""
-                        {"scanInProgress": false, "backupInProgress": false,
+                        {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
                          "backupProblem": "SESSION_DISCONNECTED"}""");
     }
 
@@ -177,7 +186,7 @@ class WardrobeApiControllerTest {
     void backup_answers_with_the_backup_in_progress_and_runs_it_in_the_background() {
         assertThat(mvc.post().uri("/api/wardrobe/backup"))
                 .hasStatus(202)
-                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": true}");
+                .bodyJson().isStrictlyEqualTo("{\"scanInProgress\": false, \"backupInProgress\": true, \"statisticsRefreshInProgress\": false}");
         assertThat(background.pendingTasks).hasSize(1);
 
         background.runPendingTasks();
@@ -199,6 +208,39 @@ class WardrobeApiControllerTest {
     void reading_is_open_to_any_origin_as_it_changes_nothing() {
         assertThat(mvc.get().uri("/api/wardrobe").header("Origin", "https://example.test"))
                 .hasStatusOk();
+    }
+
+    @Test
+    void statistics_refresh_is_accepted_and_shows_the_overview() {
+        assertThat(mvc.post().uri("/api/wardrobe/statistics-refresh"))
+                .hasStatus(202)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": true}""");
+        reader.holding(anActiveListing(1)).showing(1, new ListingStatistics(4, 1));
+
+        background.runPendingTasks();
+
+        assertThat(mvc.get().uri("/api/wardrobe"))
+                .bodyJson().isStrictlyEqualTo("""
+                        {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
+                         "lastStatisticsReadAt": "2026-11-06T10:15:30Z"}""");
+    }
+
+    @Test
+    void shows_the_problem_of_the_last_statistics_refresh() {
+        lastStatisticsRefreshProblem.report(StatisticsRefreshProblem.NO_STATISTICS_SHOWN);
+
+        assertThat(mvc.get().uri("/api/wardrobe"))
+                .bodyJson().isStrictlyEqualTo("""
+                        {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
+                         "statisticsRefreshProblem": "NO_STATISTICS_SHOWN"}""");
+    }
+
+    @Test
+    void statistics_refresh_from_another_origin_is_forbidden() {
+        assertThat(mvc.post().uri("/api/wardrobe/statistics-refresh").header("Origin", "https://example.test"))
+                .hasStatus(403);
+        assertThat(background.pendingTasks).isEmpty();
     }
 
     /** Holds the scan until the test runs it, as a background thread would later. */
@@ -266,6 +308,26 @@ class WardrobeApiControllerTest {
                                   InMemoryListingRepository listings, InMemoryListingStatisticsRepository statistics,
                                   Background background) {
             return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(),
+                    Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background,
+                    new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
+        }
+
+        @Bean
+        LastStatisticsRefreshProblem lastStatisticsRefreshProblem() {
+            return new LastStatisticsRefreshProblem();
+        }
+
+        @Bean
+        ShowStatisticsRefresh showStatisticsRefresh(VintedSession session, LastStatisticsRefreshProblem lastProblem,
+                                                    InMemoryListingStatisticsRepository statistics) {
+            return new ShowStatisticsRefresh(session, lastProblem, statistics);
+        }
+
+        @Bean
+        RefreshStatistics refreshStatistics(VintedSession session, LastStatisticsRefreshProblem lastProblem,
+                                            FakeWardrobeReader reader, InMemoryListingStatisticsRepository statistics,
+                                            Background background) {
+            return new RefreshStatistics(session, lastProblem, reader, statistics, noPause(),
                     Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background,
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }

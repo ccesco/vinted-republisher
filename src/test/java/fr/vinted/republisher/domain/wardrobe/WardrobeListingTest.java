@@ -25,6 +25,17 @@ class WardrobeListingTest {
     }
 
     @Test
+    void shown_statistics_require_at_least_one_card_showing_them() {
+        ListingStatistics statistics = new ListingStatistics(12, 3);
+        WardrobeListing showing = new WardrobeListing(2, List.of(aLink(1).showing(statistics), aLink(2)));
+        WardrobeListing hiding = new WardrobeListing(2, List.of(aLink(1), aLink(2)));
+
+        assertThat(showing.shownStatisticsReadAt(READ_AT))
+                .containsExactly(new StatisticsReading(new VintedListingId(1), statistics, READ_AT));
+        assertThatThrownBy(() -> hiding.shownStatisticsReadAt(READ_AT)).isInstanceOf(NoStatisticsShown.class);
+    }
+
+    @Test
     void complete_when_every_listing_announced_was_found() {
         WardrobeListing wardrobe = new WardrobeListing(2, List.of(aLink(1), aLink(2)));
 

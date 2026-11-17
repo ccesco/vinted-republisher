@@ -4,10 +4,13 @@ import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightWardrobeReader;
 import fr.vinted.republisher.adapter.out.browser.WardrobeProperties;
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.wardrobe.RefreshStatistics;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
+import fr.vinted.republisher.application.wardrobe.ShowStatisticsRefresh;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
+import fr.vinted.republisher.domain.wardrobe.LastStatisticsRefreshProblem;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
@@ -55,6 +58,27 @@ public class WardrobeConfiguration {
                               Clock clock, @Qualifier("applicationTaskExecutor") Executor background,
                               JournalWriter journal) {
         return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, paceOf(wardrobe.scan()), clock,
+                new FailureLoggingExecutor(background), journal);
+    }
+
+    @Bean
+    LastStatisticsRefreshProblem lastStatisticsRefreshProblem() {
+        return new LastStatisticsRefreshProblem();
+    }
+
+    @Bean
+    ShowStatisticsRefresh showStatisticsRefresh(VintedSession session, LastStatisticsRefreshProblem lastProblem,
+                                                ListingStatisticsRepository statistics) {
+        return new ShowStatisticsRefresh(session, lastProblem, statistics);
+    }
+
+    @Bean
+    RefreshStatistics refreshStatistics(VintedSession session, LastStatisticsRefreshProblem lastProblem,
+                                        WardrobeReader reader, ListingStatisticsRepository statistics,
+                                        WardrobeProperties wardrobe, Clock clock,
+                                        @Qualifier("applicationTaskExecutor") Executor background,
+                                        JournalWriter journal) {
+        return new RefreshStatistics(session, lastProblem, reader, statistics, paceOf(wardrobe.scan()), clock,
                 new FailureLoggingExecutor(background), journal);
     }
 

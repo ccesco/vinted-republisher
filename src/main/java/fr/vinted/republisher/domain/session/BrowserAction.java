@@ -6,7 +6,8 @@ public enum BrowserAction {
     SCANNING(false),
     BACKING_UP(false),
     DELETING(false),
-    REPUBLISHING(false);
+    REPUBLISHING(false),
+    REFRESHING_STATISTICS(false);
 
     private final boolean aboutTheSession;
 

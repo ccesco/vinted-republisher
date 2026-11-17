@@ -3,7 +3,9 @@ package fr.vinted.republisher.adapter.out.persistence;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 interface ListingStatisticsReadingJpaRepository extends JpaRepository<ListingStatisticsReadingJpaEntity, Long> {
 
@@ -14,4 +16,7 @@ interface ListingStatisticsReadingJpaRepository extends JpaRepository<ListingSta
     List<ListingStatisticsReadingJpaEntity> findLatestOfEachListing();
 
     List<ListingStatisticsReadingJpaEntity> findByListingIdOrderByReadAtDesc(long listingId);
+
+    @Query("select max(reading.readAt) from ListingStatisticsReadingJpaEntity reading")
+    Optional<Instant> findLastReadAt();
 }

@@ -2,7 +2,11 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.adapter.in.web.api.model.BackupProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BrowserActionDto;
+import fr.vinted.republisher.adapter.in.web.api.model.JournaledActionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ScanProblemDto;
+import fr.vinted.republisher.adapter.in.web.api.model.StatisticsRefreshProblemDto;
+import fr.vinted.republisher.domain.journal.JournaledAction;
+import fr.vinted.republisher.domain.wardrobe.StatisticsRefreshProblem;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionStatusDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingFormFieldDto;
@@ -47,6 +51,17 @@ class ContractEnumsTest {
     @Test
     void contract_knows_every_scan_problem() {
         assertThat(names(ScanProblemDto.values())).containsExactlyInAnyOrder(names(ScanProblem.values()));
+    }
+
+    @Test
+    void contract_knows_every_statistics_refresh_problem() {
+        assertThat(names(StatisticsRefreshProblemDto.values()))
+                .containsExactlyInAnyOrder(names(StatisticsRefreshProblem.values()));
+    }
+
+    @Test
+    void contract_knows_every_journaled_action() {
+        assertThat(names(JournaledActionDto.values())).containsExactlyInAnyOrder(names(JournaledAction.values()));
     }
 
     @Test
