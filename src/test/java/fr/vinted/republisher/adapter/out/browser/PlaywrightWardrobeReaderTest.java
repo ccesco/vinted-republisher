@@ -162,6 +162,21 @@ class PlaywrightWardrobeReaderTest {
         }
 
         @Test
+        void newest_listings_are_those_shown_on_opening_without_scrolling() {
+            Visit visit = new Visit(links -> links.subList(0, 1));
+            ChromeTabs tabs = new ChromeTabs(CHROME.chrome(), LOAD_TIMEOUT);
+
+            WardrobeListing newest = new PlaywrightWardrobeReader(URI.create(address(MEMBER)), Duration.ofSeconds(2),
+                    tabs, Clock.systemUTC()).readNewest(briskPace(), visit);
+
+            // 45 listings shown by 20: only the first 20, as on opening.
+            assertThat(newest.displayedTotal()).isEqualTo(45);
+            assertThat(newest.links()).extracting(ListingLink::id).containsExactlyElementsOf(
+                    LongStream.rangeClosed(1, 20).mapToObj(VintedListingId::new).toList());
+            assertThat(visit.read).extracting(listing -> listing.id().value()).containsExactly(1L);
+        }
+
+        @Test
         void gives_what_it_found_on_the_wardrobe() {
             Visit visit = new Visit(links -> List.of());
 

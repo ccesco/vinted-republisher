@@ -9,4 +9,10 @@ package fr.vinted.republisher.domain.wardrobe;
 public interface WardrobeReader {
 
     WardrobeListing read(ScanPace pace, WardrobeVisit visit);
+
+    /**
+     * As {@link #read}, but only among the listings the wardrobe shows on opening, the newest ones, without going
+     * further: the links found are then fewer than the total announced.
+     */
+    WardrobeListing readNewest(ScanPace pace, WardrobeVisit visit);
 }

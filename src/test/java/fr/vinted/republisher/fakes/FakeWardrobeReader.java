@@ -27,6 +27,7 @@ public class FakeWardrobeReader implements WardrobeReader {
     private final List<Duration> pausesBetweenListings = new ArrayList<>();
     private int displayedTotal;
     private int reads;
+    private int shownOnOpening = Integer.MAX_VALUE;
     private Optional<VintedListingId> refused = Optional.empty();
     private Optional<RuntimeException> failure = Optional.empty();
     private Runnable duringTheReading = () -> { };
@@ -90,14 +91,30 @@ public class FakeWardrobeReader implements WardrobeReader {
         return reads;
     }
 
+    /** How many listings, the first ones, the wardrobe shows on opening, before any scrolling. */
+    public FakeWardrobeReader showingOnOpening(int count) {
+        shownOnOpening = count;
+        return this;
+    }
+
     @Override
     public WardrobeListing read(ScanPace pace, WardrobeVisit visit) {
         reads++;
+        return goThrough(pace, visit, Integer.MAX_VALUE);
+    }
+
+    @Override
+    public WardrobeListing readNewest(ScanPace pace, WardrobeVisit visit) {
+        return goThrough(pace, visit, shownOnOpening);
+    }
+
+    private WardrobeListing goThrough(ScanPace pace, WardrobeVisit visit, int shown) {
         duringTheReading.run();
         failure.ifPresent(reason -> {
             throw reason;
         });
-        WardrobeListing found = new WardrobeListing(displayedTotal, wardrobe.values().stream().map(this::cardOf).toList());
+        WardrobeListing found = new WardrobeListing(displayedTotal,
+                wardrobe.values().stream().limit(shown).map(this::cardOf).toList());
         Iterator<ListingLink> toOpen = visit.listingsToOpen(found).iterator();
         while (toOpen.hasNext()) {
             visit.record(open(toOpen.next()));

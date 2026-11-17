@@ -295,6 +295,22 @@ class RepublishListingAcceptanceTest {
     }
 
     @Test
+    void looksForTheNewListingOnlyAmongTheListingsShownOnOpening() {
+        // Étant donné un clic sur « Publier » fait
+        // Et la nouvelle annonce absente des annonces que le dressing affiche à son ouverture
+        // Quand l'outil cherche la nouvelle annonce
+        // Alors il ne fait pas défiler le dressing
+        // Et la republication reste « erreur de republication », l'aperçu invitant à « vérifier sur Vinted »
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.showingOncePublished(aListing(3, "Pull gris", "8.00", ACTIVE), REPUBLISHED);
+        wardrobe.showingOnOpening(1);
+
+        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        assertThat(wardrobe.reads()).isZero();
+        assertThat(wardrobe.opened()).containsExactly(new VintedListingId(3));
+    }
+
+    @Test
     void leavesErrorOnFailureOrCrashAfterPublishClick() {
         // Étant donné un clic sur « Publier » fait
         // Quand la lecture du dressing échoue, ou l'outil s'arrête avant de la faire

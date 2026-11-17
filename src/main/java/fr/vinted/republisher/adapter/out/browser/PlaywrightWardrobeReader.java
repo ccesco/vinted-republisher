@@ -37,10 +37,23 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
         });
     }
 
+    @Override
+    public WardrobeListing readNewest(ScanPace pace, WardrobeVisit visit) {
+        return tabs.inNewTab(page -> {
+            WardrobeListing shown = openWardrobe(new WardrobePage(page, wardrobeUrl));
+            openListings(page, pace, visit, shown);
+            return shown;
+        });
+    }
+
+    private WardrobeListing openWardrobe(WardrobePage wardrobe) {
+        wardrobe.open();
+        return new WardrobeListing(wardrobe.displayedTotal(stallTimeout), wardrobe.listingLinks());
+    }
+
     private WardrobeListing goThroughWardrobe(Page page, ScanPace pace) {
         WardrobePage wardrobe = new WardrobePage(page, wardrobeUrl);
-        wardrobe.open();
-        WardrobeListing found = new WardrobeListing(wardrobe.displayedTotal(stallTimeout), wardrobe.listingLinks());
+        WardrobeListing found = openWardrobe(wardrobe);
         Instant lastProgress = clock.instant();
         while (!found.allLinksFound() && !hasStalled(lastProgress)) {
             wardrobe.scrollDown();

@@ -39,7 +39,9 @@ public class NewListingSearch {
     Optional<ScannedListing> find(ListingContent saved) {
         Set<VintedListingId> known = listings.findAll().stream().map(Listing::id)
                 .collect(Collectors.toUnmodifiableSet());
-        return ListingRepublication.newListingAmong(read(link -> !known.contains(link.id())), saved);
+        Opening opening = new Opening(link -> !known.contains(link.id()));
+        wardrobe.readNewest(pace, opening);
+        return ListingRepublication.newListingAmong(opening.read, saved);
     }
 
     /**
