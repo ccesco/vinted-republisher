@@ -1,5 +1,6 @@
 package fr.vinted.republisher.acceptance;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationContext;

@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.backup.CategoryDetails;
 import fr.vinted.republisher.domain.backup.FormOption;
 import fr.vinted.republisher.domain.backup.FormOptions;
@@ -12,16 +13,10 @@ import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -35,20 +30,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /** AT-05-12 and AT-06-10, on a disposable PostgreSQL with the real changelog, never the real data. */
-@Tag("docker")
-@Testcontainers
-@SpringBootTest(properties = {
-        "app.data-dir=target/test-data",
-        "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222",
-        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
-class JpaListingBackupRepositoryTest {
+class JpaListingBackupRepositoryTest extends ApplicationWithDatabaseTest {
 
     private static final Instant SAVED_AT = Instant.parse("2026-11-07T10:00:00Z");
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
 
     @Autowired
     private ListingBackupRepository backups;
@@ -61,8 +45,6 @@ class JpaListingBackupRepositoryTest {
 
     @BeforeEach
     void startWithTwoListingsNeverBackedUp() {
-        database.update("DELETE FROM listing_content");
-        database.update("DELETE FROM listing");
         listings.saveAll(List.of(Listing.seen(anActiveListing(1), SAVED_AT), Listing.seen(anActiveListing(2), SAVED_AT)));
     }
 

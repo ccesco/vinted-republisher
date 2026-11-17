@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
@@ -7,16 +8,8 @@ import fr.vinted.republisher.domain.journal.JournalEntry;
 import fr.vinted.republisher.domain.journal.JournalPage;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,33 +20,14 @@ import java.util.stream.IntStream;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** On a disposable PostgreSQL with the real changelog, never the real data. */
-@Tag("docker")
-@Testcontainers
-@SpringBootTest(properties = {
-        "app.data-dir=target/test-data",
-        "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222",
-        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
-class JpaActionJournalTest {
+class JpaActionJournalTest extends ApplicationWithDatabaseTest {
 
     private static final Instant AT = Instant.parse("2026-11-15T10:00:00.123456Z");
     private static final VintedListingId LISTING = new VintedListingId(10208778166L);
     private static final VintedListingId OTHER = new VintedListingId(10208778167L);
 
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
-
     @Autowired
     private ActionJournal journal;
-
-    @Autowired
-    private JdbcTemplate database;
-
-    @BeforeEach
-    void startWithAnEmptyJournal() {
-        database.update("DELETE FROM action_journal_entry");
-    }
 
     @Test
     void entries_survive_restart() {

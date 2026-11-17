@@ -15,19 +15,18 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,8 +43,6 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 @Tag("browser")
 class PlaywrightVintedAccountTest {
 
-    private static final Path INSTALLED_CHROME = Path.of(Objects.requireNonNullElse(
-            System.getenv("CHROME_PATH"), "C:/Program Files/Google/Chrome/Application/chrome.exe"));
     private static final String MEMBER = "/member/settings/profile";
     private static final String VISITOR = "/visitor/settings/profile";
     private static final String VISITOR_REDIRECTED_BY_SCRIPT = "/scripted-visitor/settings/profile";
@@ -60,6 +57,8 @@ class PlaywrightVintedAccountTest {
 
     private HttpServer fakeVinted;
     private int debugPort;
+    private Chrome chrome;
+    private String endpoint;
     private final AtomicBoolean memberHasLoggedIn = new AtomicBoolean();
     private final CompletableFuture<Void> memberSeesTheProfileSettings = new CompletableFuture<>();
 
@@ -99,29 +98,31 @@ class PlaywrightVintedAccountTest {
             page(exchange, "<script>setTimeout(() => location.href = '" + MEMBER_LOGGING_IN + "', 300)</script>");
         });
         fakeVinted.start();
-        try (ServerSocket socket = new ServerSocket(0)) {
-            debugPort = socket.getLocalPort();
-        }
+        debugPort = SharedChrome.freePort();
+        useChrome(new Chrome(SharedChrome.INSTALLED_CHROME, profileDirectory, debugPort),
+                "http://127.0.0.1:" + debugPort);
     }
 
     @AfterEach
-    void stopChromeAndFakeVinted() {
-        // Chrome must be gone before the temporary profile is deleted: a killed Chrome still writes to it.
-        List<ProcessHandle> chromeProcesses = ProcessHandle.current().descendants().toList();
-        if (!chromeProcesses.isEmpty()) {
-            try (Playwright playwright = Playwright.create();
-                 Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
-                chrome.newBrowserCDPSession().send("Browser.close");
-            } catch (PlaywrightException alreadyClosed) {
-                // Nothing left to close.
-            }
-            chromeProcesses.forEach(process -> process.onExit().orTimeout(10, TimeUnit.SECONDS).join());
-        }
+    void stopFakeVinted() {
         fakeVinted.stop(0);
+    }
+
+    private void useChrome(Chrome used, String usedEndpoint) {
+        chrome = used;
+        endpoint = usedEndpoint;
     }
 
     @Nested
     class Session_check {
+
+        @RegisterExtension
+        static final SharedChrome CHROME = new SharedChrome();
+
+        @BeforeEach
+        void useSharedChrome() {
+            useChrome(CHROME.chrome(), CHROME.endpoint());
+        }
 
         @Test
         void finds_the_session_connected_when_the_profile_settings_stay_displayed() {
@@ -151,6 +152,14 @@ class PlaywrightVintedAccountTest {
 
     @Nested
     class Manual_login {
+
+        @RegisterExtension
+        static final SharedChrome CHROME = new SharedChrome();
+
+        @BeforeEach
+        void useSharedChrome() {
+            useChrome(CHROME.chrome(), CHROME.endpoint());
+        }
 
         @Test
         void connects_the_session_once_back_on_the_profile_settings() {
@@ -182,6 +191,22 @@ class PlaywrightVintedAccountTest {
     @Nested
     class Normal_chrome {
 
+        /** Started by the test itself, and alone: these tests are about Chrome's own life. */
+        @AfterEach
+        void stopChrome() {
+            // Chrome must be gone before the temporary profile is deleted: a killed Chrome still writes to it.
+            List<ProcessHandle> chromeProcesses = ProcessHandle.current().descendants().toList();
+            if (!chromeProcesses.isEmpty()) {
+                try (Playwright playwright = Playwright.create();
+                     Browser chrome = playwright.chromium().connectOverCDP(endpoint)) {
+                    chrome.newBrowserCDPSession().send("Browser.close");
+                } catch (PlaywrightException alreadyClosed) {
+                    // Nothing left to close.
+                }
+                chromeProcesses.forEach(process -> process.onExit().orTimeout(10, TimeUnit.SECONDS).join());
+            }
+        }
+
         @Test
         void is_started_once_and_reused_by_the_next_action() {
             PlaywrightVintedAccount account = accountWith(MEMBER);
@@ -197,7 +222,7 @@ class PlaywrightVintedAccountTest {
             accountWith(MEMBER).checkSession();
 
             try (Playwright playwright = Playwright.create();
-                 Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
+                 Browser chrome = playwright.chromium().connectOverCDP(endpoint)) {
                 List<String> openUrls = chrome.contexts().getFirst().pages().stream().map(page -> page.url()).toList();
                 assertThat(openUrls).noneMatch(url -> url.contains(MEMBER));
             }
@@ -208,7 +233,7 @@ class PlaywrightVintedAccountTest {
             accountWith(MEMBER).checkSession();
 
             try (Playwright playwright = Playwright.create();
-                 Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
+                 Browser chrome = playwright.chromium().connectOverCDP(endpoint)) {
                 Page page = chrome.contexts().getFirst().newPage();
                 page.navigate(fakeVintedUrl(MEMBER).toString());
                 assertThat(page.evaluate("navigator.webdriver")).isEqualTo(false);
@@ -218,6 +243,14 @@ class PlaywrightVintedAccountTest {
 
     @Nested
     class Unreachable_vinted {
+
+        @RegisterExtension
+        static final SharedChrome CHROME = new SharedChrome();
+
+        @BeforeEach
+        void useSharedChrome() {
+            useChrome(CHROME.chrome(), CHROME.endpoint());
+        }
 
         @Test
         void is_reported_when_vinted_answers_with_an_http_error() {
@@ -229,7 +262,7 @@ class PlaywrightVintedAccountTest {
         @Test
         void is_reported_when_vinted_does_not_answer() {
             PlaywrightVintedAccount account = new PlaywrightVintedAccount(new VintedSiteProperties(URI.create("http://127.0.0.1:1" + MEMBER)),
-                    new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort)));
+                    new ChromeTabs(chrome));
 
             Throwable attempt = catchThrowable(account::checkSession);
 
@@ -267,7 +300,7 @@ class PlaywrightVintedAccountTest {
     /** As the member would, from outside the tool. */
     private void closeTheTabShowing(String path) {
         try (Playwright playwright = Playwright.create();
-             Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
+             Browser chrome = playwright.chromium().connectOverCDP(endpoint)) {
             chrome.contexts().getFirst().pages().stream()
                     .filter(page -> page.url().contains(path))
                     .forEach(Page::close);
@@ -276,7 +309,7 @@ class PlaywrightVintedAccountTest {
 
     private PlaywrightVintedAccount accountWith(String profileSettingsPath) {
         return new PlaywrightVintedAccount(new VintedSiteProperties(fakeVintedUrl(profileSettingsPath)),
-                new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort)));
+                new ChromeTabs(chrome));
     }
 
     private URI fakeVintedUrl(String path) {
