@@ -8,7 +8,7 @@ Une annonce supprimée (US-09) doit être remise en vente à l'identique, sans r
 
 Contraintes déjà posées par d'autres specs :
 - Aucune requête directe vers l'API de Vinted : l'outil agit comme le membre, dans le Chrome piloté (US-04, US-09).
-- Les photos gardées ne sont jamais modifiées ; la version recadrée est hors périmètre (US-31).
+- Les photos gardées ne sont jamais modifiées.
 - Le lien entre l'annonce et sa republication, sous un nouvel identifiant Vinted, est attendu par US-04 et US-07 (cumul des vues et favoris).
 
 ## Objectif
@@ -239,7 +239,6 @@ Test : `RepublishListingAcceptanceTest.looksForTheNewListingOnlyAmongTheListings
 
 ## Hors périmètre
 - Vérification de la republication (US-13).
-- Republication avec la photo recadrée (US-31).
 - Enchaînement automatique et traitement en série (US-15, US-16, US-19).
 
 ## Décisions

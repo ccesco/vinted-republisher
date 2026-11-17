@@ -17,7 +17,6 @@ Pour chaque annonce : récupérer les images, la description, toutes les informa
 | Migrations | Liquibase (changelog vide pour l'instant) |
 | Données sauvegardées | contenu de l'annonce, prix, images, nombre de vues et de likes |
 | Images | l'image originale est toujours conservée, jamais modifiée |
-| Recadrage | rectangulaire, proposé par une IA, l'original est conservé |
 | Interface | dashboard web : une vue de toutes les annonces, un bouton de lancement automatique, un bouton pour relancer chaque annonce, et un visuel par sous-agent (navigateur ou onglet) |
 | API | contract first : contrat OpenAPI écrit avant le code, interfaces générées par openapi-generator, Swagger UI (springdoc) ; l'IHM (HTML statique + JS) n'appelle que l'API |
 | Premier test | avec un agent Claude complet, sans code, avant de développer |
@@ -131,13 +130,7 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 - US-26 `V2` Sauvegarde et archivage des données
 - US-27 `MVP` Limites de cadence
 
-### Epic 9 – Photos
-- US-28 `V2` Conserver l'original et la version recadrée
-- US-29 `V2` Recadrage rectangulaire manuel
-- US-30 `V2` Suggestion de recadrage par IA, avec validation
-- US-31 `V2` Republier avec la version recadrée
-
-### Epic 10 – Gestion d'annonces `V2`
+### Epic 9 – Gestion d'annonces `V2`
 - US-32 Cycle de vie des annonces
 - US-33 Historique de prix
 - US-34 Édition en masse et tags

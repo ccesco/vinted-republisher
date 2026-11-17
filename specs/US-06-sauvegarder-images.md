@@ -4,7 +4,7 @@
 **Dépend de** : US-05
 
 ## Contexte
-Pour republier une annonce à l'identique (US-12), l'outil doit avoir gardé ses photos. US-05 sauvegarde tout le contenu du formulaire sauf les photos. US-06 les sauvegarde sur disque, sous `APP_DATA_DIR` (emplacement renvoyé ici par US-02), sans jamais modifier le fichier gardé : le recadrage (US-28 à US-31) travaillera sur des copies.
+Pour republier une annonce à l'identique (US-12), l'outil doit avoir gardé ses photos. US-05 sauvegarde tout le contenu du formulaire sauf les photos. US-06 les sauvegarde sur disque, sous `APP_DATA_DIR` (emplacement renvoyé ici par US-02), sans jamais modifier le fichier gardé.
 
 ## Objectif
 En tant que membre, je veux que l'outil garde les photos de chaque annonce de mon dressing, telles que Vinted les sert, afin de pouvoir republier l'annonce avec les mêmes photos.
@@ -162,11 +162,10 @@ Recette du 2026-11-11 (10 annonces, 17 photos) : pour chacune, autant de fichier
 - Le contenu (formulaire) et les photos (page publique) sont lus à quelques dizaines de secondes d'écart : une modification faite entre les deux sur Vinted n'est pas détectée (décidé par l'utilisateur).
 
 ## Hors périmètre
-- Recadrage et versions recadrées (US-28 à US-31).
 - Vues et likes (US-07), validation de la sauvegarde et affichage des photos gardées (US-08).
 
 ## Décisions
-- Photos gardées, décidé par l'utilisateur : toutes les photos de l'annonce, dans l'ordre de l'annonce (la première est la couverture), chacune dans le plus grand fichier que Vinted sert. « Original » = le fichier tel que téléchargé depuis Vinted, enregistré à l'octet près (aucun réencodage, redimensionnement ni retouche), avec son empreinte SHA-256 qui prouve qu'il n'a pas changé. Le fichier du téléphone du membre n'est pas accessible : Vinted ne sert que ses propres versions. Les versions recadrées (US-28 à US-31) seront des fichiers à part.
+- Photos gardées, décidé par l'utilisateur : toutes les photos de l'annonce, dans l'ordre de l'annonce (la première est la couverture), chacune dans le plus grand fichier que Vinted sert. « Original » = le fichier tel que téléchargé depuis Vinted, enregistré à l'octet près (aucun réencodage, redimensionnement ni retouche), avec son empreinte SHA-256 qui prouve qu'il n'a pas changé. Le fichier du téléphone du membre n'est pas accessible : Vinted ne sert que ses propres versions.
 - Moment du téléchargement, décidé par l'utilisateur (2026-11-11) : pendant la sauvegarde US-05, au même passage sur chaque annonce (pas de seconde tournée). La sauvegarde d'une annonce n'est complète que si son contenu et toutes ses photos sont lus ; sinon l'annonce n'est pas sauvegardée et son ancienne version (contenu et photos ensemble) reste intacte. Reprise, verrou de session et problèmes de sauvegarde : ceux d'US-05.
 - Observation du formulaire de modification réel (2026-11-11, annonce 10208778166, lecture seule) : les données React Flight du formulaire (`initialItemUploadData`) portent `photos`, une liste ordonnée d'objets `{id, url, highResolution: {id, timestamp, orientation}}`, plus `photoOrientations` `[{id, orientation}]`. L'`url` est signée (`?s=…`) et désigne une version `f800` en WebP (600 × 800 ici) ; c'est le fichier que le formulaire affiche (`data-testid="media-select-photo-0--img"`). Aucune adresse pleine taille pour les photos de l'annonce dans le formulaire. Cette annonce n'a qu'une photo.
 - Données gardées, décidé par l'utilisateur (2026-11-11, « prends les photos sans les annotations ») : seulement les fichiers image. Rien de ce que Vinted joint à une photo n'est gardé (adresse signée, identifiant de photo, orientation, référence haute résolution). L'outil garde ses propres données : rang de la photo dans l'annonce (0 = couverture) et empreinte SHA-256 du fichier.
