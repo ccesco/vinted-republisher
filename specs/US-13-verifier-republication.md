@@ -18,7 +18,7 @@ En tant que membre, je veux vérifier sur Vinted le résultat d'une republicatio
 ## Comportement attendu
 1. **Aperçu** : une annonce dont la dernière republication est en erreur ou réussie montre « Vérifier sur Vinted ». Une republication « non publiée » ne le montre pas : « Republier sur Vinted » redevient actif.
 2. **Contrôles**, avant d'ouvrir Chrome : l'annonce a une sauvegarde ; sa dernière republication est en erreur ou réussie ; aucune autre action navigateur en cours (verrou `REPUBLISHING` d'US-03). Sinon refus, Chrome n'est pas ouvert.
-3. **Levée du doute** (republication en erreur) : une lecture du dressing, au rythme du scan. Sont candidates les annonces du dressing autres que l'ancienne et que les nouvelles annonces d'autres republications, inconnues de l'outil ou connues avec le titre et le prix de la sauvegarde ; leur page est ouverte pour lire titre et prix (comme au scan). Parmi elles :
+3. **Levée du doute** (republication en erreur) : d'abord une lecture des seules annonces affichées à l'ouverture du dressing, sans défiler (comme la preuve d'US-12) ; si aucune candidate n'y a le titre et le prix de la sauvegarde, une lecture complète du dressing, au rythme du scan, avant de conclure. Sont candidates les annonces du dressing autres que l'ancienne et que les nouvelles annonces d'autres republications, inconnues de l'outil ou connues avec le titre et le prix de la sauvegarde ; leur page est ouverte pour lire titre et prix (comme au scan). Parmi elles :
    - exactement une avec le titre et le prix de la sauvegarde → republication **réussie** : nouvel identifiant et date de la vérification enregistrés, nouvelle annonce présente et reliée à l'ancienne (comme US-12), puis comparaison (étape 4) dans la même visite ;
    - aucune → republication **non publiée**, avec la date de la vérification ; une nouvelle republication redevient possible (mêmes contrôles qu'US-12) ;
    - plusieurs → reste **en erreur** ; l'aperçu dit « Plusieurs annonces correspondent sur Vinted : supprimez les doublons puis revérifiez ».
@@ -171,6 +171,24 @@ Alors la republication est « non publiée » et une relance est possible
 ```
 Test : manuel, sur le vrai compte, avec l'accord de l'utilisateur
 
+### AT-13-15 – Nouvelle annonce parmi les annonces affichées à l'ouverture
+```gherkin
+Étant donné une republication en erreur
+Et la nouvelle annonce parmi les annonces que le dressing affiche à son ouverture
+Quand le membre clique sur « Vérifier sur Vinted »
+Alors la republication est réussie, sans que le dressing soit parcouru en entier
+```
+Test : `VerifyListingRepublicationAcceptanceTest.new_listing_shown_on_opening_is_found_without_going_through_the_wardrobe()`
+
+### AT-13-16 – Nouvelle annonce plus bas dans le dressing
+```gherkin
+Étant donné une republication en erreur
+Et la nouvelle annonce absente des annonces affichées à l'ouverture, mais plus bas dans le dressing
+Quand le membre clique sur « Vérifier sur Vinted »
+Alors le dressing est parcouru en entier et la republication est réussie
+```
+Test : `VerifyListingRepublicationAcceptanceTest.new_listing_further_down_is_found_by_going_through_the_wardrobe()`
+
 ## Cas limites et erreurs
 - Deux annonces identiques (titre et prix) réellement en vente : la levée du doute ne conclut pas ; le membre change le titre de l'une sur Vinted puis revérifie.
 - Republication en erreur après un plantage avant le clic : rien de publié, la vérification la passe « non publiée ».
@@ -196,13 +214,14 @@ Test : manuel, sur le vrai compte, avec l'accord de l'utilisateur
   - Comparaison : lecture du contenu par le lecteur de la sauvegarde (US-05, US-06), rien enregistré ; options comparées par identifiant, photos par nombre ; résultat dans la réponse seulement.
   - Verrou `REPUBLISHING`, aucun clic, valable en dry-run comme en réel.
   - Une erreur de lecture de la nouvelle annonce après une levée du doute garde la republication réussie : la preuve est faite, seule la comparaison manque.
+- Lecture en deux temps, décidée par Claude sur délégation explicite de l'utilisateur (« fait comme tu penses », 2026-11-17), après une vérification réelle arrêtée par l'utilisateur, jugée trop longue : d'abord les annonces affichées à l'ouverture du dressing, sans défiler ; au moins une candidate au titre et au prix de la sauvegarde → conclusion sur elles (une → réussie, plusieurs → reste en erreur). Aucune → lecture complète avant de conclure : « non publiée » autorise une nouvelle republication, la conclure sur une lecture partielle risquerait un doublon.
 
 ## Questions ouvertes
 - Aucune.
 
 ## Avancement (2026-11-15)
 - Fait : domaine (`NOT_PUBLISHED`, `ListingFieldDifference`), cas d'usage `VerifyListingRepublication`, recherche élargie (`NewListingSearch.findAgain`), changeset `010-verify-listing-republication`, API, aperçu. AT-13-01 à AT-13-13 verts avec un faux navigateur ; aucun nouvel adaptateur Playwright (lecture du dressing d'US-04, lecture du contenu d'US-05).
-- Test ajouté hors scénario : `VerifyListingRepublicationAcceptanceTest.new_listing_of_another_republication_is_never_a_candidate()`.
+- Test ajouté hors scénario : `VerifyListingRepublicationAcceptanceTest.new_listing_of_another_republication_is_never_a_candidate()`.
 - Rebasée sur US-14 (étapes) et US-18b (fiche `listing.html`) : l'étape d'une annonce lit la dernière tentative (`findAllLatest`), et une republication `NOT_PUBLISHED` ramène l'annonce à « À republier » (`ListingStageTest.republication_checked_not_published_is_to_republish_again()`).
 - Reste : AT-13-14, vérification réelle du bonnet, sur accord explicite de l'utilisateur. L'US reste « validée » d'ici là.
 

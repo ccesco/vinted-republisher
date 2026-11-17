@@ -112,6 +112,37 @@ class VerifyListingRepublicationAcceptanceTest {
     }
 
     @Test
+    void new_listing_shown_on_opening_is_found_without_going_through_the_wardrobe() {
+        // Étant donné une republication en erreur
+        aFailedRepublication();
+        // Et la nouvelle annonce parmi les annonces que le dressing affiche à son ouverture
+        wardrobe.holding(REPUBLISHED, aListing(3, "Pull gris", "8.00", ACTIVE)).showingOnOpening(1);
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre clique sur « Vérifier sur Vinted »
+        RepublicationReport report = verify();
+        // Alors la republication est réussie, sans que le dressing soit parcouru en entier
+        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.PUBLISHED);
+        assertThat(wardrobe.reads()).isZero();
+    }
+
+    @Test
+    void new_listing_further_down_is_found_by_going_through_the_wardrobe() {
+        // Étant donné une republication en erreur
+        aFailedRepublication();
+        // Et la nouvelle annonce absente des annonces affichées à l'ouverture, mais plus bas dans le dressing
+        wardrobe.holding(aListing(3, "Pull gris", "8.00", ACTIVE), REPUBLISHED).showingOnOpening(1);
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre clique sur « Vérifier sur Vinted »
+        RepublicationReport report = verify();
+        // Alors le dressing est parcouru en entier et la republication est réussie
+        assertThat(wardrobe.reads()).isEqualTo(1);
+        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.PUBLISHED);
+        assertThat(report.lastRepublication().flatMap(ListingRepublication::newListingId)).contains(NEW_LISTING);
+    }
+
+    @Test
     void failed_republication_missing_from_the_wardrobe_becomes_not_published() {
         // Étant donné une annonce en erreur de republication
         aFailedRepublication();
