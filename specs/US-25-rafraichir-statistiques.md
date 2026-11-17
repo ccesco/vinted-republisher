@@ -10,7 +10,7 @@ Les vues et favoris (US-07) ne sont relevés que par le scan (US-04), sur les ca
 En tant que membre, je veux rafraîchir les vues et favoris de toutes mes annonces en un clic et en quelques minutes, afin de suivre leur évolution sans relancer un scan complet.
 
 ## Comportement attendu
-1. **Lancement** : bouton « Rafraîchir les vues et favoris » sur la page du dressing (`POST /api/wardrobe/statistics-refresh`). Le rafraîchissement tourne en arrière-plan ; il est ignoré si une action navigateur est déjà en cours (scan, sauvegarde, suppression, republication, série). L'action navigateur affichée est `REFRESHING_STATISTICS`.
+1. **Lancement** : bouton « Rafraîchir les vues et favoris » sur la page du dressing (`POST /api/wardrobe/statistics-refresh`). Le rafraîchissement tourne en arrière-plan ; il est ignoré si une action navigateur est déjà en cours (scan, sauvegarde, suppression, republication). Entre deux relances d'une série « Tout lancer » (US-19), le navigateur est libre : le rafraîchissement peut tourner, et la série attend qu'il se termine (navigateur occupé, US-17). L'action navigateur affichée est `REFRESHING_STATISTICS`.
 2. **Lecture** : parcourt la page du dressing comme le scan, au même rythme (`ScanPace`), sans ouvrir aucune annonce. Rien n'est modifié sur Vinted.
 3. **Relevés** : un relevé (annonce, vues, favoris, date) par carte qui montre ses deux nombres, tous à la date du parcours, ajoutés à l'historique d'US-07 (jamais remplacés). Comme au scan, une carte d'une annonce que l'outil ne connaît pas encore est relevée aussi.
 4. **Tout ou rien** : comme au scan, un dressing dont le nombre de liens trouvés diffère du total annoncé n'est pas fiable : aucun relevé n'est ajouté, problème `WARDROBE_UNREADABLE`. Un dressing dont aucune carte ne montre ses nombres (membre déconnecté, page changée) n'ajoute rien non plus : problème `NO_STATISTICS_SHOWN`.
@@ -118,6 +118,7 @@ Décidé par Claude sur délégation de l'utilisateur (2026-11-17, « fais US-24
 - Même règle de confiance que le scan (tout ou rien sur un dressing incomplet), plus un garde-fou propre : aucun nombre affiché n'est pas un succès (sinon un membre déconnecté verrait un rafraîchissement « réussi » sans rien).
 - Problème propre au rafraîchissement, séparé de celui du scan : un rafraîchissement raté ne doit pas masquer ni effacer le problème du dernier scan.
 - Pas de planification : l'outil n'agit jamais seul sur Vinted (même prudence que US-19).
+- Pendant une série « Tout lancer » : rafraîchissement accepté entre deux relances (il n'écrit rien sur Vinted) ; la série le traite comme un navigateur occupé et réessaie 30 s plus tard.
 
 ## Questions ouvertes
 - Aucune.
