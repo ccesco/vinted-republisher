@@ -1,5 +1,5 @@
 # US-12 – Republier depuis la sauvegarde
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-05 et US-06 (contenu et photos sauvegardés), US-08 (validation), US-09 (suppression confirmée), US-11 (délai minimal) ; suivie d'US-13 (vérification)
 
@@ -36,18 +36,18 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. De
 - `FIELD_NOT_FILLABLE` porte `field` (`ListingFormField` : `PHOTOS`, `TITLE`, … `SIZE`, …) et, s'il y en a une, `optionId` (identifiant Vinted de l'option introuvable).
 
 ## Critères d'acceptation
-- [ ] Une annonce ne se republie que si sa dernière suppression est confirmée, sur la version de la sauvegarde vue, après sa date de republication, avec une sauvegarde toujours validée et des photos présentes et intactes ; sinon Chrome n'est pas ouvert.
-- [ ] Une annonce déjà republiée, ou en erreur de republication, ne se republie pas.
-- [ ] Le formulaire est rempli avec tout le contenu sauvegardé et les photos originales dans l'ordre ; un champ impossible à remplir abandonne avant publication.
-- [ ] Toute erreur avant le clic sur « Publier » refuse sans rien publier ni enregistrer.
-- [ ] Une republication n'est réussie que si la nouvelle annonce est retrouvée, seule, dans le dressing, avec le titre et le prix de la sauvegarde ; elle est alors enregistrée, présente et reliée à l'ancienne.
-- [ ] Après le clic sur « Publier », tout échec, plantage compris, laisse « erreur de republication », sans nouvel essai.
-- [ ] En dry-run (par défaut), rien n'est publié ni enregistré.
-- [ ] Sauvegarde, photos, validation et suppression de l'ancienne annonce restent intactes.
-- [ ] Une seule action navigateur à la fois ; le verrou est toujours libéré.
-- [ ] Les republications restent en base après un redémarrage.
-- [ ] Un autre site ouvert dans le navigateur ne peut pas demander une republication.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] Une annonce ne se republie que si sa dernière suppression est confirmée, sur la version de la sauvegarde vue, après sa date de republication, avec une sauvegarde toujours validée et des photos présentes et intactes ; sinon Chrome n'est pas ouvert.
+- [x] Une annonce déjà republiée, ou en erreur de republication, ne se republie pas.
+- [x] Le formulaire est rempli avec tout le contenu sauvegardé et les photos originales dans l'ordre ; un champ impossible à remplir abandonne avant publication.
+- [x] Toute erreur avant le clic sur « Publier » refuse sans rien publier ni enregistrer.
+- [x] Une republication n'est réussie que si la nouvelle annonce est retrouvée, seule, dans le dressing, avec le titre et le prix de la sauvegarde ; elle est alors enregistrée, présente et reliée à l'ancienne.
+- [x] Après le clic sur « Publier », tout échec, plantage compris, laisse « erreur de republication », sans nouvel essai.
+- [x] En dry-run (par défaut), rien n'est publié ni enregistré.
+- [x] Sauvegarde, photos, validation et suppression de l'ancienne annonce restent intactes.
+- [x] Une seule action navigateur à la fois ; le verrou est toujours libéré.
+- [x] Les republications restent en base après un redémarrage.
+- [x] Un autre site ouvert dans le navigateur ne peut pas demander une republication.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 ### AT-12-01 – Republication réussie
@@ -286,7 +286,7 @@ Test : `RepublishListingAcceptanceTest.looksForTheNewListingOnlyAmongTheListings
 - 2026-11-15 : la copie publiée à la main a été supprimée par l'utilisateur, puis 2e republication réelle du bonnet avec le correctif : même symptôme, formulaire toujours affiché 10 s après le clic, aucun message visible, annonce absente, republication enregistrée FAILED (laissée en base). Piste du clic sur la case du colis écartée en dry-run : aucune fenêtre ouverte. Pistes restantes : publication plus lente que 10 s quand l'outil envoie, ou refus silencieux (anti-robot, rythme de remplissage).
 - 2026-11-17 : l'adaptateur attend jusqu'à 60 s (au lieu de 10 s) que Vinted quitte le formulaire après le clic ; s'il y reste, l'erreur journalisée cite aussi les réponses de Vinted aux requêtes d'écriture parties après le clic (méthode, chemin sans paramètres, statut, début du corps) et les requêtes en échec.
 - 2026-11-17 : la vérification d'US-13 (AT-13-14) prouve que la 2e republication réelle du 15/11 a bien publié le bonnet (nouvelle annonce 10828489320, identique à la sauvegarde) : Vinted a mis plus de 10 s à quitter le formulaire. Elle confirme aussi que l'ouverture du dressing montre les annonces les plus récentes (AT-12-19).
-- Reste : une republication réelle de bout en bout, avec l'attente de 60 s et la preuve sans défilement, sur validation explicite de l'utilisateur.
+- Clôture, décidée par l'utilisateur (2026-11-17) : la republication réelle du bonnet, publiée sur Vinted et prouvée par la vérification d'US-13, vaut test réel ; l'US est implémentée sans nouvelle republication de bout en bout.
 
 ## Observation du formulaire réel (AT-12-18, 2026-11-15)
 Faite avec l'accord de l'utilisateur sur l'annonce 10208513136 (« Pyjama petit bateau 3 mois »), dans le Chrome piloté, formulaire entièrement rempli puis onglet fermé : aucun clic sur « Ajouter » ni sur « Sauvegarder le brouillon ».
