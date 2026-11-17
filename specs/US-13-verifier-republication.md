@@ -1,5 +1,5 @@
 # US-13 – Vérifier la republication
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : MVP
 **Dépend de** : US-12 (republication et « erreur de republication »), US-04 (lecture du dressing), US-05 et US-06 (lecture du contenu d'une annonce), US-03 (verrou du navigateur)
 
@@ -40,15 +40,15 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. De
 - Une erreur pendant la lecture du dressing laisse la republication telle qu'elle était. Une erreur pendant la lecture de la nouvelle annonce (illisible, Vinted inaccessible, session, navigateur), après une levée du doute réussie, garde la republication réussie : 502, l'aperçu rechargé la montre. L'aperçu dit donc « Vérification interrompue, l'état affiché est celui enregistré », sans affirmer que rien n'a changé.
 
 ## Critères d'acceptation
-- [ ] Une republication en erreur se lève sur Vinted parmi les annonces affichées à l'ouverture du dressing : nouvelle annonce retrouvée seule → réussie et reliée ; aucune ou plusieurs → reste en erreur, sans jamais parcourir tout le dressing.
-- [ ] Le membre valide lui-même une republication en erreur : « publiée » avec le lien de la nouvelle annonce, contrôlée sur sa page (titre et prix) puis comparée ; « non publiée », relance possible.
-- [ ] Une nouvelle annonce déjà vue par un scan entre-temps est retrouvée quand même (pas de doublon).
-- [ ] Une republication réussie se compare champ par champ à la sauvegarde ; les différences sont listées, rien n'est enregistré ni corrigé.
-- [ ] Après une republication non publiée, une nouvelle republication est possible et l'historique des tentatives reste en base.
-- [ ] Toute erreur de lecture du dressing laisse la republication telle qu'elle était ; le verrou est toujours libéré.
-- [ ] La vérification ne clique jamais sur Vinted et ne s'ouvre pas sans republication à vérifier.
-- [ ] Un autre site ouvert dans le navigateur ne peut pas demander une vérification.
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] Une republication en erreur se lève sur Vinted parmi les annonces affichées à l'ouverture du dressing : nouvelle annonce retrouvée seule → réussie et reliée ; aucune ou plusieurs → reste en erreur, sans jamais parcourir tout le dressing.
+- [x] Le membre valide lui-même une republication en erreur : « publiée » avec le lien de la nouvelle annonce, contrôlée sur sa page (titre et prix) puis comparée ; « non publiée », relance possible.
+- [x] Une nouvelle annonce déjà vue par un scan entre-temps est retrouvée quand même (pas de doublon).
+- [x] Une republication réussie se compare champ par champ à la sauvegarde ; les différences sont listées, rien n'est enregistré ni corrigé.
+- [x] Après une republication non publiée, une nouvelle republication est possible et l'historique des tentatives reste en base.
+- [x] Toute erreur de lecture du dressing laisse la republication telle qu'elle était ; le verrou est toujours libéré.
+- [x] La vérification ne clique jamais sur Vinted et ne s'ouvre pas sans republication à vérifier.
+- [x] Un autre site ouvert dans le navigateur ne peut pas demander une vérification.
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
 ## Tests d'acceptation
 ### AT-13-01 – Erreur levée : nouvelle annonce retrouvée
@@ -279,7 +279,8 @@ Test : `ListingDetailPageTest.Republication` : `member_validates_published_with_
 - Fait : domaine (`NOT_PUBLISHED`, `ListingFieldDifference`), cas d'usage `VerifyListingRepublication`, recherche élargie (`NewListingSearch.findAgain`), changeset `010-verify-listing-republication`, API, aperçu. AT-13-01 à AT-13-13 verts avec un faux navigateur ; aucun nouvel adaptateur Playwright (lecture du dressing d'US-04, lecture du contenu d'US-05).
 - Test ajouté hors scénario : `VerifyListingRepublicationAcceptanceTest.new_listing_of_another_republication_is_never_a_candidate()`.
 - Rebasée sur US-14 (étapes) et US-18b (fiche `listing.html`) : l'étape d'une annonce lit la dernière tentative (`findAllLatest`), et une republication `NOT_PUBLISHED` ramène l'annonce à « À republier » (`ListingStageTest.republication_checked_not_published_is_to_republish_again()`).
-- Reste : AT-13-14, vérification réelle du bonnet, sur accord explicite de l'utilisateur. L'US reste « validée » d'ici là.
+- 2026-11-17 : vérification réelle arrêtée par l'utilisateur (lecture complète du dressing jugée trop longue), d'où la validation manuelle et la lecture limitée aux annonces affichées à l'ouverture (AT-13-02, AT-13-15 à AT-13-22, `ValidateListingRepublication`, `NewListingLink`).
+- 2026-11-17 : AT-13-14 faite sur le vrai compte, avec l'accord de l'utilisateur, application en dry-run : la vérification a retrouvé le bonnet parmi les annonces affichées à l'ouverture du dressing (en 3 min environ), republication réussie et reliée à la nouvelle annonce 10828489320, comparaison « identique à la sauvegarde », aucun clic sur Vinted. Confirme que Vinted montre à l'ouverture du dressing les annonces les plus récentes. La 2e republication réelle du 15/11 avait donc bien publié, au-delà des 10 s attendues alors.
 
 ## Modèle de domaine
 Termes à ajouter ou modifier dans le glossaire :
