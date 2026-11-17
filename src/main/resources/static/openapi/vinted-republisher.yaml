@@ -26,6 +26,8 @@ tags:
     description: Journal des actions de l'outil, refus, dry-runs et erreurs compris (US-23)
   - name: listing-relaunch
     description: Relance d'une annonce, d'une étape, depuis la liste (US-20)
+  - name: automatic-run
+    description: Série automatique « Tout lancer » (US-19)
 paths:
   /api/vinted-session:
     get:
@@ -661,6 +663,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RelaunchRefusal'
+  /api/automatic-run:
+    get:
+      tags: [automatic-run]
+      operationId: showAutomaticRun
+      summary: Aperçu de la série automatique
+      description: Lit l'aperçu gardé en mémoire, sans accéder à Vinted ; IDLE si aucune série depuis le démarrage.
+      responses:
+        '200':
+          description: Aperçu de la série.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+    post:
+      tags: [automatic-run]
+      operationId: launchAutomaticRun
+      summary: Tout lancer
+      description: >
+        Lance en arrière-plan la relance de chaque annonce prête, l'une après l'autre (vérifications, republications,
+        suppressions, attentes), avec les garde-fous de chaque relance. Attend quand un échec le demande, écarte une
+        annonce refusée pour elle-même ou dont l'étape ne bouge pas, s'arrête sur un problème du compte ou de Vinted.
+        Ignorée si une série tourne déjà. Ne redémarre jamais seule.
+      responses:
+        '202':
+          description: Série lancée (ou ignorée) ; aperçu juste après la demande. Suivre la suite avec GET.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
 components:
   parameters:
     ListingId:
@@ -902,6 +935,58 @@ components:
         suppression confirmée), prête à supprimer (sauvegarde actuelle validée), à valider, à sauvegarder.
       enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, GONE, TO_DELETE,
         TO_VALIDATE, TO_BACK_UP]
+    RunStatus:
+      type: string
+      description: >
+        Aucune série depuis le démarrage, relance en cours, attente d'une date, série terminée, série arrêtée.
+      enum: [IDLE, RUNNING, WAITING, FINISHED, STOPPED]
+    RunStopReason:
+      type: string
+      description: >
+        Session Vinted non connectée, navigateur indisponible, Vinted inaccessible (réseau ou blocage anti-robot),
+        page de Vinted illisible, échec inattendu (voir les logs).
+      enum: [SESSION_DISCONNECTED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, VINTED_PAGE_UNREADABLE, RUN_FAILED]
+    AutomaticRunOverview:
+      type: object
+      required: [status, relaunchCount, skippedListingIds]
+      properties:
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          description: Fin de la série, terminée ou arrêtée.
+        waitingUntil:
+          type: string
+          format: date-time
+          description: Date jusqu'à laquelle la série attend ; présente pour WAITING.
+        currentListingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'annonce relancée en dernier, tant que la série tourne.
+        relaunchCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Relances faites par la série (dry-runs compris).
+        skippedListingIds:
+          type: array
+          description: Annonces écartées de la série, dans l'ordre ; le membre tranche sur leur fiche.
+          items:
+            type: integer
+            format: int64
+        stopReason:
+          $ref: '#/components/schemas/RunStopReason'
+      example:
+        status: WAITING
+        startedAt: '2026-11-17T10:00:00Z'
+        waitingUntil: '2026-11-17T10:05:00Z'
+        currentListingId: 10208799832
+        relaunchCount: 3
+        skippedListingIds: []
     RelaunchRequest:
       type: object
       required: [stage]

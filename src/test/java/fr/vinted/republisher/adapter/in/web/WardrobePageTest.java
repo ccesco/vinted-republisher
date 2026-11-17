@@ -43,6 +43,7 @@ class WardrobePageTest {
     private static final String SCANNED = """
             {"scanInProgress": false, "backupInProgress": false, "lastScanAt": "2026-11-06T10:15:30Z"}""";
     private static final String NO_LISTING = "{\"listings\": []}";
+    private static final String IDLE_RUN = "{\"status\": \"IDLE\", \"relaunchCount\": 0, \"skippedListingIds\": []}";
     private static final String TWO_LISTINGS = """
             {"listings": [
               {"vintedId": 2, "title": "Pull <b>rayé</b>", "price": {"amount": 12.5, "currency": "EUR"},
@@ -65,6 +66,8 @@ class WardrobePageTest {
     private final AtomicReference<Integer> relaunchStatus = new AtomicReference<>(200);
     private final AtomicReference<String> relaunchAnswer = new AtomicReference<>("{}");
     private final CountDownLatch relaunchAnswered = new CountDownLatch(1);
+    private final AtomicReference<String> runOverview = new AtomicReference<>(IDLE_RUN);
+    private final List<String> launchedRuns = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -110,6 +113,14 @@ class WardrobePageTest {
             }
             respond(exchange, relaunchStatus.get(), "application/json",
                     relaunchAnswer.get().getBytes(StandardCharsets.UTF_8));
+        });
+        fakeApi.createContext("/api/automatic-run", exchange -> {
+            if ("POST".equals(exchange.getRequestMethod())) {
+                launchedRuns.add("POST");
+                respond(exchange, 202, "application/json", runOverview.get().getBytes(StandardCharsets.UTF_8));
+            } else {
+                answer(exchange, runOverview.get());
+            }
         });
         fakeApi.setExecutor(Executors.newCachedThreadPool());
         fakeApi.start();
@@ -507,6 +518,50 @@ class WardrobePageTest {
     }
 
     @Test
+    void launches_an_automatic_run_and_follows_it() {
+        // Étant donné la page du dressing, sans série depuis le démarrage
+        open();
+        assertThat(runButton()).isVisible();
+        assertThat(runSummary()).hasText("");
+        // Quand le membre clique sur « Tout lancer »
+        runOverview.set("""
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingId": 3, "relaunchCount": 0,
+                 "skippedListingIds": []}""");
+        runButton().click();
+        // Alors la série est lancée, le bouton est masqué et la page affiche l'état
+        assertThat(runSummary()).hasText("Traitement en cours : annonce 3.");
+        assertThat(runButton()).isHidden();
+        assertThat(launchedRuns).containsExactly("POST");
+        // Puis le résultat, une fois la série terminée, et le bouton revient
+        runOverview.set("""
+                {"status": "FINISHED", "startedAt": "2026-11-17T10:00:00Z", "endedAt": "2026-11-17T10:07:00Z",
+                 "relaunchCount": 2, "skippedListingIds": [5]}""");
+        assertThat(runSummary()).hasText("Traitement terminé : 2 relances, 1 annonce écartée.");
+        assertThat(runButton()).isVisible();
+    }
+
+    @Test
+    void shows_a_waiting_and_a_stopped_run() {
+        // Étant donné une série en attente
+        runOverview.set("""
+                {"status": "WAITING", "startedAt": "2026-11-17T10:00:00Z", "waitingUntil": "2026-11-17T10:05:00Z",
+                 "relaunchCount": 1, "skippedListingIds": []}""");
+        open();
+        // Alors la page affiche la date de fin d'attente, sans proposer de relancer la série
+        assertThat(runSummary()).hasText("En attente jusqu'au "
+                + page.evaluate("new Date('2026-11-17T10:05:00Z').toLocaleString('fr-FR')") + ".");
+        assertThat(runButton()).isHidden();
+        // Quand la série s'arrête sur une session perdue
+        runOverview.set("""
+                {"status": "STOPPED", "startedAt": "2026-11-17T10:00:00Z", "endedAt": "2026-11-17T10:06:00Z",
+                 "relaunchCount": 1, "skippedListingIds": [], "stopReason": "SESSION_DISCONNECTED"}""");
+        // Alors la page dit pourquoi, et le bouton revient
+        assertThat(runSummary()).hasText(
+                "Traitement arrêté : la session Vinted n'est pas connectée (connectez-vous, puis relancez).");
+        assertThat(runButton()).isVisible();
+    }
+
+    @Test
     void title_opens_the_listing_detail() {
         // Étant donné la liste avec une annonce sauvegardée et une annonce absente non sauvegardée
         inventory.set("""
@@ -601,6 +656,14 @@ class WardrobePageTest {
         } else {
             respond(exchange, 200, "application/json", json.getBytes(StandardCharsets.UTF_8));
         }
+    }
+
+    private Locator runButton() {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Tout lancer").setExact(true));
+    }
+
+    private Locator runSummary() {
+        return page.locator("#run-summary");
     }
 
     private Locator backupSummary() {
