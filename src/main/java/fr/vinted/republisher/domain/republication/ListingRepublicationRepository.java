@@ -22,6 +22,9 @@ public interface ListingRepublicationRepository {
     /** The new listings of every published republication. */
     Set<VintedListingId> findNewListings();
 
+    /** The published republication whose new listing is this one, if any. */
+    Optional<ListingRepublication> findPublishedAs(VintedListingId newListing);
+
     /** Records a new attempt, or how it was settled. */
     void save(ListingRepublication republication);
 }

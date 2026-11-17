@@ -109,6 +109,17 @@ class JpaListingRepublicationRepositoryTest extends ApplicationWithDatabaseTest 
     }
 
     @Test
+    void the_republication_that_published_a_new_listing_is_found_by_it() {
+        ListingRepublication published = ListingRepublication.attempted(backupOf(PUBLISHED_LISTING), CLICKED_AT)
+                .published(NEW_LISTING, PROVEN_AT);
+        republications.save(published);
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT));
+
+        assertThat(republications.findPublishedAs(NEW_LISTING)).contains(published);
+        assertThat(republications.findPublishedAs(PUBLISHED_LISTING)).isEmpty();
+    }
+
+    @Test
     void the_new_listing_must_be_known() {
         ListingRepublication attempt = ListingRepublication.attempted(backupOf(PUBLISHED_LISTING), CLICKED_AT);
         republications.save(attempt);

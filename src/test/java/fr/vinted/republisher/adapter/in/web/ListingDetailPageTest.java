@@ -300,6 +300,36 @@ class ListingDetailPageTest {
     }
 
     @Test
+    void shows_the_republication_comparison() {
+        // Étant donné l'annonce 3 republiée le 10 novembre depuis l'annonce 1, jamais relevée elle-même
+        detail.set(NEVER_READ.replace("\"journal\": []", """
+                "journal": [],
+                "statisticsComparison": {"previousListingId": 1, "republishedAt": "2026-11-10T09:00:00Z",
+                  "before": {"viewCount": 120, "favouriteCount": 8, "readAt": "2026-11-09T09:00:00Z"},
+                  "cumulatedViewCount": 120, "cumulatedFavouriteCount": 8, "previousListingCount": 1}"""));
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit l'annonce remplacée, avant, après et le total
+        assertThat(page.locator("#statistics-comparison-origin")).containsText("Republiée le 10/11/2026");
+        assertThat(page.locator("#statistics-comparison-origin a")).hasText("l'annonce 1");
+        assertThat(page.locator("#statistics-comparison-origin a")).hasAttribute("href", "listing.html?id=1");
+        assertThat(page.locator("#statistics-comparison-table tbody tr")).hasCount(3);
+        assertThat(page.locator("#statistics-comparison-table tbody tr").nth(0))
+                .containsText("Avant (annonce remplacée, au 09/11/2026");
+        assertThat(page.locator("#statistics-comparison-table tbody tr").nth(0)).containsText("120");
+        assertThat(page.locator("#statistics-comparison-table tbody tr").nth(1)).containsText("jamais relevée");
+        assertThat(page.locator("#statistics-comparison-table tbody tr").nth(2))
+                .containsText("Total depuis la première mise en ligne (2 annonces)");
+    }
+
+    @Test
+    void no_comparison_for_a_listing_not_from_a_republication() {
+        detail.set(DETAIL);
+        open();
+        assertThat(page.locator("#statistics-comparison")).isHidden();
+    }
+
+    @Test
     void absent_listing() {
         // Étant donné l'annonce 3 vue au scan du 3 novembre puis absente
         detail.set(ABSENT);

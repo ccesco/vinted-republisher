@@ -27,6 +27,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ListingStatistics` | Statistiques d'une annonce (vues et favoris) | Nombre de vues et de favoris (les « likes » de Vinted) d'une annonce, lus sur sa carte du dressing, que Vinted ne montre qu'au membre connecté ; les deux ensemble ou aucun. |
 | `StatisticsReading` | Relevé des statistiques | Statistiques d'une annonce à la fin d'un relevé du dressing, datées ; jamais modifié ni supprimé, un par scan ou rafraîchissement qui les lit. |
 | `ListingStatisticsRepository` | Historique des statistiques | Tous les relevés de statistiques, y compris des annonces absentes ou non actives ; donne le dernier relevé de chaque annonce. |
+| `StatisticsComparison` | Avant / après republication | Sur la fiche d'une annonce mise en vente par une republication : dernier relevé de l'annonce remplacée (avant), le sien (après), date de republication, et total cumulé des derniers relevés de toute la chaîne de republications (une annonce jamais relevée compte pour zéro). |
 | `WardrobeVisit` | Visite du dressing | Ce que le scan fait de ce que le lecteur trouve : choisir les annonces à ouvrir, enregistrer chaque annonce lue. |
 | `LastScanProblem` | Problème du dernier scan | Problème affiché jusqu'au scan suivant, conservé en mémoire seulement. |
 | `ScanProblem` | Problème de scan | Raison affichée quand un scan n'a pas abouti : navigateur indisponible, Vinted inaccessible, dressing illisible, échec du scan. |

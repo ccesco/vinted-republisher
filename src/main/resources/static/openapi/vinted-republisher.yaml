@@ -920,6 +920,8 @@ components:
           description: Toutes les lignes du journal de l'annonce, de la plus récente à la plus ancienne ; vide si aucune.
           items:
             $ref: '#/components/schemas/JournalEntry'
+        statisticsComparison:
+          $ref: '#/components/schemas/StatisticsComparison'
       example:
         listing:
           vintedId: 90000000001
@@ -941,6 +943,54 @@ components:
           - viewCount: 5
             favouriteCount: 1
             readAt: '2026-11-06T10:05:00Z'
+    StatisticsComparison:
+      type: object
+      description: >
+        Vues et favoris d'une annonce issue d'une republication, à côté de ceux de l'annonce qu'elle remplace ; absent
+        de la fiche d'une annonce qui ne vient pas d'une republication publiée.
+      required: [previousListingId, republishedAt, cumulatedViewCount, cumulatedFavouriteCount, previousListingCount]
+      properties:
+        previousListingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'annonce remplacée directement.
+        republishedAt:
+          type: string
+          format: date-time
+          description: Date où la nouvelle annonce a été trouvée sur Vinted.
+        before:
+          $ref: '#/components/schemas/ListingStatistics'
+        after:
+          $ref: '#/components/schemas/ListingStatistics'
+        cumulatedViewCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Somme des vues des derniers relevés de toutes les annonces de la chaîne, celle-ci comprise.
+        cumulatedFavouriteCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Somme des favoris des derniers relevés de toutes les annonces de la chaîne, celle-ci comprise.
+        previousListingCount:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Nombre d'annonces qui ont précédé celle-ci (une par republication).
+      example:
+        previousListingId: 90000000001
+        republishedAt: '2026-11-10T09:00:00Z'
+        before:
+          viewCount: 120
+          favouriteCount: 8
+          readAt: '2026-11-09T09:00:00Z'
+        after:
+          viewCount: 30
+          favouriteCount: 4
+          readAt: '2026-11-15T09:00:00Z'
+        cumulatedViewCount: 150
+        cumulatedFavouriteCount: 12
+        previousListingCount: 1
     PresenceFilter:
       type: string
       description: >

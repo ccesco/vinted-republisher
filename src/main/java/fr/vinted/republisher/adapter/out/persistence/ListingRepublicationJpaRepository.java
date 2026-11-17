@@ -20,6 +20,8 @@ interface ListingRepublicationJpaRepository extends JpaRepository<ListingRepubli
     @Query("select r.newListingId from ListingRepublicationJpaEntity r where r.newListingId is not null")
     List<Long> findNewListingIds();
 
+    Optional<ListingRepublicationJpaEntity> findByNewListingId(long newListingId);
+
     @Query("select attempt.attemptedAt from ListingRepublicationJpaEntity attempt where attempt.attemptedAt > :since")
     List<Instant> findAttemptedAtAfter(Instant since);
 }

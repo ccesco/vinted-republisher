@@ -54,6 +54,13 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
     }
 
     @Override
+    public Optional<ListingRepublication> findPublishedAs(VintedListingId newListing) {
+        return republications.values().stream()
+                .filter(republication -> republication.newListingId().filter(newListing::equals).isPresent())
+                .findFirst();
+    }
+
+    @Override
     public void save(ListingRepublication republication) {
         if (savesBeforeTheDatabaseGoesDown == 0) {
             throw new IllegalStateException("database down");

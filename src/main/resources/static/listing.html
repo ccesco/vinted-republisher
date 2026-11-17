@@ -29,6 +29,20 @@
         </thead>
         <tbody></tbody>
     </table>
+    <section id="statistics-comparison" hidden>
+        <h3>Avant / après republication</h3>
+        <p id="statistics-comparison-origin"></p>
+        <table id="statistics-comparison-table">
+            <thead>
+            <tr>
+                <th scope="col">Annonce</th>
+                <th scope="col">Vues</th>
+                <th scope="col">Favoris</th>
+            </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </section>
     <h2>Journal</h2>
     <p id="no-journal" hidden>Aucune action</p>
     <table id="listing-journal" hidden>
@@ -181,6 +195,9 @@
     const stage = document.getElementById('stage');
     const noReading = document.getElementById('no-reading');
     const history = document.getElementById('history');
+    const statisticsComparison = document.getElementById('statistics-comparison');
+    const statisticsComparisonOrigin = document.getElementById('statistics-comparison-origin');
+    const statisticsComparisonTable = document.getElementById('statistics-comparison-table');
     const noJournal = document.getElementById('no-journal');
     const listingJournal = document.getElementById('listing-journal');
     const notBackedUp = document.getElementById('not-backed-up');
@@ -516,7 +533,43 @@
                 cell(String(reading.favouriteCount)));
             return row;
         }));
+        showStatisticsComparison(detail.statisticsComparison);
         listingSection.hidden = false;
+    }
+
+    // US-24 : l'annonce remplacée et celle-ci côte à côte, puis le total de toute la chaîne de republications.
+    function showStatisticsComparison(compared) {
+        statisticsComparison.hidden = !compared;
+        if (!compared) {
+            return;
+        }
+        const origin = document.createElement('a');
+        origin.href = 'listing.html?id=' + encodeURIComponent(compared.previousListingId);
+        origin.textContent = "l'annonce " + compared.previousListingId;
+        statisticsComparisonOrigin.replaceChildren('Republiée le ' + dateOf(compared.republishedAt) + ' depuis ', origin, '.');
+        const listingCount = compared.previousListingCount + 1;
+        statisticsComparisonTable.tBodies[0].replaceChildren(
+            readingRow('Avant (annonce remplacée', compared.before),
+            readingRow('Après (cette annonce', compared.after),
+            countRow(`Total depuis la première mise en ligne (${listingCount} annonces)`,
+                compared.cumulatedViewCount, compared.cumulatedFavouriteCount));
+    }
+
+    function readingRow(label, reading) {
+        if (!reading) {
+            const row = document.createElement('tr');
+            const never = cell('jamais relevée');
+            never.colSpan = 2;
+            row.append(cell(label + ')'), never);
+            return row;
+        }
+        return countRow(label + ', au ' + dateOf(reading.readAt) + ')', reading.viewCount, reading.favouriteCount);
+    }
+
+    function countRow(label, views, favourites) {
+        const row = document.createElement('tr');
+        row.append(cell(label), cell(String(views)), cell(String(favourites)));
+        return row;
     }
 
     // Vrai si l'annonce est connue : sa sauvegarde se lit ensuite.
