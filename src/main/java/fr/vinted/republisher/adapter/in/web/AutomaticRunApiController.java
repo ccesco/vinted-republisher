@@ -35,6 +35,24 @@ public class AutomaticRunApiController implements AutomaticRunApi {
         return ResponseEntity.status(HttpStatus.ACCEPTED).body(toDto(launchAutomaticRun.overview()));
     }
 
+    @Override
+    public ResponseEntity<AutomaticRunOverviewDto> pauseAutomaticRun() {
+        launchAutomaticRun.pause();
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(toDto(launchAutomaticRun.overview()));
+    }
+
+    @Override
+    public ResponseEntity<AutomaticRunOverviewDto> resumeAutomaticRun() {
+        launchAutomaticRun.resume();
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(toDto(launchAutomaticRun.overview()));
+    }
+
+    @Override
+    public ResponseEntity<AutomaticRunOverviewDto> stopAutomaticRun() {
+        launchAutomaticRun.stop();
+        return ResponseEntity.status(HttpStatus.ACCEPTED).body(toDto(launchAutomaticRun.overview()));
+    }
+
     static AutomaticRunOverviewDto toDto(AutomaticRun run) {
         return new AutomaticRunOverviewDto()
                 .status(RunStatusDto.valueOf(run.status().name()))
@@ -44,7 +62,9 @@ public class AutomaticRunApiController implements AutomaticRunApi {
                 .currentListingId(run.currentListing().map(VintedListingId::value).orElse(null))
                 .relaunchCount(run.relaunchCount())
                 .skippedListingIds(run.skippedListings().stream().map(VintedListingId::value).toList())
-                .stopReason(run.stopReason().map(reason -> RunStopReasonDto.valueOf(reason.name())).orElse(null));
+                .stopReason(run.stopReason().map(reason -> RunStopReasonDto.valueOf(reason.name())).orElse(null))
+                .pauseRequested(run.pauseRequested())
+                .stopRequested(run.stopRequested());
     }
 
     private static OffsetDateTime utc(Instant instant) {

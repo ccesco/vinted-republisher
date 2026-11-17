@@ -694,6 +694,55 @@ paths:
                 $ref: '#/components/schemas/AutomaticRunOverview'
         '403':
           description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/pause:
+    post:
+      tags: [automatic-run]
+      operationId: pauseAutomaticRun
+      summary: Mettre la série en pause
+      description: >
+        La relance en cours se termine, puis la série passe en pause ; une attente en cours est interrompue. Ignorée
+        sans série en cours, ou déjà en pause.
+      responses:
+        '202':
+          description: Demande prise en compte (ou ignorée) ; aperçu juste après la demande.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/resume:
+    post:
+      tags: [automatic-run]
+      operationId: resumeAutomaticRun
+      summary: Reprendre la série en pause
+      description: La série reprend au tour suivant. Ignorée sans pause en cours ni demandée.
+      responses:
+        '202':
+          description: Demande prise en compte (ou ignorée) ; aperçu juste après la demande.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/stop:
+    post:
+      tags: [automatic-run]
+      operationId: stopAutomaticRun
+      summary: Arrêter la série
+      description: >
+        La relance en cours se termine, puis la série s'arrête (STOPPED_BY_MEMBER) ; une attente ou une pause est
+        interrompue. Ignorée sans série en cours.
+      responses:
+        '202':
+          description: Demande prise en compte (ou ignorée) ; aperçu juste après la demande.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
 components:
   parameters:
     ListingId:
@@ -938,17 +987,18 @@ components:
     RunStatus:
       type: string
       description: >
-        Aucune série depuis le démarrage, relance en cours, attente d'une date, série terminée, série arrêtée.
-      enum: [IDLE, RUNNING, WAITING, FINISHED, STOPPED]
+        Aucune série depuis le démarrage, relance en cours, attente d'une date, pause, série terminée, série arrêtée.
+      enum: [IDLE, RUNNING, WAITING, PAUSED, FINISHED, STOPPED]
     RunStopReason:
       type: string
       description: >
         Session Vinted non connectée, navigateur indisponible, Vinted inaccessible (réseau ou blocage anti-robot),
-        page de Vinted illisible, échec inattendu (voir les logs).
-      enum: [SESSION_DISCONNECTED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, VINTED_PAGE_UNREADABLE, RUN_FAILED]
+        page de Vinted illisible, échec inattendu (voir les logs), arrêt demandé par le membre.
+      enum: [SESSION_DISCONNECTED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, VINTED_PAGE_UNREADABLE, RUN_FAILED,
+        STOPPED_BY_MEMBER]
     AutomaticRunOverview:
       type: object
-      required: [status, relaunchCount, skippedListingIds]
+      required: [status, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
       properties:
         status:
           $ref: '#/components/schemas/RunStatus'
@@ -980,6 +1030,12 @@ components:
             format: int64
         stopReason:
           $ref: '#/components/schemas/RunStopReason'
+        pauseRequested:
+          type: boolean
+          description: Pause demandée, effective à la fin de la relance en cours.
+        stopRequested:
+          type: boolean
+          description: Arrêt demandé, effectif à la fin de la relance en cours.
       example:
         status: WAITING
         startedAt: '2026-11-17T10:00:00Z'
@@ -987,6 +1043,8 @@ components:
         currentListingId: 10208799832
         relaunchCount: 3
         skippedListingIds: []
+        pauseRequested: false
+        stopRequested: false
     RelaunchRequest:
       type: object
       required: [stage]

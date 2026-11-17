@@ -68,6 +68,7 @@ class WardrobePageTest {
     private final CountDownLatch relaunchAnswered = new CountDownLatch(1);
     private final AtomicReference<String> runOverview = new AtomicReference<>(IDLE_RUN);
     private final List<String> launchedRuns = new CopyOnWriteArrayList<>();
+    private final List<String> runControls = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -122,6 +123,12 @@ class WardrobePageTest {
                 answer(exchange, runOverview.get());
             }
         });
+        for (String control : List.of("pause", "resume", "stop")) {
+            fakeApi.createContext("/api/automatic-run/" + control, exchange -> {
+                runControls.add(exchange.getRequestMethod() + " " + control);
+                respond(exchange, 202, "application/json", runOverview.get().getBytes(StandardCharsets.UTF_8));
+            });
+        }
         fakeApi.setExecutor(Executors.newCachedThreadPool());
         fakeApi.start();
         page = chrome.newPage();
@@ -538,6 +545,51 @@ class WardrobePageTest {
                  "relaunchCount": 2, "skippedListingIds": [5]}""");
         assertThat(runSummary()).hasText("Traitement terminé : 2 relances, 1 annonce écartée.");
         assertThat(runButton()).isVisible();
+    }
+
+    @Test
+    void pauses_resumes_and_stops_a_run() {
+        // Étant donné une série en cours
+        runOverview.set(run("RUNNING", false, false, ""));
+        open();
+        assertThat(control("Pause")).isVisible();
+        assertThat(control("Arrêter")).isVisible();
+        assertThat(control("Reprendre")).isHidden();
+        // Quand le membre clique sur « Pause »
+        runOverview.set(run("RUNNING", true, false, ""));
+        control("Pause").click();
+        // Alors la demande est envoyée et la page dit qu'elle attend la fin de l'action en cours
+        assertThat(runSummary()).hasText(
+                "Traitement en cours : annonce 3. (pause demandée, à la fin de l'action en cours)");
+        // Puis, la série en pause, « Reprendre » remplace « Pause »
+        runOverview.set(run("PAUSED", false, false, ""));
+        assertThat(runSummary()).hasText("Traitement en pause.");
+        assertThat(control("Reprendre")).isVisible();
+        assertThat(control("Pause")).isHidden();
+        // Quand il clique sur « Reprendre », puis sur « Arrêter »
+        runOverview.set(run("RUNNING", false, false, ""));
+        control("Reprendre").click();
+        assertThat(control("Pause")).isVisible();
+        runOverview.set(run("RUNNING", false, true, ""));
+        control("Arrêter").click();
+        assertThat(runSummary()).hasText(
+                "Traitement en cours : annonce 3. (arrêt demandé, à la fin de l'action en cours)");
+        // Alors la série s'arrête, et seul « Tout lancer » est proposé
+        runOverview.set(run("STOPPED", false, false, ", \"stopReason\": \"STOPPED_BY_MEMBER\""));
+        assertThat(runSummary()).hasText("Traitement arrêté à votre demande.");
+        assertThat(control("Arrêter")).isHidden();
+        assertThat(runButton()).isVisible();
+        assertThat(runControls).containsExactly("POST pause", "POST resume", "POST stop");
+    }
+
+    private static String run(String status, boolean pauseRequested, boolean stopRequested, String more) {
+        return "{\"status\": \"" + status + "\", \"startedAt\": \"2026-11-17T10:00:00Z\", \"currentListingId\": 3,"
+                + " \"relaunchCount\": 1, \"skippedListingIds\": [], \"pauseRequested\": " + pauseRequested
+                + ", \"stopRequested\": " + stopRequested + more + "}";
+    }
+
+    private Locator control(String name) {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName(name).setExact(true));
     }
 
     @Test

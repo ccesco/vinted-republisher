@@ -14,7 +14,8 @@ public enum RunStopReason {
     BROWSER_UNAVAILABLE,
     VINTED_UNREACHABLE,
     VINTED_PAGE_UNREADABLE,
-    RUN_FAILED;
+    RUN_FAILED,
+    STOPPED_BY_MEMBER;
 
     public static RunStopReason of(RuntimeException failure) {
         return switch (failure) {

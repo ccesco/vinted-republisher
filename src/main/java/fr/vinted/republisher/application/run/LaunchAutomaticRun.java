@@ -44,6 +44,9 @@ public class LaunchAutomaticRun {
     /** How long to wait for a browser taken by another action before trying again. */
     private static final Duration BUSY_BROWSER_RETRY = Duration.ofSeconds(30);
 
+    /** A paused run waits by steps, until it is resumed or stopped. */
+    private static final Duration PAUSE_CHECK = Duration.ofHours(1);
+
     /** Stages the run relaunches, in the order it takes them. */
     private static final List<ListingStage> ORDER = List.of(ListingStage.REPUBLICATION_TO_CHECK,
             ListingStage.DELETION_TO_CHECK, ListingStage.TO_REPUBLISH, ListingStage.TO_DELETE, ListingStage.WAITING);
@@ -95,13 +98,25 @@ public class LaunchAutomaticRun {
     private void runToTheEnd() {
         relaunchedSteps.clear();
         try {
-            Optional<InventoryEntry> next = nextListing();
-            while (next.isPresent() && overview().status() != RunStatus.STOPPED) {
-                relaunch(next.get());
-                next = overview().status() == RunStatus.STOPPED ? Optional.empty() : nextListing();
-            }
-            if (overview().status() != RunStatus.STOPPED) {
-                update(current -> current.finishedAt(clock.instant()));
+            // A pause or a stop takes effect between two relaunches, never during one. The loop leaves on its own
+            // decisions, never on a status read again: a new run may have started once this one ended.
+            boolean goesOn = true;
+            while (goesOn) {
+                AutomaticRun current = overview();
+                if (current.stopRequested()) {
+                    update(run -> run.stoppedAt(clock.instant(), RunStopReason.STOPPED_BY_MEMBER));
+                    goesOn = false;
+                } else if (current.pauseRequested()) {
+                    pauseUntilResumedOrStopped();
+                } else {
+                    Optional<InventoryEntry> next = nextListing();
+                    if (next.isEmpty()) {
+                        update(run -> run.finishedAt(clock.instant()));
+                        goesOn = false;
+                    } else {
+                        goesOn = relaunch(next.get());
+                    }
+                }
             }
         } catch (RuntimeException unexpected) {
             // The run must end whatever happens; the failure is rethrown for the executor to log it.
@@ -119,13 +134,14 @@ public class LaunchAutomaticRun {
                         .thenComparingLong(entry -> entry.listing().id().value()));
     }
 
-    private void relaunch(InventoryEntry entry) {
+    /** Whether the run goes on after this listing. */
+    private boolean relaunch(InventoryEntry entry) {
         VintedListingId id = entry.listing().id();
         Step step = new Step(id, entry.stage());
         // Back at a stage already relaunched (a deletion found not done, ready again): never write twice in a run.
         if (relaunchedSteps.contains(step)) {
             update(current -> current.skipping(id));
-            return;
+            return true;
         }
         update(current -> current.relaunching(id));
         try {
@@ -134,12 +150,14 @@ public class LaunchAutomaticRun {
             // A listing that does not move on (dry run, outcome still to check) waits for the member.
             boolean stays = report.entry().stage() == entry.stage();
             update(current -> stays ? current.relaunched().skipping(id) : current.relaunched());
+            return true;
         } catch (RuntimeException failure) {
-            handle(id, failure);
+            return handle(id, failure);
         }
     }
 
-    private void handle(VintedListingId id, RuntimeException failure) {
+    /** Whether the run goes on after this failure. */
+    private boolean handle(VintedListingId id, RuntimeException failure) {
         FailureHandling handling = FailureHandling.of(failure);
         switch (handling.conduct()) {
             case WAIT -> waitUntil(handling.until().orElseGet(() -> clock.instant().plus(BUSY_BROWSER_RETRY)));
@@ -147,13 +165,47 @@ public class LaunchAutomaticRun {
             case STOP_RUN -> {
                 LOG.warn("Automatic run stopped on listing {}", id.value(), failure);
                 update(current -> current.stoppedAt(clock.instant(), RunStopReason.of(failure)));
+                return false;
             }
         }
+        return true;
     }
 
     private void waitUntil(Instant until) {
         update(current -> current.waitingUntil(until));
-        waiting.until(until);
+        waiting.until(until, this::pauseOrStopRequested);
+    }
+
+    private void pauseUntilResumedOrStopped() {
+        update(AutomaticRun::pausedIfRequested);
+        while (overview().status() == RunStatus.PAUSED && !overview().stopRequested()) {
+            waiting.until(clock.instant().plus(PAUSE_CHECK), this::resumedOrStopRequested);
+        }
+    }
+
+    private boolean pauseOrStopRequested() {
+        AutomaticRun current = overview();
+        return current.pauseRequested() || current.stopRequested();
+    }
+
+    private boolean resumedOrStopRequested() {
+        AutomaticRun current = overview();
+        return current.status() != RunStatus.PAUSED || current.stopRequested();
+    }
+
+    /** Ignored unless a run is in progress and not paused: takes effect once the current relaunch is over. */
+    public void pause() {
+        update(AutomaticRun::withPauseRequested);
+    }
+
+    /** Ignored unless the run is paused or a pause is asked for. */
+    public void resume() {
+        update(AutomaticRun::resumed);
+    }
+
+    /** Ignored unless a run is in progress: takes effect once the current relaunch is over. */
+    public void stop() {
+        update(AutomaticRun::withStopRequested);
     }
 
     private synchronized void update(UnaryOperator<AutomaticRun> change) {

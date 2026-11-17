@@ -16,7 +16,12 @@
 <p id="backup-problem" role="alert" hidden></p>
 <p><button id="backup" type="button" hidden>Sauvegarder</button></p>
 <p id="run-summary"></p>
-<p><button id="automatic-run" type="button" hidden>Tout lancer</button></p>
+<p>
+    <button id="automatic-run" type="button" hidden>Tout lancer</button>
+    <button id="pause-run" type="button" hidden>Pause</button>
+    <button id="resume-run" type="button" hidden>Reprendre</button>
+    <button id="stop-run" type="button" hidden>Arrêter</button>
+</p>
 <h2>Annonces</h2>
 <p>
     <label>Présence
@@ -139,6 +144,9 @@
     const backupButton = document.getElementById('backup');
     const runSummary = document.getElementById('run-summary');
     const runButton = document.getElementById('automatic-run');
+    const pauseButton = document.getElementById('pause-run');
+    const resumeButton = document.getElementById('resume-run');
+    const stopButton = document.getElementById('stop-run');
     const rows = document.querySelector('#listings tbody');
     const listingCount = document.getElementById('listing-count');
     const listingsProblem = document.getElementById('listings-problem');
@@ -417,19 +425,54 @@
             case 'FINISHED':
                 return `Traitement terminé : ${plural(run.relaunchCount, 'relance')}, `
                     + `${plural(run.skippedListingIds.length, 'annonce')} écartée${run.skippedListingIds.length > 1 ? 's' : ''}.`;
+            case 'PAUSED':
+                return 'Traitement en pause.';
             case 'STOPPED':
-                return `Traitement arrêté : ${RUN_STOP_MESSAGES[run.stopReason] ?? RUN_STOP_MESSAGES.RUN_FAILED}.`;
+                return run.stopReason === 'STOPPED_BY_MEMBER' ? 'Traitement arrêté à votre demande.'
+                    : `Traitement arrêté : ${RUN_STOP_MESSAGES[run.stopReason] ?? RUN_STOP_MESSAGES.RUN_FAILED}.`;
             default:
                 return '';
         }
     }
 
+    // Une demande de pause ou d'arrêt attend la fin de l'action en cours (US-21).
+    function requestOf(run) {
+        if (run.stopRequested) {
+            return " (arrêt demandé, à la fin de l'action en cours)";
+        }
+        return run.pauseRequested ? " (pause demandée, à la fin de l'action en cours)" : '';
+    }
+
+    function showRunControls(run) {
+        const active = run.status === 'RUNNING' || run.status === 'WAITING';
+        pauseButton.hidden = !active || run.pauseRequested || run.stopRequested;
+        resumeButton.hidden = !(run.status === 'PAUSED' || run.pauseRequested) || run.stopRequested;
+        stopButton.hidden = !runInProgress || run.stopRequested;
+    }
+
+    async function controlRun(control) {
+        try {
+            const response = await fetch(`/api/automatic-run/${control}`, {method: 'POST'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            showRun(await response.json());
+        } catch (failed) {
+            await refreshRun();
+        }
+    }
+
     // La liste est relue pendant la série, et une dernière fois quand elle s'achève.
+    function showRun(run) {
+        runInProgress = run.status === 'RUNNING' || run.status === 'WAITING' || run.status === 'PAUSED';
+        runSummary.textContent = runSummaryOf(run) + requestOf(run);
+        showRunButton();
+        showRunControls(run);
+    }
+
     function followRun(run) {
         const wasInProgress = runInProgress;
-        runInProgress = run.status === 'RUNNING' || run.status === 'WAITING';
-        runSummary.textContent = runSummaryOf(run);
-        showRunButton();
+        showRun(run);
         if (wasInProgress || runInProgress) {
             loadListings();
         }
@@ -477,6 +520,9 @@
     scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
     backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
     runButton.addEventListener('click', launchRun);
+    pauseButton.addEventListener('click', () => controlRun('pause'));
+    resumeButton.addEventListener('click', () => controlRun('resume'));
+    stopButton.addEventListener('click', () => controlRun('stop'));
     refresh();
     refreshRun();
 </script>

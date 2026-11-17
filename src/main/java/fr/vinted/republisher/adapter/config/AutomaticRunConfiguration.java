@@ -9,6 +9,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.util.concurrent.Executor;
 
 @Configuration
@@ -18,7 +19,7 @@ class AutomaticRunConfiguration {
     @Bean
     LaunchAutomaticRun launchAutomaticRun(ShowListingInventory showListingInventory, RelaunchListing relaunchListing,
                                           Clock clock, @Qualifier("applicationTaskExecutor") Executor background) {
-        return new LaunchAutomaticRun(showListingInventory, relaunchListing, new SleepingRunWaiting(clock), clock,
-                new FailureLoggingExecutor(background));
+        return new LaunchAutomaticRun(showListingInventory, relaunchListing,
+                new SleepingRunWaiting(clock, Duration.ofSeconds(1)), clock, new FailureLoggingExecutor(background));
     }
 }

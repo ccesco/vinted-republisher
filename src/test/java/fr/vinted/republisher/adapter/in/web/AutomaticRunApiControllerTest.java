@@ -69,7 +69,8 @@ class AutomaticRunApiControllerTest {
         assertThat(mvc.get().uri("/api/automatic-run"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
-                        {"status": "IDLE", "relaunchCount": 0, "skippedListingIds": []}""");
+                        {"status": "IDLE", "relaunchCount": 0, "skippedListingIds": [], "pauseRequested": false,
+                         "stopRequested": false}""");
     }
 
     @Test
@@ -78,8 +79,42 @@ class AutomaticRunApiControllerTest {
                 .hasStatus(202)
                 .bodyJson().isStrictlyEqualTo("""
                         {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "relaunchCount": 0,
-                         "skippedListingIds": []}""");
+                         "skippedListingIds": [], "pauseRequested": false, "stopRequested": false}""");
         assertThat(launched).hasSize(1);
+    }
+
+    @Test
+    void pause_resume_and_stop_are_accepted_and_show_the_requests() {
+        mvc.post().uri("/api/automatic-run").exchange();
+
+        assertThat(mvc.post().uri("/api/automatic-run/pause"))
+                .hasStatus(202)
+                .bodyJson().extractingPath("$.pauseRequested").isEqualTo(true);
+        assertThat(mvc.post().uri("/api/automatic-run/resume"))
+                .hasStatus(202)
+                .bodyJson().extractingPath("$.pauseRequested").isEqualTo(false);
+        assertThat(mvc.post().uri("/api/automatic-run/stop"))
+                .hasStatus(202)
+                .bodyJson().extractingPath("$.stopRequested").isEqualTo(true);
+    }
+
+    @Test
+    void requests_without_a_run_are_ignored() {
+        assertThat(mvc.post().uri("/api/automatic-run/stop"))
+                .hasStatus(202)
+                .bodyJson().satisfies(body -> {
+                    assertThat(body).extractingPath("$.status").isEqualTo("IDLE");
+                    assertThat(body).extractingPath("$.stopRequested").isEqualTo(false);
+                });
+    }
+
+    @Test
+    void a_run_stopped_by_the_member_and_a_paused_run() {
+        AutomaticRun started = AutomaticRun.startedAt(NOW);
+
+        assertThat(AutomaticRunApiController.toDto(started.withPauseRequested().pausedIfRequested()).getStatus().name()).isEqualTo("PAUSED");
+        assertThat(AutomaticRunApiController.toDto(started.stoppedAt(NOW, RunStopReason.STOPPED_BY_MEMBER))
+                .getStopReason().name()).isEqualTo("STOPPED_BY_MEMBER");
     }
 
     @Test
@@ -153,7 +188,7 @@ class AutomaticRunApiControllerTest {
                     new VerifyListingRepublication(session, backups, republications, listings, search,
                             new FakeListingContentReader(), noBackupPause(), clock, show));
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
-                    deletions, republications, delay, clock), relaunch, until -> {
+                    deletions, republications, delay, clock), relaunch, (until, interrupted) -> {
             }, clock, launched::add);
         }
     }
