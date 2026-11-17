@@ -15,6 +15,13 @@
 <p id="backup-progress" hidden>Sauvegarde en cours…</p>
 <p id="backup-problem" role="alert" hidden></p>
 <p><button id="backup" type="button" hidden>Sauvegarder</button></p>
+<p id="run-summary"></p>
+<p>
+    <button id="automatic-run" type="button" hidden>Tout lancer</button>
+    <button id="pause-run" type="button" hidden>Pause</button>
+    <button id="resume-run" type="button" hidden>Reprendre</button>
+    <button id="stop-run" type="button" hidden>Arrêter</button>
+</p>
 <h2>Annonces</h2>
 <p>
     <label>Présence
@@ -63,6 +70,7 @@
         <th scope="col">Sauvegarde</th>
         <th scope="col">Validation</th>
         <th scope="col">Étape</th>
+        <th scope="col">Action</th>
     </tr>
     </thead>
     <tbody></tbody>
@@ -77,6 +85,28 @@
     };
     // Étapes qui demandent de vérifier sur Vinted : mises en évidence.
     const STAGES_TO_CHECK = ['DELETION_TO_CHECK', 'REPUBLICATION_TO_CHECK'];
+    // Étapes qui se relancent (US-20) ; le serveur en déduit l'action.
+    const RELAUNCHABLE_STAGES = ['TO_DELETE', 'DELETION_TO_CHECK', 'TO_REPUBLISH', 'REPUBLICATION_TO_CHECK'];
+    // Codes du contrat OpenAPI (RelaunchAction) -> message une fois l'action faite.
+    const RELAUNCH_DONE_MESSAGES = {
+        DELETION: 'Suppression faite', DELETION_RECHECK: 'Revérification faite',
+        REPUBLICATION: 'Republication faite', REPUBLICATION_VERIFICATION: 'Vérification faite'
+    };
+    const RELAUNCH_DRY_RUN_MESSAGE = "Dry-run réussi, rien n'a été modifié sur Vinted";
+    const RELAUNCH_UNCERTAIN_MESSAGE = 'Issue incertaine : à vérifier sur Vinted';
+    const RELAUNCH_FAILED_MESSAGE = 'Échec de la relance : vérifiez la fiche avant de relancer';
+    // Codes du contrat OpenAPI (RelaunchRefusal) -> message ; ACTION_REFUSED ajoute le lien de la fiche.
+    const RELAUNCH_REFUSAL_MESSAGES = {
+        STAGE_CHANGED: "L'étape a changé depuis l'affichage : relisez la ligne avant de relancer",
+        NOT_RELAUNCHABLE: 'Rien à relancer à cette étape',
+        CADENCE_LIMIT_REACHED: 'limite de cadence atteinte',
+        BROWSER_BUSY: 'Navigateur occupé : relancez une fois l\'action en cours finie',
+        ACTION_REFUSED: 'Relance refusée : voir la fiche',
+        BROWSER_UNAVAILABLE: 'Navigateur indisponible : voir les logs',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible : réessayez plus tard',
+        SESSION_DISCONNECTED: "La session Vinted n'est pas connectée : connectez-vous depuis la page de la session",
+        VINTED_PAGE_UNREADABLE: 'Page de Vinted illisible : voir les logs'
+    };
     // Codes du contrat OpenAPI (ScanProblem) -> libellés affichés.
     const PROBLEM_MESSAGES = {
         BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
@@ -92,6 +122,14 @@
         LISTING_UNREADABLE: 'Une annonce est illisible (formulaire changé ou incomplet) : sa sauvegarde précédente est intacte. Voir les logs.',
         BACKUP_FAILED: 'La sauvegarde a échoué : ce qui a été sauvegardé est conservé, la prochaine sauvegarde reprendra. Voir les logs.'
     };
+    // Codes du contrat OpenAPI (RunStopReason) -> raison affichée de l'arrêt de la série (US-19).
+    const RUN_STOP_MESSAGES = {
+        SESSION_DISCONNECTED: "la session Vinted n'est pas connectée (connectez-vous, puis relancez)",
+        BROWSER_UNAVAILABLE: 'le navigateur est indisponible (voir les logs)',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible (réseau ou blocage anti-robot) : réessayez plus tard',
+        VINTED_PAGE_UNREADABLE: 'une page de Vinted est illisible (page changée ?) : voir les logs',
+        RUN_FAILED: 'échec inattendu (voir les logs)'
+    };
     const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
     const POLL_INTERVAL_MS = 2000;
     const SEARCH_DELAY_MS = 300;
@@ -104,6 +142,11 @@
     const backupProgress = document.getElementById('backup-progress');
     const backupProblem = document.getElementById('backup-problem');
     const backupButton = document.getElementById('backup');
+    const runSummary = document.getElementById('run-summary');
+    const runButton = document.getElementById('automatic-run');
+    const pauseButton = document.getElementById('pause-run');
+    const resumeButton = document.getElementById('resume-run');
+    const stopButton = document.getElementById('stop-run');
     const rows = document.querySelector('#listings tbody');
     const listingCount = document.getElementById('listing-count');
     const listingsProblem = document.getElementById('listings-problem');
@@ -156,6 +199,8 @@
         const busy = overview.scanInProgress || overview.backupInProgress;
         scanButton.hidden = busy;
         backupButton.hidden = busy;
+        wardrobeBusy = busy;
+        showRunButton();
         backupSummary.textContent = backupSummaryOf(overview);
         backupProgress.hidden = !overview.backupInProgress;
         backupProblem.textContent = BACKUP_PROBLEM_MESSAGES[overview.backupProblem] ?? '';
@@ -208,7 +253,7 @@
     function showListings(listings) {
         listingsProblem.hidden = true;
         listingCount.textContent = `${listings.length} annonce${listings.length > 1 ? 's' : ''}`;
-        rows.replaceChildren(...listings.map(rowOf));
+        rows.replaceChildren(...listings.map(listing => rowOf(listing)));
     }
 
     function cell(...content) {
@@ -244,11 +289,89 @@
         return cell(strong);
     }
 
-    // Les titres viennent de Vinted : jamais d'innerHTML. Le titre ouvre la fiche, qui mène à Vinted.
-    function rowOf(listing) {
+    function detailLinkOf(listing, text) {
         const link = document.createElement('a');
         link.href = 'listing.html?id=' + encodeURIComponent(listing.vintedId);
-        link.textContent = listing.title;
+        link.textContent = text;
+        return link;
+    }
+
+    // Bouton « Relancer » des seules étapes qui se relancent, suivi du message de la dernière relance.
+    function actionCell(listing, message) {
+        const td = cell();
+        if (RELAUNCHABLE_STAGES.includes(listing.stage)) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Relancer';
+            button.addEventListener('click', () => relaunch(listing, button));
+            td.append(button);
+        }
+        if (message) {
+            const span = document.createElement('span');
+            span.append(...message);
+            td.append(' ', span);
+        }
+        return td;
+    }
+
+    // Une action dont l'annonce reste ou devient « à vérifier » n'a pas d'issue prouvée (US-17).
+    function relaunchMessageOf(report) {
+        if (report.dryRun) {
+            return RELAUNCH_DRY_RUN_MESSAGE;
+        }
+        if (STAGES_TO_CHECK.includes(report.listing.stage)) {
+            return RELAUNCH_UNCERTAIN_MESSAGE;
+        }
+        return RELAUNCH_DONE_MESSAGES[report.action];
+    }
+
+    function refusalMessageOf(listing, refusal) {
+        if (refusal.reason === 'NOT_RELAUNCHABLE' && refusal.allowedAt) {
+            return [`Republication possible à partir du ${dateOf(refusal.allowedAt)}`];
+        }
+        let text = RELAUNCH_REFUSAL_MESSAGES[refusal.reason] ?? RELAUNCH_FAILED_MESSAGE;
+        if (refusal.allowedAt) {
+            text += ` (à partir du ${dateOf(refusal.allowedAt)})`;
+        }
+        if (refusal.reason === 'ACTION_REFUSED') {
+            return [text + ' ', detailLinkOf(listing, 'fiche de l\'annonce')];
+        }
+        return [text];
+    }
+
+    // La ligne relancée est remplacée : nouvelle étape quand l'action a eu lieu, sinon même ligne et raison.
+    async function relaunch(listing, button) {
+        button.disabled = true;
+        const row = button.closest('tr');
+        let shown = listing;
+        let message;
+        try {
+            const response = await fetch(`/api/listings/${encodeURIComponent(listing.vintedId)}/relaunch`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({stage: listing.stage})
+            });
+            const body = await response.json().catch(() => ({}));
+            if (response.ok && body.listing) {
+                shown = body.listing;
+                message = [relaunchMessageOf(body)];
+            } else if (response.ok) {
+                message = [RELAUNCH_FAILED_MESSAGE];
+            } else {
+                // Étape changée : la ligne prend l'étape actuelle, d'où repartira le prochain clic.
+                if (body.reason === 'STAGE_CHANGED' && body.stage) {
+                    shown = {...listing, stage: body.stage};
+                }
+                message = refusalMessageOf(listing, body);
+            }
+        } catch (unreachable) {
+            message = [RELAUNCH_FAILED_MESSAGE];
+        }
+        row.replaceWith(rowOf(shown, message));
+    }
+
+    // Les titres viennent de Vinted : jamais d'innerHTML. Le titre ouvre la fiche, qui mène à Vinted.
+    function rowOf(listing, message) {
+        const link = detailLinkOf(listing, listing.title);
         const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
             .format(listing.price.amount);
         const row = document.createElement('tr');
@@ -260,7 +383,8 @@
             cell(listing.present ? '' : 'absente'),
             backupCell(listing),
             cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''),
-            stageCell(listing));
+            stageCell(listing),
+            actionCell(listing, message));
         return row;
     }
 
@@ -279,6 +403,109 @@
         }
     }
 
+    // Série automatique (US-19) : proposée seulement sans scan, sauvegarde ni série en cours.
+    let wardrobeBusy = false;
+    let runInProgress = false;
+
+    function showRunButton() {
+        runButton.hidden = wardrobeBusy || runInProgress;
+    }
+
+    function plural(count, word) {
+        return `${count} ${word}${count > 1 ? 's' : ''}`;
+    }
+
+    function runSummaryOf(run) {
+        switch (run.status) {
+            case 'RUNNING':
+                return run.currentListingId ? `Traitement en cours : annonce ${run.currentListingId}.`
+                    : 'Traitement en cours.';
+            case 'WAITING':
+                return `En attente jusqu'au ${dateOf(run.waitingUntil)}.`;
+            case 'FINISHED':
+                return `Traitement terminé : ${plural(run.relaunchCount, 'relance')}, `
+                    + `${plural(run.skippedListingIds.length, 'annonce')} écartée${run.skippedListingIds.length > 1 ? 's' : ''}.`;
+            case 'PAUSED':
+                return 'Traitement en pause.';
+            case 'STOPPED':
+                return run.stopReason === 'STOPPED_BY_MEMBER' ? 'Traitement arrêté à votre demande.'
+                    : `Traitement arrêté : ${RUN_STOP_MESSAGES[run.stopReason] ?? RUN_STOP_MESSAGES.RUN_FAILED}.`;
+            default:
+                return '';
+        }
+    }
+
+    // Une demande de pause ou d'arrêt attend la fin de l'action en cours (US-21).
+    function requestOf(run) {
+        if (run.stopRequested) {
+            return " (arrêt demandé, à la fin de l'action en cours)";
+        }
+        return run.pauseRequested ? " (pause demandée, à la fin de l'action en cours)" : '';
+    }
+
+    function showRunControls(run) {
+        const active = run.status === 'RUNNING' || run.status === 'WAITING';
+        pauseButton.hidden = !active || run.pauseRequested || run.stopRequested;
+        resumeButton.hidden = !(run.status === 'PAUSED' || run.pauseRequested) || run.stopRequested;
+        stopButton.hidden = !runInProgress || run.stopRequested;
+    }
+
+    async function controlRun(control) {
+        try {
+            const response = await fetch(`/api/automatic-run/${control}`, {method: 'POST'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            showRun(await response.json());
+        } catch (failed) {
+            await refreshRun();
+        }
+    }
+
+    // La liste est relue pendant la série, et une dernière fois quand elle s'achève.
+    function showRun(run) {
+        runInProgress = run.status === 'RUNNING' || run.status === 'WAITING' || run.status === 'PAUSED';
+        runSummary.textContent = runSummaryOf(run) + requestOf(run);
+        showRunButton();
+        showRunControls(run);
+    }
+
+    function followRun(run) {
+        const wasInProgress = runInProgress;
+        showRun(run);
+        if (wasInProgress || runInProgress) {
+            loadListings();
+        }
+        if (runInProgress) {
+            setTimeout(refreshRun, POLL_INTERVAL_MS);
+        }
+    }
+
+    async function refreshRun() {
+        try {
+            const response = await fetch('/api/automatic-run');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            followRun(await response.json());
+        } catch (unreachable) {
+            setTimeout(refreshRun, POLL_INTERVAL_MS);
+        }
+    }
+
+    async function launchRun() {
+        runButton.hidden = true;
+        try {
+            const response = await fetch('/api/automatic-run', {method: 'POST'});
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            followRun(await response.json());
+        } catch (failed) {
+            await refreshRun();
+        }
+    }
+
     let searchTimer;
     CRITERIA.search.addEventListener('input', () => {
         clearTimeout(searchTimer);
@@ -292,7 +519,12 @@
     }
     scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
     backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
+    runButton.addEventListener('click', launchRun);
+    pauseButton.addEventListener('click', () => controlRun('pause'));
+    resumeButton.addEventListener('click', () => controlRun('resume'));
+    stopButton.addEventListener('click', () => controlRun('stop'));
     refresh();
+    refreshRun();
 </script>
 </body>
 </html>

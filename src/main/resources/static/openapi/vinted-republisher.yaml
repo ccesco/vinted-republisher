@@ -24,6 +24,10 @@ tags:
     description: Fiche d'une annonce et historique de ses vues et favoris (US-18b)
   - name: action-journal
     description: Journal des actions de l'outil, refus, dry-runs et erreurs compris (US-23)
+  - name: listing-relaunch
+    description: Relance d'une annonce, d'une étape, depuis la liste (US-20)
+  - name: automatic-run
+    description: Série automatique « Tout lancer » (US-19)
 paths:
   /api/vinted-session:
     get:
@@ -601,6 +605,144 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RepublicationRefusal'
+  /api/listings/{listingId}/relaunch:
+    post:
+      tags: [listing-relaunch]
+      operationId: relaunchListing
+      summary: Relancer une annonce d'une étape
+      description: >
+        Lance l'action qui suit l'étape de l'annonce, seulement si c'est l'étape vue par le membre : suppression
+        (TO_DELETE), revérification de la suppression (DELETION_TO_CHECK), republication (TO_REPUBLISH) ou
+        vérification de la republication (REPUBLICATION_TO_CHECK), sur la sauvegarde actuelle. L'action passe par
+        son propre cas d'usage, avec tous ses contrôles, le verrou du navigateur, les limites de cadence, le dry-run
+        et le journal. Répond une fois l'action finie.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelaunchRequest'
+      responses:
+        '200':
+          description: >
+            Action finie ou dry-run réussi ; l'annonce relue donne sa nouvelle étape (une action dont l'issue est
+            douteuse laisse l'annonce « à vérifier »).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchReport'
+        '400':
+          description: Corps de la demande invalide.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: Annonce inconnue de l'outil.
+        '409':
+          description: >
+            Étape changée depuis l'affichage, étape sans action à lancer, limite de cadence atteinte, autre action
+            navigateur en cours, ou refus du cas d'usage lancé (détail sur la fiche et dans le journal). Rien n'est
+            touché sur Vinted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchRefusal'
+        '500':
+          description: >
+            Échec inattendu (détail dans les logs) ; la fiche fait foi avant de relancer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée, ou page de Vinted illisible
+            (annonce, formulaire de mise en vente).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchRefusal'
+  /api/automatic-run:
+    get:
+      tags: [automatic-run]
+      operationId: showAutomaticRun
+      summary: Aperçu de la série automatique
+      description: Lit l'aperçu gardé en mémoire, sans accéder à Vinted ; IDLE si aucune série depuis le démarrage.
+      responses:
+        '200':
+          description: Aperçu de la série.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+    post:
+      tags: [automatic-run]
+      operationId: launchAutomaticRun
+      summary: Tout lancer
+      description: >
+        Lance en arrière-plan la relance de chaque annonce prête, l'une après l'autre (vérifications, republications,
+        suppressions, attentes), avec les garde-fous de chaque relance. Attend quand un échec le demande, écarte une
+        annonce refusée pour elle-même ou dont l'étape ne bouge pas, s'arrête sur un problème du compte ou de Vinted.
+        Ignorée si une série tourne déjà. Ne redémarre jamais seule.
+      responses:
+        '202':
+          description: Série lancée (ou ignorée) ; aperçu juste après la demande. Suivre la suite avec GET.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/pause:
+    post:
+      tags: [automatic-run]
+      operationId: pauseAutomaticRun
+      summary: Mettre la série en pause
+      description: >
+        La relance en cours se termine, puis la série passe en pause ; une attente en cours est interrompue. Ignorée
+        sans série en cours, ou déjà en pause.
+      responses:
+        '202':
+          description: Demande prise en compte (ou ignorée) ; aperçu juste après la demande.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/resume:
+    post:
+      tags: [automatic-run]
+      operationId: resumeAutomaticRun
+      summary: Reprendre la série en pause
+      description: La série reprend au tour suivant. Ignorée sans pause en cours ni demandée.
+      responses:
+        '202':
+          description: Demande prise en compte (ou ignorée) ; aperçu juste après la demande.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/stop:
+    post:
+      tags: [automatic-run]
+      operationId: stopAutomaticRun
+      summary: Arrêter la série
+      description: >
+        La relance en cours se termine, puis la série s'arrête (STOPPED_BY_MEMBER) ; une attente ou une pause est
+        interrompue. Ignorée sans série en cours.
+      responses:
+        '202':
+          description: Demande prise en compte (ou ignorée) ; aperçu juste après la demande.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AutomaticRunOverview'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
 components:
   parameters:
     ListingId:
@@ -842,6 +984,113 @@ components:
         suppression confirmée), prête à supprimer (sauvegarde actuelle validée), à valider, à sauvegarder.
       enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, GONE, TO_DELETE,
         TO_VALIDATE, TO_BACK_UP]
+    RunStatus:
+      type: string
+      description: >
+        Aucune série depuis le démarrage, relance en cours, attente d'une date, pause, série terminée, série arrêtée.
+      enum: [IDLE, RUNNING, WAITING, PAUSED, FINISHED, STOPPED]
+    RunStopReason:
+      type: string
+      description: >
+        Session Vinted non connectée, navigateur indisponible, Vinted inaccessible (réseau ou blocage anti-robot),
+        page de Vinted illisible, échec inattendu (voir les logs), arrêt demandé par le membre.
+      enum: [SESSION_DISCONNECTED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, VINTED_PAGE_UNREADABLE, RUN_FAILED,
+        STOPPED_BY_MEMBER]
+    AutomaticRunOverview:
+      type: object
+      required: [status, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
+      properties:
+        status:
+          $ref: '#/components/schemas/RunStatus'
+        startedAt:
+          type: string
+          format: date-time
+        endedAt:
+          type: string
+          format: date-time
+          description: Fin de la série, terminée ou arrêtée.
+        waitingUntil:
+          type: string
+          format: date-time
+          description: Date jusqu'à laquelle la série attend ; présente pour WAITING.
+        currentListingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'annonce relancée en dernier, tant que la série tourne.
+        relaunchCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Relances faites par la série (dry-runs compris).
+        skippedListingIds:
+          type: array
+          description: Annonces écartées de la série, dans l'ordre ; le membre tranche sur leur fiche.
+          items:
+            type: integer
+            format: int64
+        stopReason:
+          $ref: '#/components/schemas/RunStopReason'
+        pauseRequested:
+          type: boolean
+          description: Pause demandée, effective à la fin de la relance en cours.
+        stopRequested:
+          type: boolean
+          description: Arrêt demandé, effectif à la fin de la relance en cours.
+      example:
+        status: WAITING
+        startedAt: '2026-11-17T10:00:00Z'
+        waitingUntil: '2026-11-17T10:05:00Z'
+        currentListingId: 10208799832
+        relaunchCount: 3
+        skippedListingIds: []
+        pauseRequested: false
+        stopRequested: false
+    RelaunchRequest:
+      type: object
+      required: [stage]
+      properties:
+        stage:
+          $ref: '#/components/schemas/ListingStage'
+      example:
+        stage: TO_DELETE
+    RelaunchAction:
+      type: string
+      description: >
+        Action lancée : suppression, revérification de la suppression, republication, vérification de la
+        republication.
+      enum: [DELETION, DELETION_RECHECK, REPUBLICATION, REPUBLICATION_VERIFICATION]
+    RelaunchReport:
+      type: object
+      required: [action, dryRun, listing]
+      properties:
+        action:
+          $ref: '#/components/schemas/RelaunchAction'
+        dryRun:
+          type: boolean
+          description: Vrai si l'action s'est arrêtée en dry-run, sans rien modifier sur Vinted ni rien garder.
+        listing:
+          $ref: '#/components/schemas/Listing'
+    RelaunchRefusal:
+      type: object
+      description: Raison pour laquelle la relance n'a pas abouti.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [STAGE_CHANGED, NOT_RELAUNCHABLE, CADENCE_LIMIT_REACHED, BROWSER_BUSY, ACTION_REFUSED,
+                 BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, SESSION_DISCONNECTED, VINTED_PAGE_UNREADABLE,
+                 RELAUNCH_FAILED]
+        stage:
+          $ref: '#/components/schemas/ListingStage'
+        allowedAt:
+          type: string
+          format: date-time
+          description: >
+            Date à partir de laquelle la relance redevient possible : fin de la limite de cadence
+            (CADENCE_LIMIT_REACHED), ou date de republication d'une annonce en attente (NOT_RELAUNCHABLE).
+      example:
+        reason: STAGE_CHANGED
+        stage: DELETION_TO_CHECK
     ListingStatistics:
       type: object
       description: >-

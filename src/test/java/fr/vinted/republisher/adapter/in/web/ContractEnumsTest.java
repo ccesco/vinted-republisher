@@ -7,6 +7,12 @@ import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionStatusDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingFormFieldDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RepublicationOutcomeDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RelaunchActionDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RunStatusDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RunStopReasonDto;
+import fr.vinted.republisher.domain.run.RunStatus;
+import fr.vinted.republisher.domain.run.RunStopReason;
+import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.republication.ListingFormField;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
@@ -57,6 +63,17 @@ class ContractEnumsTest {
     @Test
     void contract_knows_every_listing_form_field() {
         assertThat(names(ListingFormFieldDto.values())).containsExactlyInAnyOrder(names(ListingFormField.values()));
+    }
+
+    @Test
+    void contract_knows_every_relaunch_action() {
+        assertThat(names(RelaunchActionDto.values())).containsExactlyInAnyOrder(names(RelaunchAction.values()));
+    }
+
+    @Test
+    void contract_knows_every_run_status_and_stop_reason() {
+        assertThat(names(RunStatusDto.values())).containsExactlyInAnyOrder(names(RunStatus.values()));
+        assertThat(names(RunStopReasonDto.values())).containsExactlyInAnyOrder(names(RunStopReason.values()));
     }
 
     private static String[] names(Enum<?>[] values) {

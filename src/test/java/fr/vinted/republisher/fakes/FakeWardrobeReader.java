@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.domain.wardrobe.WardrobeListing;
 import fr.vinted.republisher.domain.wardrobe.WardrobeReader;
+import fr.vinted.republisher.domain.wardrobe.WardrobeUnreadable;
 import fr.vinted.republisher.domain.wardrobe.WardrobeVisit;
 
 import java.time.Duration;
@@ -66,6 +67,11 @@ public class FakeWardrobeReader implements WardrobeReader {
 
     public FakeWardrobeReader whereBrowserCannotStart() {
         failure = Optional.of(new BrowserUnavailable("Chrome not found"));
+        return this;
+    }
+
+    public FakeWardrobeReader whereTheWardrobeIsUnreadable() {
+        failure = Optional.of(new WardrobeUnreadable("no link found"));
         return this;
     }
 
