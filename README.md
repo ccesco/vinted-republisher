@@ -108,8 +108,8 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 
 ### Epic 5 – Orchestration
 - US-14 `MVP` États d'une annonce en cours de traitement
-- US-15 `MVP` Traitement en parallèle (plusieurs navigateurs)
-- US-16 `MVP` Reprise après plantage
+- US-15 `V2` Traitement en parallèle (plusieurs navigateurs) : les limites de cadence plafonnent déjà les écritures, et plusieurs navigateurs augmentent le risque de blocage anti-robot
+- US-16 `MVP` Reprise après plantage (couverte par US-19 : étapes déduites de la base, nouveau « Tout lancer » sans redémarrage automatique)
 - US-17 `MVP` Gestion des échecs
 
 ### Epic 6 – Dashboard
