@@ -42,10 +42,13 @@ public class ListingRepublicationConfiguration {
     /** Fields and options show up within seconds on the observed form; photos take longer to be sent. */
     private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(10);
     private static final Duration PHOTO_TIMEOUT = Duration.ofSeconds(60);
+    /** Twice the tool gave up after 10 s with the form still shown: Vinted gets a full minute to publish. */
+    private static final Duration PUBLICATION_TIMEOUT = Duration.ofSeconds(60);
 
     @Bean
     ListingPublisher listingPublisher(@Value("${vinted.listing-form-url}") URI listingFormUrl, ChromeTabs tabs) {
-        return new PlaywrightListingPublisher(listingFormUrl, CONTROL_TIMEOUT, PHOTO_TIMEOUT, tabs);
+        return new PlaywrightListingPublisher(listingFormUrl, CONTROL_TIMEOUT, PHOTO_TIMEOUT, PUBLICATION_TIMEOUT,
+                tabs);
     }
 
     @Bean

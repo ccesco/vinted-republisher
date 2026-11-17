@@ -149,6 +149,9 @@ final class ListingFormFixtures {
                     document.body.append(refusal);
                     return;
                   }
+                  // A third party, like the anti-bot or analytics scripts of the real page, posting at the same time.
+                  fetch('http://localhost:' + location.port + '/telemetry',
+                    {method: 'POST', mode: 'no-cors', body: 'sent'}).catch(() => {});
                   const form = {photos: state.photos, title: $('#title').value,
                     description: $('#description').value, price: $('#price').value, category: state.category,
                     brand: state.brand, size: state.size, condition: state.condition,
@@ -157,7 +160,7 @@ final class ListingFormFixtures {
                     packageSize: Number(document.querySelector('[name=package]:checked').id.split('_')[3]),
                     boost: $('[data-testid=boost-checkbox]').checked};
                   fetch('/items/publish', {method: 'POST', body: JSON.stringify(form)})
-                    .then(response => response.text()).then(next => {
+                    .then(response => response.ok ? response.text() : '').then(next => {
                       if (next) {
                         location.href = next;
                         return;
