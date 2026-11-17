@@ -8,6 +8,7 @@ import fr.vinted.republisher.application.republication.NewListingSearch;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.application.republication.VerifyListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -41,6 +42,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
+import java.net.URI;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -300,15 +302,78 @@ class ListingRepublicationApiControllerTest {
     }
 
     @Test
-    void failed_republication_missing_from_vinted_answers_not_published() {
+    void failed_republication_missing_from_the_newest_listings_stays_failed() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
         republications.save(ListingRepublication.attempted(backup, NOW));
 
         assertThat(verify())
                 .hasStatusOk()
                 .bodyJson().isLenientlyEqualTo("""
+                        {"vintedId": 1, "republication": {"outcome": "FAILED", "attemptedAt": "2026-11-11T10:00:00Z"}}""");
+    }
+
+    @Test
+    void republication_validated_published_answers_with_its_new_listing_and_comparison() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+        contents.showing(new ListingReading(aContent(2, "Pull rayé 1", "Porté deux fois", "12.50"), List.of(aPhoto("a"))));
+
+        assertThat(validate("{\"published\": true, \"newListingUrl\": \"https://www.vinted.fr/items/2-pull?ref=x\"}"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"vintedId": 1, "republication": {"outcome": "PUBLISHED", "newListingId": 2,
+                          "publishedAt": "2026-11-11T10:00:00Z"}, "republicationComparison": []}""");
+    }
+
+    @Test
+    void republication_validated_not_published_answers_with_its_outcome() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+
+        assertThat(validate("{\"published\": false}"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
                         {"vintedId": 1, "republication": {"outcome": "NOT_PUBLISHED",
-                          "attemptedAt": "2026-11-11T10:00:00Z", "checkedAt": "2026-11-11T10:00:00Z"}}""");
+                          "checkedAt": "2026-11-11T10:00:00Z"}}""");
+    }
+
+    @Test
+    void invalid_new_listing_link_is_a_bad_request() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+
+        assertThat(validate("{\"published\": true, \"newListingUrl\": \"https://www.vinted.fr/member/42\"}"))
+                .hasStatus(400)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"NEW_LISTING_LINK_INVALID\"}");
+        assertThat(validate("{\"published\": true}"))
+                .hasStatus(400)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"NEW_LISTING_LINK_INVALID\"}");
+        assertThat(validate("{}")).hasStatus(400);
+        assertThat(republications.findLatest(new VintedListingId(1))).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.FAILED);
+    }
+
+    @Test
+    void new_listing_with_another_title_or_price_is_a_conflict() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+        contents.showing(new ListingReading(aContent(2, "Pull rayé 1", "Porté deux fois", "15.00"), List.of(aPhoto("a"))));
+
+        assertThat(validate("{\"published\": true, \"newListingUrl\": \"https://www.vinted.fr/items/2-pull\"}"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"NEW_LISTING_MISMATCH\"}");
+    }
+
+    // AT-13-21
+    @Test
+    void refusesCrossSiteValidation() {
+        ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(backup, NOW));
+
+        assertThat(validate("{\"published\": false}").header("Origin", "https://example.test"))
+                .hasStatus(403);
+        assertThat(republications.findLatest(new VintedListingId(1))).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.FAILED);
     }
 
     @Test
@@ -357,6 +422,11 @@ class ListingRepublicationApiControllerTest {
                 .hasStatus(403);
         assertThat(republications.findLatest(new VintedListingId(1))).map(ListingRepublication::outcome)
                 .contains(RepublicationOutcome.FAILED);
+    }
+
+    private MockMvcTester.MockMvcRequestBuilder validate(String validation) {
+        return mvc.post().uri("/api/listings/1/republication/manual-validation").contentType(MediaType.APPLICATION_JSON)
+                .content(validation);
     }
 
     private MockMvcTester.MockMvcRequestBuilder verify() {
@@ -462,6 +532,17 @@ class ListingRepublicationApiControllerTest {
         @Bean
         FakeListingContentReader contents() {
             return new FakeListingContentReader();
+        }
+
+        @Bean
+        ValidateListingRepublication validateListingRepublication(VintedSession session,
+                                                                  InMemoryListingBackupRepository listingBackups,
+                                                                  InMemoryListingRepublicationRepository republications,
+                                                                  InMemoryListingRepository listings,
+                                                                  FakeListingContentReader contents,
+                                                                  ShowListingRepublication show) {
+            return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
+                    noBackupPause(), Clock.fixed(NOW, ZoneOffset.UTC), show, URI.create("https://www.vinted.fr/member/42"));
         }
 
         @Bean

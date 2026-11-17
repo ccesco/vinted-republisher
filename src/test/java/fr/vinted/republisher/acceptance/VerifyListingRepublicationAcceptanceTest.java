@@ -127,37 +127,19 @@ class VerifyListingRepublicationAcceptanceTest {
     }
 
     @Test
-    void new_listing_further_down_is_found_by_going_through_the_wardrobe() {
-        // Étant donné une republication en erreur
-        aFailedRepublication();
-        // Et la nouvelle annonce absente des annonces affichées à l'ouverture, mais plus bas dans le dressing
-        wardrobe.holding(aListing(3, "Pull gris", "8.00", ACTIVE), REPUBLISHED).showingOnOpening(1);
-        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
-        // Quand le membre clique sur « Vérifier sur Vinted »
-        RepublicationReport report = verify();
-        // Alors le dressing est parcouru en entier et la republication est réussie
-        assertThat(wardrobe.reads()).isEqualTo(1);
-        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
-                .contains(RepublicationOutcome.PUBLISHED);
-        assertThat(report.lastRepublication().flatMap(ListingRepublication::newListingId)).contains(NEW_LISTING);
-    }
-
-    @Test
-    void failed_republication_missing_from_the_wardrobe_becomes_not_published() {
+    void failed_republication_missing_from_the_newest_listings_stays_failed() {
         // Étant donné une annonce en erreur de republication
-        aFailedRepublication();
-        // Et le dressing ne montre aucune annonce avec son titre et son prix
-        wardrobe.holding(aListing(3, "Robe bleue", "15.00", ACTIVE));
+        ListingRepublication failed = aFailedRepublication();
+        // Et les annonces affichées à l'ouverture du dressing n'ont pas son titre et son prix
+        wardrobe.holding(aListing(3, "Robe bleue", "15.00", ACTIVE), REPUBLISHED).showingOnOpening(1);
         // Quand le membre clique sur « Vérifier sur Vinted »
         RepublicationReport report = verify();
-        // Alors la republication est « non publiée », avec la date de la vérification
-        ListingRepublication republication = report.lastRepublication().orElseThrow();
-        assertThat(republication.outcome()).isEqualTo(RepublicationOutcome.NOT_PUBLISHED);
-        assertThat(republication.checkedAt()).contains(NOW);
+        // Alors la republication reste en erreur, sans que le dressing soit parcouru en entier
+        assertThat(report.lastRepublication()).contains(failed);
+        assertThat(republications.findAll()).containsExactly(failed);
+        assertThat(wardrobe.reads()).isZero();
         assertThat(report.comparison()).isEmpty();
         assertThat(contents.opened()).isEmpty();
-        // Et « Republier sur Vinted » redevient possible
-        republication.allowNewAttempt();
     }
 
     @Test
@@ -205,7 +187,7 @@ class VerifyListingRepublicationAcceptanceTest {
         RepublicationReport report = verify();
 
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
-                .contains(RepublicationOutcome.NOT_PUBLISHED);
+                .contains(RepublicationOutcome.FAILED);
         assertThat(wardrobe.opened()).isEmpty();
     }
 

@@ -18,10 +18,12 @@ En tant que membre, je veux vérifier sur Vinted le résultat d'une republicatio
 ## Comportement attendu
 1. **Aperçu** : une annonce dont la dernière republication est en erreur ou réussie montre « Vérifier sur Vinted ». Une republication « non publiée » ne le montre pas : « Republier sur Vinted » redevient actif.
 2. **Contrôles**, avant d'ouvrir Chrome : l'annonce a une sauvegarde ; sa dernière republication est en erreur ou réussie ; aucune autre action navigateur en cours (verrou `REPUBLISHING` d'US-03). Sinon refus, Chrome n'est pas ouvert.
-3. **Levée du doute** (republication en erreur) : d'abord une lecture des seules annonces affichées à l'ouverture du dressing, sans défiler (comme la preuve d'US-12) ; si aucune candidate n'y a le titre et le prix de la sauvegarde, une lecture complète du dressing, au rythme du scan, avant de conclure. Sont candidates les annonces du dressing autres que l'ancienne et que les nouvelles annonces d'autres republications, inconnues de l'outil ou connues avec le titre et le prix de la sauvegarde ; leur page est ouverte pour lire titre et prix (comme au scan). Parmi elles :
+3. **Levée du doute** (republication en erreur) : une lecture des seules annonces affichées à l'ouverture du dressing, sans défiler (comme la preuve d'US-12), jamais du dressing entier. Sont candidates les annonces du dressing autres que l'ancienne et que les nouvelles annonces d'autres republications, inconnues de l'outil ou connues avec le titre et le prix de la sauvegarde ; leur page est ouverte pour lire titre et prix (comme au scan). Parmi elles :
    - exactement une avec le titre et le prix de la sauvegarde → republication **réussie** : nouvel identifiant et date de la vérification enregistrés, nouvelle annonce présente et reliée à l'ancienne (comme US-12), puis comparaison (étape 4) dans la même visite ;
-   - aucune → republication **non publiée**, avec la date de la vérification ; une nouvelle republication redevient possible (mêmes contrôles qu'US-12) ;
-   - plusieurs → reste **en erreur** ; l'aperçu dit « Plusieurs annonces correspondent sur Vinted : supprimez les doublons puis revérifiez ».
+   - aucune ou plusieurs → reste **en erreur** ; la réponse ne distinguant pas les deux cas, l'aperçu dit « Introuvable parmi les annonces récentes de votre dressing, ou plusieurs annonces correspondent : vérifiez sur Vinted (supprimez les doublons s'il y en a), puis validez vous-même ci-dessous » et propose la validation manuelle (étape 3 bis).
+3 bis. **Validation manuelle** (republication en erreur) : le membre, après avoir regardé lui-même sur Vinted, choisit :
+   - **« Publiée »**, en collant le lien de la nouvelle annonce (`…/items/<identifiant>…`). Contrôles, avant d'ouvrir Chrome : lien d'une annonce dont l'identifiant se lit dans le chemin, autre que l'ancienne annonce et que les nouvelles annonces d'autres republications ; verrou `REPUBLISHING`. L'outil ouvre cette seule page, à l'adresse qu'il construit lui-même depuis l'identifiant (jamais le lien collé), avec le lecteur d'US-05 : titre et prix différents de la sauvegarde → refus, rien enregistré. Sinon republication **réussie** (nouvel identifiant, date de la validation), nouvelle annonce présente et reliée à l'ancienne, puis comparaison (étape 4) dans la même visite.
+   - **« Non publiée »** → republication **non publiée**, avec la date de la validation, sans ouvrir Chrome (sous le verrou `REPUBLISHING`, pour qu'une vérification en cours ne la contredise pas) ; une nouvelle republication redevient possible (mêmes contrôles qu'US-12).
 4. **Comparaison** (republication réussie) : le contenu de la nouvelle annonce est lu comme une sauvegarde (US-05, US-06), au rythme de la sauvegarde, sans rien enregistrer ; il est comparé champ par champ à la sauvegarde : titre, description, prix, catégorie, marque, état, taille, couleurs, matières, format du colis et champs propres à la catégorie, les options par leur identifiant Vinted ; photos par leur nombre seulement (Vinted réencode les photos publiées). La réponse dit « identique à la sauvegarde » ou liste les différences (champ, valeur sauvegardée, valeur lue). Rien n'est enregistré, rien n'est corrigé sur Vinted.
 5. **Après** : l'aperçu montre l'issue et, s'il y a eu comparaison, son résultat. Aucun clic n'est jamais fait sur Vinted : la vérification ne fait que lire, en dry-run comme en réel.
 
@@ -31,13 +33,15 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. De
 | Méthode et chemin | operationId | Réponse |
 | --- | --- | --- |
 | `POST /api/listings/{listingId}/republication/verification` | `verifyListingRepublication` | 200 `ListingBackupView` à jour (avec `republication` et, si comparée, `republicationComparison`), y compris si le doute reste ; 404 sans sauvegarde ; 409 `RepublicationRefusal` (`NO_REPUBLICATION_TO_VERIFY`, `BROWSER_BUSY`) ; 502 `RepublicationRefusal` (`BROWSER_UNAVAILABLE`, `VINTED_UNREACHABLE`, `SESSION_DISCONNECTED`, `LISTING_UNREADABLE`) ; 500 `RepublicationRefusal` (`REPUBLICATION_FAILED`) ; 403 si la demande vient d'un autre site |
+| `POST /api/listings/{listingId}/republication/manual-validation` | `validateListingRepublication` | Corps `RepublicationValidation` {`published` (booléen), `newListingUrl` (requis si `published`)}. 200 `ListingBackupView` à jour (avec `republicationComparison` si « publiée ») ; 400 `RepublicationRefusal` (`NEW_LISTING_LINK_INVALID` : lien absent, sans identifiant d'annonce, ancienne annonce ou nouvelle annonce d'une autre republication) ; 404 sans sauvegarde ; 409 `RepublicationRefusal` (`NO_REPUBLICATION_TO_VERIFY` si la dernière republication n'est pas en erreur, `BROWSER_BUSY`, `NEW_LISTING_MISMATCH` : titre ou prix différents de la sauvegarde) ; 502 et 500 comme la vérification ; 403 si la demande vient d'un autre site |
 
 - `RepublicationOutcome` gagne `NOT_PUBLISHED` ; `ListingRepublication` gagne `checkedAt` (présent si `NOT_PUBLISHED`).
 - `ListingBackupView` gagne `republicationComparison` (seulement dans la réponse d'une vérification qui a comparé) : tableau de `ListingFieldDifference` {`field` (`ListingFormField`), `saved`, `read`} ; vide = identique à la sauvegarde.
 - Une erreur pendant la lecture du dressing laisse la republication telle qu'elle était. Une erreur pendant la lecture de la nouvelle annonce (illisible, Vinted inaccessible, session, navigateur), après une levée du doute réussie, garde la republication réussie : 502, l'aperçu rechargé la montre. L'aperçu dit donc « Vérification interrompue, l'état affiché est celui enregistré », sans affirmer que rien n'a changé.
 
 ## Critères d'acceptation
-- [ ] Une republication en erreur se lève sur Vinted : nouvelle annonce retrouvée seule → réussie et reliée ; aucune → non publiée, relance possible ; plusieurs → reste en erreur.
+- [ ] Une republication en erreur se lève sur Vinted parmi les annonces affichées à l'ouverture du dressing : nouvelle annonce retrouvée seule → réussie et reliée ; aucune ou plusieurs → reste en erreur, sans jamais parcourir tout le dressing.
+- [ ] Le membre valide lui-même une republication en erreur : « publiée » avec le lien de la nouvelle annonce, contrôlée sur sa page (titre et prix) puis comparée ; « non publiée », relance possible.
 - [ ] Une nouvelle annonce déjà vue par un scan entre-temps est retrouvée quand même (pas de doublon).
 - [ ] Une republication réussie se compare champ par champ à la sauvegarde ; les différences sont listées, rien n'est enregistré ni corrigé.
 - [ ] Après une republication non publiée, une nouvelle republication est possible et l'historique des tentatives reste en base.
@@ -58,15 +62,15 @@ Et la nouvelle annonce est comparée à la sauvegarde
 ```
 Test : `VerifyListingRepublicationAcceptanceTest.failed_republication_found_in_the_wardrobe_becomes_published()`
 
-### AT-13-02 – Erreur levée : rien publié
+### AT-13-02 – Introuvable à l'ouverture du dressing
 ```gherkin
 Étant donné une annonce en erreur de republication
-Et le dressing ne montre aucune annonce avec son titre et son prix
+Et les annonces affichées à l'ouverture du dressing n'ont pas son titre et son prix
 Quand le membre clique sur « Vérifier sur Vinted »
-Alors la republication est « non publiée », avec la date de la vérification
-Et « Republier sur Vinted » redevient possible
+Alors la republication reste en erreur, sans que le dressing soit parcouru en entier
+Et l'aperçu propose la validation manuelle
 ```
-Test : `VerifyListingRepublicationAcceptanceTest.failed_republication_missing_from_the_wardrobe_becomes_not_published()`
+Test : `VerifyListingRepublicationAcceptanceTest.failed_republication_missing_from_the_newest_listings_stays_failed()`, `ListingDetailPageTest.Republication.republication_still_in_error_after_verification_asks_the_member_to_validate()`
 
 ### AT-13-03 – Plusieurs candidates
 ```gherkin
@@ -161,13 +165,13 @@ Quand le membre ouvre l'aperçu
 Alors « Vérifier sur Vinted » est proposé pour l'erreur et la réussite, « Republier sur Vinted » pour la non publiée
 Et le résultat d'une vérification s'affiche (issue, différences ou « identique à la sauvegarde »)
 ```
-Test : `ListingBackupPageTest.Republication` : `republication_in_error_asks_to_check_on_vinted()`, `failed_republication_is_verified_and_can_be_republished_once_not_published()`, `several_candidates_ask_to_remove_the_duplicates()`, `published_republication_shows_its_differences_as_text()`, `identical_new_listing_says_so()`, `refused_verification_says_nothing_changed()` (page servie par une fausse API)
+Test : `ListingDetailPageTest.Republication` : `republication_in_error_asks_to_check_on_vinted()`, `republication_still_in_error_after_verification_asks_the_member_to_validate()`, `published_republication_shows_its_differences_as_text()`, `identical_new_listing_says_so()`, `refused_verification_says_nothing_changed()` (page servie par une fausse API)
 
 ### AT-13-14 – Vérification réelle
 ```gherkin
-Étant donné la republication en erreur du bonnet 10208799832, rien de publié sur Vinted
-Quand le membre clique sur « Vérifier sur Vinted »
-Alors la republication est « non publiée » et une relance est possible
+Étant donné la republication en erreur du bonnet 10208799832, publié sur Vinted d'après le membre (2026-11-17)
+Quand le membre clique sur « Vérifier sur Vinted », puis, si le bonnet n'est pas retrouvé, le valide « publiée » avec son lien
+Alors la republication est réussie, reliée à la nouvelle annonce, et comparée à la sauvegarde
 ```
 Test : manuel, sur le vrai compte, avec l'accord de l'utilisateur
 
@@ -180,18 +184,70 @@ Alors la republication est réussie, sans que le dressing soit parcouru en entie
 ```
 Test : `VerifyListingRepublicationAcceptanceTest.new_listing_shown_on_opening_is_found_without_going_through_the_wardrobe()`
 
-### AT-13-16 – Nouvelle annonce plus bas dans le dressing
+### AT-13-16 – Validation manuelle : publiée
+```gherkin
+Étant donné une annonce « Robe bleue » à 12,00 € en erreur de republication
+Quand le membre la valide « publiée » avec le lien https://www.vinted.fr/items/2-robe-bleue?referrer=catalog
+Alors l'outil ouvre la page de l'annonce 2, à l'adresse qu'il construit lui-même, et y lit « Robe bleue » à 12,00 €
+Et la republication est réussie, avec l'identifiant 2 et la date de la validation
+Et la nouvelle annonce est présente, reliée à l'ancienne, et comparée à la sauvegarde
+```
+Test : `ValidateListingRepublicationAcceptanceTest.published_with_the_link_of_the_new_listing()`
+
+### AT-13-17 – Validation manuelle : page qui ne correspond pas
+```gherkin
+Étant donné une annonce « Robe bleue » à 12,00 € en erreur de republication
+Quand le membre la valide « publiée » avec le lien d'une annonce « Robe bleue » à 15,00 €
+Alors elle est refusée (NEW_LISTING_MISMATCH), la republication reste en erreur et rien n'est enregistré
+```
+Test : `ValidateListingRepublicationAcceptanceTest.link_to_a_listing_with_another_title_or_price_is_refused()`
+
+### AT-13-18 – Validation manuelle : lien invalide
+```gherkin
+Étant donné une annonce en erreur de republication
+Quand le membre la valide « publiée » sans lien, avec un lien sans identifiant d'annonce, avec le lien de l'ancienne annonce ou de la nouvelle annonce d'une autre republication
+Alors elle est refusée (NEW_LISTING_LINK_INVALID) et Chrome n'est pas ouvert
+```
+Test : `ValidateListingRepublicationAcceptanceTest.invalid_link_is_refused_without_opening_chrome()`
+
+### AT-13-19 – Validation manuelle : non publiée
+```gherkin
+Étant donné une annonce en erreur de republication
+Quand le membre la valide « non publiée »
+Alors la republication est « non publiée », avec la date de la validation, sans ouvrir Chrome
+Et « Republier sur Vinted » redevient possible
+```
+Test : `ValidateListingRepublicationAcceptanceTest.not_published_allows_a_new_attempt_without_opening_chrome()`
+
+### AT-13-20 – Validation manuelle : rien à valider
+```gherkin
+Étant donné une annonce sans republication, réussie ou « non publiée »
+Quand une validation manuelle est demandée
+Alors elle est refusée (NO_REPUBLICATION_TO_VERIFY) et Chrome n'est pas ouvert
+```
+Test : `ValidateListingRepublicationAcceptanceTest.only_a_republication_in_error_is_validated()`
+
+### AT-13-21 – Validation manuelle : erreurs du navigateur et autre site
+```gherkin
+Étant donné une annonce en erreur de republication
+Quand le membre la valide « publiée » alors qu'une autre action navigateur est en cours, ou que la page de la nouvelle annonce est illisible
+Alors elle est refusée (BROWSER_BUSY, LISTING_UNREADABLE…), la republication reste en erreur et le verrou est libéré
+Et une validation demandée par un autre site est refusée (403)
+```
+Test : `ValidateListingRepublicationAcceptanceTest.browser_errors_leave_the_republication_failed()`, `ListingRepublicationApiControllerTest.refusesCrossSiteValidation()`
+
+### AT-13-22 – Aperçu de la validation manuelle
 ```gherkin
 Étant donné une republication en erreur
-Et la nouvelle annonce absente des annonces affichées à l'ouverture, mais plus bas dans le dressing
-Quand le membre clique sur « Vérifier sur Vinted »
-Alors le dressing est parcouru en entier et la republication est réussie
+Quand le membre ouvre l'aperçu
+Alors il peut coller le lien de la nouvelle annonce et valider « publiée », ou valider « non publiée »
+Et l'issue, ou le refus, s'affiche
 ```
-Test : `VerifyListingRepublicationAcceptanceTest.new_listing_further_down_is_found_by_going_through_the_wardrobe()`
+Test : `ListingDetailPageTest.Republication` : `member_validates_published_with_the_link_of_the_new_listing()`, `member_validates_not_published_and_can_republish()`, `refused_validation_tells_why()`, `only_a_republication_in_error_offers_the_manual_validation()` (page servie par une fausse API)
 
 ## Cas limites et erreurs
 - Deux annonces identiques (titre et prix) réellement en vente : la levée du doute ne conclut pas ; le membre change le titre de l'une sur Vinted puis revérifie.
-- Republication en erreur après un plantage avant le clic : rien de publié, la vérification la passe « non publiée ».
+- Republication en erreur après un plantage avant le clic : rien de publié ; la vérification ne trouve rien et la laisse en erreur, le membre la valide « non publiée ».
 - Nouvelle annonce vendue ou réservée entre-temps : toujours dans le dressing, retrouvée si son titre et son prix n'ont pas changé.
 - Nouvelle annonce modifiée par le membre depuis (titre ou prix) : la levée du doute ne la retrouve pas (« non publiée ») ; le membre ne relance pas, risque assumé et dit dans l'aperçu (« Rien trouvé sur Vinted avec ce titre et ce prix »).
 - Différence de libellé seul (option au même identifiant) : pas une différence.
@@ -208,13 +264,13 @@ Test : `VerifyListingRepublicationAcceptanceTest.new_listing_further_down_is_fou
 ## Décisions
 - Périmètre, décidé par l'utilisateur (2026-11-15) : les deux, levée du doute d'une erreur de republication et comparaison complète d'une republication réussie, par un seul bouton « Vérifier sur Vinted ».
 - Les décisions suivantes ont été prises par Claude sur délégation explicite de l'utilisateur (« fais comme tu le sens », 2026-11-15), sur le modèle de « Revérifier sur Vinted » d'US-09 :
-  - Levée du doute : une lecture du dressing ; une candidate → réussie, aucune → `NOT_PUBLISHED` (relance possible), plusieurs → reste `FAILED`. Comme US-12, pas d'attente ni de relecture.
+  - Levée du doute : une lecture du dressing ; une candidate → réussie, aucune → `NOT_PUBLISHED` (relance possible), plusieurs → reste `FAILED`. Comme US-12, pas d'attente ni de relecture. *Remplacé le 2026-11-17 par la validation manuelle ci-dessous : aucune → reste `FAILED`.*
   - Candidates : inconnues de l'outil, ou connues avec le titre et le prix de la sauvegarde, hors l'ancienne annonce et les nouvelles annonces d'autres republications ; sans quoi un scan fait entre-temps rendrait la nouvelle annonce invisible et autoriserait un doublon.
   - Historique : plusieurs tentatives par annonce, au plus une réussie ou en erreur à la fois ; la dernière fait foi (comme les suppressions d'US-09). Jamais supprimées.
   - Comparaison : lecture du contenu par le lecteur de la sauvegarde (US-05, US-06), rien enregistré ; options comparées par identifiant, photos par nombre ; résultat dans la réponse seulement.
   - Verrou `REPUBLISHING`, aucun clic, valable en dry-run comme en réel.
   - Une erreur de lecture de la nouvelle annonce après une levée du doute garde la republication réussie : la preuve est faite, seule la comparaison manque.
-- Lecture en deux temps, décidée par Claude sur délégation explicite de l'utilisateur (« fait comme tu penses », 2026-11-17), après une vérification réelle arrêtée par l'utilisateur, jugée trop longue : d'abord les annonces affichées à l'ouverture du dressing, sans défiler ; au moins une candidate au titre et au prix de la sauvegarde → conclusion sur elles (une → réussie, plusieurs → reste en erreur). Aucune → lecture complète avant de conclure : « non publiée » autorise une nouvelle republication, la conclure sur une lecture partielle risquerait un doublon.
+- Validation manuelle, décidée par l'utilisateur (2026-11-17), après une vérification réelle arrêtée car trop longue (lecture complète du dressing) : la vérification ne lit plus que les annonces affichées à l'ouverture du dressing (comme la preuve d'US-12), et ne conclut jamais « non publiée » d'elle-même, une lecture partielle ne le prouvant pas. Si elle ne trouve rien, le membre regarde sur Vinted et valide lui-même : « publiée » en collant le lien de la nouvelle annonce, que l'outil ouvre (une seule page, à l'adresse construite depuis l'identifiant, jamais le lien collé), contrôle (titre et prix de la sauvegarde) et compare ; ou « non publiée », sans ouvrir Chrome. La lecture complète du dressing est supprimée de la vérification.
 
 ## Questions ouvertes
 - Aucune.
@@ -231,7 +287,11 @@ Termes à ajouter ou modifier dans le glossaire :
 - `VerifyListingRepublication` | Vérification de la republication | Lecture sur Vinted, sans clic, qui lève le doute d'une erreur de republication et compare une republication réussie à la sauvegarde.
 - `ListingFieldDifference` | Différence avec la sauvegarde | Champ du formulaire dont la valeur lue sur la nouvelle annonce n'est pas celle sauvegardée (valeur sauvegardée, valeur lue).
 - `NoRepublicationToVerify` | Aucune republication à vérifier | Refus : pas de republication, ou dernière « non publiée ».
-- Port réutilisé : `ListingContentReader` (US-05) pour lire la nouvelle annonce ; `WardrobeReader` (US-04) pour le dressing.
+- `ValidateListingRepublication` | Validation manuelle de la republication | Le membre dit ce que Vinted montre pour une republication en erreur : « publiée » avec le lien de la nouvelle annonce, dont la seule page est lue pour la contrôler et la comparer, ou « non publiée ».
+- `NewListingLink` | Lien de la nouvelle annonce | Lien collé par le membre, dont seul l'identifiant (`/items/<identifiant>`) sert ; gardé sans ses paramètres.
+- `NewListingLinkInvalid` | Lien invalide | Refus : lien absent, sans identifiant d'annonce, de l'ancienne annonce ou de la nouvelle annonce d'une autre republication.
+- `NewListingMismatch` | Nouvelle annonce différente | Refus : la page du lien n'a pas le titre et le prix de la sauvegarde.
+- Port réutilisé : `ListingContentReader` (US-05) pour lire la nouvelle annonce ; `WardrobeReader` (US-04) pour le dressing, par `readNewest` (annonces affichées à l'ouverture).
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : `ListingRepublication` (passage `FAILED` → `PUBLISHED` / `NOT_PUBLISHED`, refus depuis les autres issues, nouvelle tentative permise après `NOT_PUBLISHED`) ; `ListingFieldDifference.between` (chaque champ, options par identifiant, photos par nombre, libellé seul ignoré).

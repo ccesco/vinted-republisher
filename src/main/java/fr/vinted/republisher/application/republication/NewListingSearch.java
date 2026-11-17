@@ -44,8 +44,8 @@ public class NewListingSearch {
 
     /**
      * Later, to verify a republication: the listings with the saved title and price, among those unknown and those a
-     * scan may have recorded since, leaving out the old listing and the new listings of other republications. The
-     * newest listings first; the whole wardrobe only if none of them matches, as none means "not published".
+     * scan may have recorded since, leaving out the old listing and the new listings of other republications, among
+     * the newest only: none found there proves nothing, the member then says what Vinted shows.
      */
     List<ScannedListing> findAgain(ListingContent saved, Set<VintedListingId> otherNewListings) {
         Set<VintedListingId> unlikely = listings.findAll().stream()
@@ -53,14 +53,7 @@ public class NewListingSearch {
                 .map(Listing::id).collect(Collectors.toSet());
         unlikely.add(saved.id());
         unlikely.addAll(otherNewListings);
-        Predicate<ListingLink> candidate = link -> !unlikely.contains(link.id());
-        List<ScannedListing> amongNewest = ListingRepublication.matching(readNewest(candidate), saved);
-        if (!amongNewest.isEmpty()) {
-            return amongNewest;
-        }
-        Opening opening = new Opening(candidate);
-        wardrobe.read(pace, opening);
-        return ListingRepublication.matching(opening.read, saved);
+        return ListingRepublication.matching(readNewest(link -> !unlikely.contains(link.id())), saved);
     }
 
     private List<ScannedListing> readNewest(Predicate<ListingLink> toOpen) {
