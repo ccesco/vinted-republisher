@@ -2,7 +2,6 @@ package fr.vinted.republisher.adapter.out.browser;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Playwright;
-import com.microsoft.playwright.PlaywrightException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fr.vinted.republisher.domain.backup.BackupPace;
@@ -21,26 +20,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.extension.RegisterExtension;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -60,8 +55,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("browser")
 class PlaywrightListingContentReaderTest {
 
-    private static final Path INSTALLED_CHROME = Path.of(Objects.requireNonNullElse(
-            System.getenv("CHROME_PATH"), "C:/Program Files/Google/Chrome/Application/chrome.exe"));
     private static final Duration LABEL_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration PHOTO_TIMEOUT = Duration.ofSeconds(2);
 
@@ -98,10 +91,10 @@ class PlaywrightListingContentReaderTest {
             </script>
             </body></html>""";
 
-    @TempDir
-    Path profileDirectory;
+    @RegisterExtension
+    static final SharedChrome CHROME = new SharedChrome();
+
     private HttpServer fakeVinted;
-    private int debugPort;
     private final List<String> requests = new CopyOnWriteArrayList<>();
     private final Map<Long, Integer> formStatus = new ConcurrentHashMap<>();
     private final Map<Long, String> displayedSize = new ConcurrentHashMap<>();
@@ -151,24 +144,10 @@ class PlaywrightListingContentReaderTest {
         });
         fakeVinted.setExecutor(Executors.newCachedThreadPool());
         fakeVinted.start();
-        try (ServerSocket socket = new ServerSocket(0)) {
-            debugPort = socket.getLocalPort();
-        }
     }
 
     @AfterEach
-    void stopChromeAndFakeVinted() {
-        // Chrome must be gone before the temporary profile is deleted: a killed Chrome still writes to it.
-        List<ProcessHandle> chromeProcesses = ProcessHandle.current().descendants().toList();
-        if (!chromeProcesses.isEmpty()) {
-            try (Playwright playwright = Playwright.create();
-                 Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
-                chrome.newBrowserCDPSession().send("Browser.close");
-            } catch (PlaywrightException alreadyClosed) {
-                // Nothing left to close.
-            }
-            chromeProcesses.forEach(process -> process.onExit().orTimeout(10, TimeUnit.SECONDS).join());
-        }
+    void stopFakeVinted() {
         fakeVinted.stop(0);
     }
 
@@ -343,7 +322,7 @@ class PlaywrightListingContentReaderTest {
     }
 
     private PlaywrightListingContentReader reader() {
-        ChromeTabs tabs = new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort));
+        ChromeTabs tabs = new ChromeTabs(CHROME.chrome());
         return new PlaywrightListingContentReader(address("/items/{id}/edit"), address("/items/{id}"), LABEL_TIMEOUT,
                 PHOTO_TIMEOUT, tabs, Clock.systemUTC());
     }
@@ -399,7 +378,7 @@ class PlaywrightListingContentReaderTest {
 
     private long tabsOnFakeVinted() {
         try (Playwright playwright = Playwright.create();
-             Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
+             Browser chrome = playwright.chromium().connectOverCDP(CHROME.endpoint())) {
             return chrome.contexts().getFirst().pages().stream()
                     .filter(page -> page.url().startsWith(address(""))).count();
         }

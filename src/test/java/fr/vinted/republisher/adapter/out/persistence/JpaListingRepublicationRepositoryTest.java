@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
@@ -8,16 +9,10 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Instant;
 import java.util.List;
@@ -28,14 +23,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /** On a disposable PostgreSQL with the real changelog, never the real data. */
-@Tag("docker")
-@Testcontainers
-@SpringBootTest(properties = {
-        "app.data-dir=target/test-data",
-        "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222",
-        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
-class JpaListingRepublicationRepositoryTest {
+class JpaListingRepublicationRepositoryTest extends ApplicationWithDatabaseTest {
 
     private static final VintedListingId PUBLISHED_LISTING = new VintedListingId(10208778166L);
     private static final VintedListingId FAILED_LISTING = new VintedListingId(10208778167L);
@@ -43,10 +31,6 @@ class JpaListingRepublicationRepositoryTest {
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00.123456Z");
     private static final Instant CLICKED_AT = Instant.parse("2026-11-11T10:06:00.654321Z");
     private static final Instant PROVEN_AT = Instant.parse("2026-11-11T10:06:20.111111Z");
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
 
     @Autowired
     private ListingRepublicationRepository republications;
@@ -62,9 +46,6 @@ class JpaListingRepublicationRepositoryTest {
 
     @BeforeEach
     void startWithTwoBackupsAndNoRepublication() {
-        database.update("DELETE FROM listing_republication");
-        database.update("DELETE FROM listing_content");
-        database.update("DELETE FROM listing");
         for (VintedListingId listing : List.of(PUBLISHED_LISTING, FAILED_LISTING)) {
             listings.saveAll(List.of(Listing.seen(anActiveListing(listing.value()), SAVED_AT).absent()));
             listingBackups.save(aBackup(listing.value(), SAVED_AT));

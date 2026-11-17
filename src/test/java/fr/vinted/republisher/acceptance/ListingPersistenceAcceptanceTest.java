@@ -1,5 +1,6 @@
 package fr.vinted.republisher.acceptance;
 
+import fr.vinted.republisher.DisposablePostgres;
 import fr.vinted.republisher.VintedRepublisherApplication;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -7,6 +8,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.WardrobeOverview;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScan;
 import fr.vinted.republisher.domain.wardrobe.WardrobeScanRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Tag;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
@@ -15,25 +17,24 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Instant;
 import java.util.List;
 
+import static fr.vinted.republisher.DisposablePostgres.POSTGRES;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Tag("docker")
-@Testcontainers
 class ListingPersistenceAcceptanceTest {
 
     private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:00:00Z");
     private static final Instant FINISHED_AT = SCANNED_AT.plusSeconds(60);
 
-    @Container
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
+    @BeforeEach
+    void startFromEmptyTables() {
+        DisposablePostgres.empty();
+    }
 
     @Test
     void inventory_survives_a_restart() {

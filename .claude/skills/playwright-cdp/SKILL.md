@@ -28,5 +28,5 @@ Vinted blocks the Chrome that Playwright launches itself. The tool starts a **no
 ## Tests
 - Domain and application tests use fakes (`FakeVintedAccount`), never a browser.
 - Adapter and page tests that start Chrome are tagged `@Tag("browser")`: excluded from `mvn test`, run with `mvn test -Pbrowser` before handing back.
-- Each test independent: its own page/context, no state shared between tests, no order dependency.
+- Each test independent: its own page/context, no state shared between tests, no order dependency. Adapter tests share one Chrome per class through the `SharedChrome` extension (free debug port, given back after each test with a single blank tab, no cookie, no cache); only tests about Chrome's own life start their own.
 - Flaky test: find the cause (skill `systematic-debugging`), enable a Playwright trace (`context.tracing().start(...)` / `stop(...)` to a file under `target/`, opened with the Playwright CLI `show-trace`), replace the bad wait; never retry until green or mark it `@Disabled`.

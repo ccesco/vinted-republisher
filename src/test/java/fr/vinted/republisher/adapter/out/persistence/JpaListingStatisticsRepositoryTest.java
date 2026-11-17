@@ -1,19 +1,13 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -22,32 +16,16 @@ import java.util.List;
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** On a disposable PostgreSQL with the real changelog, never the real data. */
-@Tag("docker")
-@Testcontainers
-@SpringBootTest(properties = {
-        "app.data-dir=target/test-data",
-        "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222",
-        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
-class JpaListingStatisticsRepositoryTest {
+class JpaListingStatisticsRepositoryTest extends ApplicationWithDatabaseTest {
 
     private static final Instant FIRST_SCAN = Instant.parse("2026-11-06T10:00:00Z");
     private static final Instant NEXT_SCAN = FIRST_SCAN.plus(Duration.ofDays(1));
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
 
     @Autowired
     private ListingStatisticsRepository statistics;
 
     @Autowired
     private JdbcTemplate database;
-
-    @BeforeEach
-    void startWithoutAnyReading() {
-        database.update("DELETE FROM listing_statistics_reading");
-    }
 
     @Test
     void nothing_is_found_before_the_first_reading() {

@@ -1,19 +1,12 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.dao.DataAccessException;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Instant;
 import java.util.List;
@@ -25,32 +18,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
 /** On a disposable PostgreSQL with the real changelog, never the real data. */
-@Tag("docker")
-@Testcontainers
-@SpringBootTest(properties = {
-        "app.data-dir=target/test-data",
-        "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222",
-        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
-class JpaListingRepositoryTest {
+class JpaListingRepositoryTest extends ApplicationWithDatabaseTest {
 
     private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:00:00Z");
 
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
-
     @Autowired
     private ListingRepository listings;
-
-    @Autowired
-    private JdbcTemplate database;
-
-    @BeforeEach
-    void startFromAnEmptyInventory() {
-        database.update("DELETE FROM listing_content");
-        database.update("DELETE FROM listing");
-    }
 
     @Test
     void gives_back_a_listing_as_it_was_saved() {

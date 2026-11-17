@@ -2,7 +2,6 @@ package fr.vinted.republisher.adapter.out.browser;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.Playwright;
-import com.microsoft.playwright.PlaywrightException;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fr.vinted.republisher.domain.backup.CategoryDetails;
@@ -22,22 +21,20 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.RegisterExtension;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
 
 import static fr.vinted.republisher.adapter.out.browser.ListingFormFixtures.ALL_DETAILS;
 import static fr.vinted.republisher.adapter.out.browser.ListingFormFixtures.BRAND;
@@ -57,17 +54,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Tag("browser")
 class PlaywrightListingPublisherTest {
 
-    private static final Path INSTALLED_CHROME = Path.of(Objects.requireNonNullElse(
-            System.getenv("CHROME_PATH"), "C:/Program Files/Google/Chrome/Application/chrome.exe"));
     private static final Duration CONTROL_TIMEOUT = Duration.ofSeconds(2);
     private static final Duration LOAD_TIMEOUT = Duration.ofSeconds(5);
     private static final DownloadedPhoto COVER = new DownloadedPhoto(new byte[]{1, 2, 3}, "image/jpeg");
     private static final DownloadedPhoto BACK = new DownloadedPhoto(new byte[]{1, 2, 3, 4, 5}, "image/webp");
 
-    @TempDir
-    Path profileDirectory;
+    @RegisterExtension
+    static final SharedChrome CHROME = new SharedChrome();
+
     private HttpServer fakeVinted;
-    private int debugPort;
     private final List<String> requests = new CopyOnWriteArrayList<>();
     private final List<String> published = new CopyOnWriteArrayList<>();
     private volatile String details = ALL_DETAILS;
@@ -102,24 +97,10 @@ class PlaywrightListingPublisherTest {
         });
         fakeVinted.setExecutor(Executors.newCachedThreadPool());
         fakeVinted.start();
-        try (ServerSocket socket = new ServerSocket(0)) {
-            debugPort = socket.getLocalPort();
-        }
     }
 
     @AfterEach
-    void stopChromeAndFakeVinted() {
-        // Chrome must be gone before the temporary profile is deleted: a killed Chrome still writes to it.
-        List<ProcessHandle> chromeProcesses = ProcessHandle.current().descendants().toList();
-        if (!chromeProcesses.isEmpty()) {
-            try (Playwright playwright = Playwright.create();
-                 Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
-                chrome.newBrowserCDPSession().send("Browser.close");
-            } catch (PlaywrightException alreadyClosed) {
-                // Nothing left to close.
-            }
-            chromeProcesses.forEach(process -> process.onExit().orTimeout(10, TimeUnit.SECONDS).join());
-        }
+    void stopFakeVinted() {
         fakeVinted.stop(0);
     }
 
@@ -270,16 +251,20 @@ class PlaywrightListingPublisherTest {
         }
 
         @Test
-        void details_never_observed_cannot_be_filled_and_chrome_is_not_opened() {
+        void details_never_observed_cannot_be_filled_and_chrome_is_not_opened(@TempDir Path unusedProfile)
+                throws IOException {
+            // A Chrome never started, rather than the shared one already running: starting it would add a process.
+            Chrome notStarted = new Chrome(SharedChrome.INSTALLED_CHROME, unusedProfile, SharedChrome.freePort());
+            List<ProcessHandle> before = ProcessHandle.current().children().toList();
             ListingContent book = withDetails(new CategoryDetails(Optional.of("9782070612758"), Optional.empty(),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
                     Optional.empty(), Optional.empty()));
 
-            assertThatThrownBy(() -> publisher().publish(book, List.of(COVER), visit))
+            assertThatThrownBy(() -> publisher(notStarted).publish(book, List.of(COVER), visit))
                     .isInstanceOfSatisfying(FieldNotFillable.class,
                             notFillable -> assertThat(notFillable.field()).isEqualTo(ListingFormField.ISBN));
             assertThat(requests).isEmpty();
-            assertThat(ProcessHandle.current().descendants()).isEmpty();
+            assertThat(ProcessHandle.current().children()).allMatch(before::contains);
         }
 
         @Test
@@ -322,8 +307,12 @@ class PlaywrightListingPublisherTest {
     }
 
     private PlaywrightListingPublisher publisher() {
+        return publisher(CHROME.chrome());
+    }
+
+    private PlaywrightListingPublisher publisher(Chrome chrome) {
         return new PlaywrightListingPublisher(URI.create(address("/items/new")), CONTROL_TIMEOUT, CONTROL_TIMEOUT,
-                new ChromeTabs(new Chrome(INSTALLED_CHROME, profileDirectory, debugPort), LOAD_TIMEOUT));
+                new ChromeTabs(chrome, LOAD_TIMEOUT));
     }
 
     private static ListingContent pyjama() {
@@ -396,7 +385,7 @@ class PlaywrightListingPublisherTest {
 
     private long tabsOnFakeVinted() {
         try (Playwright playwright = Playwright.create();
-             Browser chrome = playwright.chromium().connectOverCDP("http://127.0.0.1:" + debugPort)) {
+             Browser chrome = playwright.chromium().connectOverCDP(CHROME.endpoint())) {
             return chrome.contexts().getFirst().pages().stream()
                     .filter(page -> page.url().startsWith(address(""))).count();
         }

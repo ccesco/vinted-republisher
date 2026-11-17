@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -8,15 +9,8 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
-import org.springframework.jdbc.core.JdbcTemplate;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
-import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.Instant;
 import java.util.List;
@@ -26,22 +20,11 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveLis
 import static org.assertj.core.api.Assertions.assertThat;
 
 /** On a disposable PostgreSQL with the real changelog, never the real data. */
-@Tag("docker")
-@Testcontainers
-@SpringBootTest(properties = {
-        "app.data-dir=target/test-data",
-        "chrome.path=not-started-by-these-tests",
-        "chrome.debug-port=9222",
-        "vinted.wardrobe-url=http://127.0.0.1/member/1"})
-class JpaBackupValidationRepositoryTest {
+class JpaBackupValidationRepositoryTest extends ApplicationWithDatabaseTest {
 
     private static final VintedListingId LISTING = new VintedListingId(10208778166L);
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00.123456Z");
     private static final Instant VALIDATED_AT = Instant.parse("2026-11-11T10:00:00.654321Z");
-
-    @Container
-    @ServiceConnection
-    static final PostgreSQLContainer POSTGRES = new PostgreSQLContainer("postgres:17");
 
     @Autowired
     private BackupValidationRepository validations;
@@ -52,14 +35,8 @@ class JpaBackupValidationRepositoryTest {
     @Autowired
     private ListingBackupRepository listingBackups;
 
-    @Autowired
-    private JdbcTemplate database;
-
     @BeforeEach
     void startWithoutAnyBackup() {
-        database.update("DELETE FROM backup_validation");
-        database.update("DELETE FROM listing_content");
-        database.update("DELETE FROM listing");
         listings.saveAll(List.of(Listing.seen(anActiveListing(LISTING.value()), SAVED_AT)));
     }
 
