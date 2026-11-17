@@ -24,6 +24,8 @@ tags:
     description: Fiche d'une annonce et historique de ses vues et favoris (US-18b)
   - name: action-journal
     description: Journal des actions de l'outil, refus, dry-runs et erreurs compris (US-23)
+  - name: listing-relaunch
+    description: Relance d'une annonce, d'une étape, depuis la liste (US-20)
 paths:
   /api/vinted-session:
     get:
@@ -601,6 +603,64 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RepublicationRefusal'
+  /api/listings/{listingId}/relaunch:
+    post:
+      tags: [listing-relaunch]
+      operationId: relaunchListing
+      summary: Relancer une annonce d'une étape
+      description: >
+        Lance l'action qui suit l'étape de l'annonce, seulement si c'est l'étape vue par le membre : suppression
+        (TO_DELETE), revérification de la suppression (DELETION_TO_CHECK), republication (TO_REPUBLISH) ou
+        vérification de la republication (REPUBLICATION_TO_CHECK), sur la sauvegarde actuelle. L'action passe par
+        son propre cas d'usage, avec tous ses contrôles, le verrou du navigateur, les limites de cadence, le dry-run
+        et le journal. Répond une fois l'action finie.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelaunchRequest'
+      responses:
+        '200':
+          description: >
+            Action finie ou dry-run réussi ; l'annonce relue donne sa nouvelle étape (une action dont l'issue est
+            douteuse laisse l'annonce « à vérifier »).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchReport'
+        '400':
+          description: Corps de la demande invalide.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: Annonce inconnue de l'outil.
+        '409':
+          description: >
+            Étape changée depuis l'affichage, étape sans action à lancer, limite de cadence atteinte, autre action
+            navigateur en cours, ou refus du cas d'usage lancé (détail sur la fiche et dans le journal). Rien n'est
+            touché sur Vinted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchRefusal'
+        '500':
+          description: >
+            Échec inattendu (détail dans les logs) ; la fiche fait foi avant de relancer.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée, ou page de Vinted illisible
+            (annonce, formulaire de mise en vente).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelaunchRefusal'
 components:
   parameters:
     ListingId:
@@ -842,6 +902,52 @@ components:
         suppression confirmée), prête à supprimer (sauvegarde actuelle validée), à valider, à sauvegarder.
       enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, GONE, TO_DELETE,
         TO_VALIDATE, TO_BACK_UP]
+    RelaunchRequest:
+      type: object
+      required: [stage]
+      properties:
+        stage:
+          $ref: '#/components/schemas/ListingStage'
+      example:
+        stage: TO_DELETE
+    RelaunchAction:
+      type: string
+      description: >
+        Action lancée : suppression, revérification de la suppression, republication, vérification de la
+        republication.
+      enum: [DELETION, DELETION_RECHECK, REPUBLICATION, REPUBLICATION_VERIFICATION]
+    RelaunchReport:
+      type: object
+      required: [action, dryRun, listing]
+      properties:
+        action:
+          $ref: '#/components/schemas/RelaunchAction'
+        dryRun:
+          type: boolean
+          description: Vrai si l'action s'est arrêtée en dry-run, sans rien modifier sur Vinted ni rien garder.
+        listing:
+          $ref: '#/components/schemas/Listing'
+    RelaunchRefusal:
+      type: object
+      description: Raison pour laquelle la relance n'a pas abouti.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [STAGE_CHANGED, NOT_RELAUNCHABLE, CADENCE_LIMIT_REACHED, BROWSER_BUSY, ACTION_REFUSED,
+                 BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, SESSION_DISCONNECTED, VINTED_PAGE_UNREADABLE,
+                 RELAUNCH_FAILED]
+        stage:
+          $ref: '#/components/schemas/ListingStage'
+        allowedAt:
+          type: string
+          format: date-time
+          description: >
+            Date à partir de laquelle la relance redevient possible : fin de la limite de cadence
+            (CADENCE_LIMIT_REACHED), ou date de republication d'une annonce en attente (NOT_RELAUNCHABLE).
+      example:
+        reason: STAGE_CHANGED
+        stage: DELETION_TO_CHECK
     ListingStatistics:
       type: object
       description: >-

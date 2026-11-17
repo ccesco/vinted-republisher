@@ -22,6 +22,9 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
@@ -58,6 +61,10 @@ class WardrobePageTest {
     private final List<String> launchedScans = new CopyOnWriteArrayList<>();
     private final List<String> launchedBackups = new CopyOnWriteArrayList<>();
     private final List<String> listingQueries = new CopyOnWriteArrayList<>();
+    private final List<String> relaunches = new CopyOnWriteArrayList<>();
+    private final AtomicReference<Integer> relaunchStatus = new AtomicReference<>(200);
+    private final AtomicReference<String> relaunchAnswer = new AtomicReference<>("{}");
+    private final CountDownLatch relaunchAnswered = new CountDownLatch(1);
     private Page page;
 
     @BeforeAll
@@ -93,6 +100,18 @@ class WardrobePageTest {
             launchedBackups.add(exchange.getRequestMethod());
             respond(exchange, 202, "application/json", launchAnswer.get().getBytes(StandardCharsets.UTF_8));
         });
+        fakeApi.createContext("/api/listings/3/relaunch", exchange -> {
+            relaunches.add(exchange.getRequestMethod() + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            try {
+                relaunchAnswered.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+            }
+            respond(exchange, relaunchStatus.get(), "application/json",
+                    relaunchAnswer.get().getBytes(StandardCharsets.UTF_8));
+        });
+        fakeApi.setExecutor(Executors.newCachedThreadPool());
         fakeApi.start();
         page = chrome.newPage();
     }
@@ -115,7 +134,7 @@ class WardrobePageTest {
         // Alors il voit un tableau de deux lignes avec titre, prix, vues, favoris, présence, sauvegarde et validation
         //   et le titre affiché tel quel
         assertThat(page.locator("#listings thead th")).hasText(new String[]{
-                "Titre", "Prix", "Vues", "Favoris", "Présence", "Sauvegarde", "Validation", "Étape"});
+                "Titre", "Prix", "Vues", "Favoris", "Présence", "Sauvegarde", "Validation", "Étape", "Action"});
         assertThat(rows()).hasCount(2);
         assertThat(listingCount()).hasText("2 annonces");
         assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
@@ -347,6 +366,129 @@ class WardrobePageTest {
     }
 
     @Test
+    void relaunches_a_listing_and_shows_its_new_stage() {
+        // Étant donné une liste avec une annonce « Prête à supprimer » et une annonce « À valider »
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchAnswer.set("""
+                {"action": "DELETION", "dryRun": false,
+                 "listing": {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                             "url": "https://vinted.test/items/3", "present": false, "stage": "WAITING"}}""");
+        // Quand le membre l'affiche
+        open();
+        // Alors seule la première a un bouton « Relancer »
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        assertThat(cell(1, ACTION).getByRole(AriaRole.BUTTON)).hasCount(0);
+        // Quand il clique dessus
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors le bouton est désactivé pendant l'action
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).isDisabled();
+        relaunchAnswered.countDown();
+        // Puis la ligne montre la nouvelle étape et « Suppression faite »
+        assertThat(cell(0, STAGE)).hasText("En attente avant republication");
+        assertThat(cell(0, ACTION)).hasText("Suppression faite");
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasCount(0);
+        assertThat(relaunches).containsExactly("POST {\"stage\":\"TO_DELETE\"}");
+    }
+
+    @Test
+    void shows_a_dry_run_relaunch() {
+        // Étant donné une relance arrêtée en dry-run
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchAnswer.set("""
+                {"action": "DELETION", "dryRun": true,
+                 "listing": {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                             "url": "https://vinted.test/items/3", "present": true, "stage": "TO_DELETE"}}""");
+        relaunchAnswered.countDown();
+        open();
+        // Quand le membre relance
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne le dit, et le bouton reste proposé
+        assertThat(cell(0, ACTION)).containsText("Dry-run réussi, rien n'a été modifié sur Vinted");
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).isEnabled();
+    }
+
+    @Test
+    void shows_a_cadence_refusal_with_its_date() {
+        // Étant donné une relance refusée pour cadence
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchStatus.set(409);
+        relaunchAnswer.set("{\"reason\": \"CADENCE_LIMIT_REACHED\", \"allowedAt\": \"2026-11-11T10:02:00Z\"}");
+        relaunchAnswered.countDown();
+        open();
+        // Quand la réponse arrive
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne affiche « limite de cadence atteinte (à partir du <date>) »
+        assertThat(cell(0, ACTION)).containsText("limite de cadence atteinte (à partir du "
+                + page.evaluate("new Date('2026-11-11T10:02:00Z').toLocaleString('fr-FR')") + ")");
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).isEnabled();
+    }
+
+    @Test
+    void shows_a_refusal_of_the_launched_action_with_a_link_to_the_listing() {
+        // Étant donné une relance refusée par le cas d'usage lancé
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchStatus.set(409);
+        relaunchAnswer.set("{\"reason\": \"ACTION_REFUSED\"}");
+        relaunchAnswered.countDown();
+        open();
+        // Quand la réponse arrive
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne affiche « refusée : voir la fiche », avec le lien de la fiche
+        assertThat(cell(0, ACTION)).containsText("Relance refusée : voir la fiche");
+        assertThat(cell(0, ACTION).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=3");
+    }
+
+    @Test
+    void shows_the_current_stage_when_it_changed_and_relaunches_from_it() {
+        // Étant donné une annonce affichée « Prête à supprimer », passée depuis à « Suppression à vérifier »
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchStatus.set(409);
+        relaunchAnswer.set("{\"reason\": \"STAGE_CHANGED\", \"stage\": \"DELETION_TO_CHECK\"}");
+        relaunchAnswered.countDown();
+        open();
+        // Quand le membre la relance
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne montre l'étape actuelle et le refus
+        assertThat(cell(0, STAGE)).hasText("Suppression à vérifier");
+        assertThat(cell(0, ACTION)).containsText("L'étape a changé");
+        // Et un nouveau clic relance depuis l'étape actuelle
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).isEnabled();
+        assertThat(relaunches).containsExactly("POST {\"stage\":\"TO_DELETE\"}",
+                "POST {\"stage\":\"DELETION_TO_CHECK\"}");
+    }
+
+    @Test
+    void shows_when_a_waiting_listing_can_be_republished() {
+        // Étant donné une relance refusée : annonce en attente jusqu'à sa date de republication
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchStatus.set(409);
+        relaunchAnswer.set("""
+                {"reason": "NOT_RELAUNCHABLE", "stage": "WAITING", "allowedAt": "2026-11-11T10:05:00Z"}""");
+        relaunchAnswered.countDown();
+        open();
+        // Quand la réponse arrive
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne donne la date de republication
+        assertThat(cell(0, ACTION)).containsText("Republication possible à partir du "
+                + page.evaluate("new Date('2026-11-11T10:05:00Z').toLocaleString('fr-FR')"));
+    }
+
+    @Test
+    void shows_an_unexpected_relaunch_failure() {
+        // Étant donné une relance qui échoue de façon inattendue
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchStatus.set(500);
+        relaunchAnswer.set("{\"reason\": \"RELAUNCH_FAILED\"}");
+        relaunchAnswered.countDown();
+        open();
+        // Quand la réponse arrive
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne demande de vérifier la fiche avant de relancer
+        assertThat(cell(0, ACTION)).containsText("Échec de la relance : vérifiez la fiche avant de relancer");
+    }
+
+    @Test
     void title_opens_the_listing_detail() {
         // Étant donné la liste avec une annonce sauvegardée et une annonce absente non sauvegardée
         inventory.set("""
@@ -426,6 +568,13 @@ class WardrobePageTest {
     private static final int BACKUP = 5;
     private static final int VALIDATION = 6;
     private static final int STAGE = 7;
+    private static final int ACTION = 8;
+    private static final String TO_DELETE_AND_TO_VALIDATE = """
+            {"listings": [
+               {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                "url": "https://vinted.test/items/3", "present": true, "stage": "TO_DELETE"},
+               {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                "url": "https://vinted.test/items/1", "present": true, "stage": "TO_VALIDATE"}]}""";
 
     private void answer(HttpExchange exchange, String json) throws IOException {
         if (applicationDown.get()) {

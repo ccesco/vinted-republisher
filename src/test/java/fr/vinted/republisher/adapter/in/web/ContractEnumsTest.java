@@ -7,6 +7,8 @@ import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionStatusDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingFormFieldDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RepublicationOutcomeDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RelaunchActionDto;
+import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.republication.ListingFormField;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
@@ -57,6 +59,11 @@ class ContractEnumsTest {
     @Test
     void contract_knows_every_listing_form_field() {
         assertThat(names(ListingFormFieldDto.values())).containsExactlyInAnyOrder(names(ListingFormField.values()));
+    }
+
+    @Test
+    void contract_knows_every_relaunch_action() {
+        assertThat(names(RelaunchActionDto.values())).containsExactlyInAnyOrder(names(RelaunchAction.values()));
     }
 
     private static String[] names(Enum<?>[] values) {

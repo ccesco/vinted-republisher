@@ -63,6 +63,7 @@
         <th scope="col">Sauvegarde</th>
         <th scope="col">Validation</th>
         <th scope="col">Étape</th>
+        <th scope="col">Action</th>
     </tr>
     </thead>
     <tbody></tbody>
@@ -77,6 +78,27 @@
     };
     // Étapes qui demandent de vérifier sur Vinted : mises en évidence.
     const STAGES_TO_CHECK = ['DELETION_TO_CHECK', 'REPUBLICATION_TO_CHECK'];
+    // Étapes qui se relancent (US-20) ; le serveur en déduit l'action.
+    const RELAUNCHABLE_STAGES = ['TO_DELETE', 'DELETION_TO_CHECK', 'TO_REPUBLISH', 'REPUBLICATION_TO_CHECK'];
+    // Codes du contrat OpenAPI (RelaunchAction) -> message une fois l'action faite.
+    const RELAUNCH_DONE_MESSAGES = {
+        DELETION: 'Suppression faite', DELETION_RECHECK: 'Revérification faite',
+        REPUBLICATION: 'Republication faite', REPUBLICATION_VERIFICATION: 'Vérification faite'
+    };
+    const RELAUNCH_DRY_RUN_MESSAGE = "Dry-run réussi, rien n'a été modifié sur Vinted";
+    const RELAUNCH_FAILED_MESSAGE = 'Échec de la relance : vérifiez la fiche avant de relancer';
+    // Codes du contrat OpenAPI (RelaunchRefusal) -> message ; ACTION_REFUSED ajoute le lien de la fiche.
+    const RELAUNCH_REFUSAL_MESSAGES = {
+        STAGE_CHANGED: "L'étape a changé depuis l'affichage : relisez la ligne avant de relancer",
+        NOT_RELAUNCHABLE: 'Rien à relancer à cette étape',
+        CADENCE_LIMIT_REACHED: 'limite de cadence atteinte',
+        BROWSER_BUSY: 'Navigateur occupé : relancez une fois l\'action en cours finie',
+        ACTION_REFUSED: 'Relance refusée : voir la fiche',
+        BROWSER_UNAVAILABLE: 'Navigateur indisponible : voir les logs',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible : réessayez plus tard',
+        SESSION_DISCONNECTED: "La session Vinted n'est pas connectée : connectez-vous depuis la page de la session",
+        VINTED_PAGE_UNREADABLE: 'Page de Vinted illisible : voir les logs'
+    };
     // Codes du contrat OpenAPI (ScanProblem) -> libellés affichés.
     const PROBLEM_MESSAGES = {
         BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
@@ -208,7 +230,7 @@
     function showListings(listings) {
         listingsProblem.hidden = true;
         listingCount.textContent = `${listings.length} annonce${listings.length > 1 ? 's' : ''}`;
-        rows.replaceChildren(...listings.map(rowOf));
+        rows.replaceChildren(...listings.map(listing => rowOf(listing)));
     }
 
     function cell(...content) {
@@ -244,11 +266,78 @@
         return cell(strong);
     }
 
-    // Les titres viennent de Vinted : jamais d'innerHTML. Le titre ouvre la fiche, qui mène à Vinted.
-    function rowOf(listing) {
+    function detailLinkOf(listing, text) {
         const link = document.createElement('a');
         link.href = 'listing.html?id=' + encodeURIComponent(listing.vintedId);
-        link.textContent = listing.title;
+        link.textContent = text;
+        return link;
+    }
+
+    // Bouton « Relancer » des seules étapes qui se relancent, suivi du message de la dernière relance.
+    function actionCell(listing, message) {
+        const td = cell();
+        if (RELAUNCHABLE_STAGES.includes(listing.stage)) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.textContent = 'Relancer';
+            button.addEventListener('click', () => relaunch(listing, button));
+            td.append(button);
+        }
+        if (message) {
+            const span = document.createElement('span');
+            span.append(...message);
+            td.append(' ', span);
+        }
+        return td;
+    }
+
+    function refusalMessageOf(listing, refusal) {
+        if (refusal.reason === 'NOT_RELAUNCHABLE' && refusal.allowedAt) {
+            return [`Republication possible à partir du ${dateOf(refusal.allowedAt)}`];
+        }
+        let text = RELAUNCH_REFUSAL_MESSAGES[refusal.reason] ?? RELAUNCH_FAILED_MESSAGE;
+        if (refusal.allowedAt) {
+            text += ` (à partir du ${dateOf(refusal.allowedAt)})`;
+        }
+        if (refusal.reason === 'ACTION_REFUSED') {
+            return [text + ' ', detailLinkOf(listing, 'fiche de l\'annonce')];
+        }
+        return [text];
+    }
+
+    // La ligne relancée est remplacée : nouvelle étape quand l'action a eu lieu, sinon même ligne et raison.
+    async function relaunch(listing, button) {
+        button.disabled = true;
+        const row = button.closest('tr');
+        let shown = listing;
+        let message;
+        try {
+            const response = await fetch(`/api/listings/${encodeURIComponent(listing.vintedId)}/relaunch`, {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({stage: listing.stage})
+            });
+            const body = await response.json().catch(() => ({}));
+            if (response.ok && body.listing) {
+                shown = body.listing;
+                message = [body.dryRun ? RELAUNCH_DRY_RUN_MESSAGE : RELAUNCH_DONE_MESSAGES[body.action]];
+            } else if (response.ok) {
+                message = [RELAUNCH_FAILED_MESSAGE];
+            } else {
+                // Étape changée : la ligne prend l'étape actuelle, d'où repartira le prochain clic.
+                if (body.reason === 'STAGE_CHANGED' && body.stage) {
+                    shown = {...listing, stage: body.stage};
+                }
+                message = refusalMessageOf(listing, body);
+            }
+        } catch (unreachable) {
+            message = [RELAUNCH_FAILED_MESSAGE];
+        }
+        row.replaceWith(rowOf(shown, message));
+    }
+
+    // Les titres viennent de Vinted : jamais d'innerHTML. Le titre ouvre la fiche, qui mène à Vinted.
+    function rowOf(listing, message) {
+        const link = detailLinkOf(listing, listing.title);
         const price = new Intl.NumberFormat('fr-FR', {style: 'currency', currency: listing.price.currency})
             .format(listing.price.amount);
         const row = document.createElement('tr');
@@ -260,7 +349,8 @@
             cell(listing.present ? '' : 'absente'),
             backupCell(listing),
             cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''),
-            stageCell(listing));
+            stageCell(listing),
+            actionCell(listing, message));
         return row;
     }
 
