@@ -115,7 +115,8 @@
         BROWSER_UNAVAILABLE: 'le navigateur est indisponible.',
         VINTED_UNREACHABLE: 'Vinted est inaccessible.',
         SESSION_DISCONNECTED: 'la session Vinted n\'est pas connectée : connectez-vous depuis la page de session.',
-        LISTING_PAGE_UNREADABLE: 'la page de l\'annonce sur Vinted n\'est pas celle attendue.'
+        LISTING_PAGE_UNREADABLE: 'la page de l\'annonce sur Vinted n\'est pas celle attendue.',
+        CADENCE_LIMIT_REACHED: 'limite de cadence atteinte'
     };
     const DELETION_FAILED_MESSAGE = "Échec de la suppression : vérifiez l'annonce sur Vinted (détail dans les logs).";
     const RECHECK_FAILED_MESSAGE = 'Revérification impossible, le doute reste : ';
@@ -136,7 +137,8 @@
         SESSION_DISCONNECTED: 'la session Vinted n\'est pas connectée : connectez-vous depuis la page de session.',
         FORM_UNREADABLE: "le formulaire de mise en vente de Vinted n'est pas celui attendu.",
         NO_REPUBLICATION_TO_VERIFY: 'aucune republication en erreur ou réussie à vérifier.',
-        LISTING_UNREADABLE: "la page de la nouvelle annonce sur Vinted n'est pas celle attendue."
+        LISTING_UNREADABLE: "la page de la nouvelle annonce sur Vinted n'est pas celle attendue.",
+        CADENCE_LIMIT_REACHED: 'limite de cadence atteinte'
     };
     // Une levée du doute peut être enregistrée avant l'échec de la comparaison : l'aperçu relu fait foi.
     const VERIFICATION_FAILED_MESSAGE = 'Vérification interrompue, l\'état affiché est celui enregistré : ';
@@ -202,6 +204,10 @@
 
     function dateOf(instant) {
         return new Date(instant).toLocaleString('fr-FR');
+    }
+
+    function cadenceDateOf(refusal) {
+        return ' (à partir du ' + dateOf(refusal.allowedAt) + ').';
     }
 
     function failureOf(failure) {
@@ -382,6 +388,9 @@
         if (recheck) {
             return RECHECK_FAILED_MESSAGE + reason;
         }
+        if (refusal.reason === 'CADENCE_LIMIT_REACHED') {
+            return "Suppression refusée, rien n'a été supprimé : " + reason + cadenceDateOf(refusal);
+        }
         const differences = (refusal.differences ?? []).map(differenceOf).join(' ; ');
         return 'Suppression refusée, rien n\'a été supprimé : ' + reason + (differences ? ' : ' + differences + '.' : '');
     }
@@ -401,6 +410,8 @@
         }
         if (refusal.reason === 'TOO_EARLY') {
             reason += ' (à partir du ' + dateOf(refusal.republishableAt) + ').';
+        } else if (refusal.reason === 'CADENCE_LIMIT_REACHED') {
+            reason += cadenceDateOf(refusal);
         } else if (refusal.reason === 'FIELD_NOT_FILLABLE') {
             reason = (FORM_FIELDS[refusal.field] ?? refusal.field) + ' impossible à remplir'
                 + (refusal.optionId ? ` (identifiant ${refusal.optionId})` : '') + '.';

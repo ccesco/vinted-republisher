@@ -117,6 +117,20 @@ class JpaListingRepublicationRepositoryTest extends ApplicationWithDatabaseTest 
                 .isInstanceOf(DataIntegrityViolationException.class);
     }
 
+    @Test
+    void attemptsSinceSurviveRestart() {
+        // Étant donné des tentatives de republication enregistrées, quelle que soit leur issue
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT.minusSeconds(3600))
+                .notPublished(CLICKED_AT));
+        ListingRepublication attempt = ListingRepublication.attempted(backupOf(PUBLISHED_LISTING), CLICKED_AT);
+        republications.save(attempt.published(NEW_LISTING, PROVEN_AT));
+        // Quand l'outil redémarre (tout est relu en base)
+        // Alors leurs dates sont relues et comptent toujours, sauf celles d'avant la date demandée
+        assertThat(republications.findAttemptedSince(CLICKED_AT.minusSeconds(3600))).containsExactly(CLICKED_AT);
+        assertThat(republications.findAttemptedSince(CLICKED_AT.minusSeconds(3601)))
+                .containsExactlyInAnyOrder(CLICKED_AT.minusSeconds(3600), CLICKED_AT);
+    }
+
     private ListingBackup backupOf(VintedListingId listing) {
         return listingBackups.find(listing).orElseThrow();
     }

@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
@@ -63,6 +64,12 @@ public class ListingRepublicationRefusals {
     ResponseEntity<RepublicationRefusalDto> tooEarly(RepublicationTooEarly refusal) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(new RepublicationRefusalDto()
                 .reason(ReasonEnum.TOO_EARLY).republishableAt(refusal.republishableAt().atOffset(ZoneOffset.UTC)));
+    }
+
+    @ExceptionHandler
+    ResponseEntity<RepublicationRefusalDto> cadenceLimitReached(CadenceLimitReached refusal) {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(new RepublicationRefusalDto()
+                .reason(ReasonEnum.CADENCE_LIMIT_REACHED).allowedAt(refusal.allowedAt().atOffset(ZoneOffset.UTC)));
     }
 
     @ExceptionHandler

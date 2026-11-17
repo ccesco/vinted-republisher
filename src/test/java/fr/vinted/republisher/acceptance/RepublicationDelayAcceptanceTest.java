@@ -1,5 +1,8 @@
 package fr.vinted.republisher.acceptance;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -81,6 +84,7 @@ class RepublicationDelayAcceptanceTest {
         // une troisième dont la suppression est non faite
         aValidatedListing(1);
         anUnconfirmedDeletion(2);
+        clock.advance(Duration.ofMinutes(2)); // intervalle minimal entre deux suppressions (US-27)
         anUnconfirmedDeletion(3);
         vinted.showing(anActiveListing(3));
         assertThat(recheckListingDeletion().recheck(new VintedListingId(3)).lastDeletion())
@@ -124,7 +128,10 @@ class RepublicationDelayAcceptanceTest {
 
     private DeleteListing deleteListing() {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
-                DeletionMode.REAL, FIVE_MINUTES, clock, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
+                DeletionMode.REAL, FIVE_MINUTES,
+                new CadenceCheck(deletions, new InMemoryListingRepublicationRepository(),
+                        new WriteCadence(Duration.ofMinutes(2), 20, 20), clock),
+                clock, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
     }
 
     private RecheckListingDeletion recheckListingDeletion() {

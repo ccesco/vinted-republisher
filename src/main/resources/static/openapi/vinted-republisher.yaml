@@ -354,7 +354,8 @@ paths:
         '409':
           description: >
             Sauvegarde remplacée depuis l'aperçu, non validée, annonce déjà supprimée, suppression non confirmée à
-            revérifier, ou autre action navigateur en cours. Rien n'est touché sur Vinted.
+            revérifier, ou autre action navigateur en cours. Limite de cadence atteinte
+            (US-27, suppression réelle seulement). Rien n'est touché sur Vinted.
           content:
             application/json:
               schema:
@@ -460,7 +461,8 @@ paths:
           description: >
             Sauvegarde remplacée depuis l'aperçu, non validée, annonce sans suppression confirmée de cette version,
             date de republication non atteinte, déjà republiée, en erreur de republication, ou autre action
-            navigateur en cours. Chrome n'est pas ouvert.
+            navigateur en cours. Limite de cadence atteinte (US-27, republication réelle seulement) : vérifiée
+            sous le verrou, avant toute navigation. Chrome n'est pas ouvert.
           content:
             application/json:
               schema:
@@ -1080,9 +1082,13 @@ components:
           type: string
           enum: [BACKUP_REPLACED, NOT_VALIDATED, ALREADY_DELETED, DELETION_UNCONFIRMED, NO_UNCONFIRMED_DELETION,
                  BROWSER_BUSY, VERIFICATION_FAILED, LISTING_CHANGED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
-                 SESSION_DISCONNECTED, LISTING_PAGE_UNREADABLE, DELETION_FAILED]
+                 SESSION_DISCONNECTED, LISTING_PAGE_UNREADABLE, DELETION_FAILED, CADENCE_LIMIT_REACHED]
         verification:
           $ref: '#/components/schemas/BackupVerification'
+        allowedAt:
+          type: string
+          format: date-time
+          description: Date à partir de laquelle une écriture sur Vinted redevient permise ; présente pour CADENCE_LIMIT_REACHED.
         differences:
           type: array
           nullable: true
@@ -1176,11 +1182,15 @@ components:
           enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, TOO_EARLY, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
                  BROWSER_BUSY, PHOTOS_NOT_VERIFIED, FIELD_NOT_FILLABLE, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
                  SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED, NO_REPUBLICATION_TO_VERIFY,
-                 LISTING_UNREADABLE]
+                 LISTING_UNREADABLE, CADENCE_LIMIT_REACHED]
         republishableAt:
           type: string
           format: date-time
           description: Date de republication de l'annonce ; présente pour TOO_EARLY.
+        allowedAt:
+          type: string
+          format: date-time
+          description: Date à partir de laquelle une écriture sur Vinted redevient permise ; présente pour CADENCE_LIMIT_REACHED.
         verification:
           $ref: '#/components/schemas/BackupVerification'
         field:

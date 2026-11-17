@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionId;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -39,6 +40,13 @@ public class InMemoryListingDeletionRepository implements ListingDeletionReposit
     public Optional<ListingDeletion> findLatest(VintedListingId listing) {
         return deletions.values().stream().filter(deletion -> deletion.listingId().equals(listing))
                 .max(Comparator.comparing(ListingDeletion::attemptedAt));
+    }
+
+    @Override
+    public List<Instant> findAttemptedSince(Instant since) {
+        return deletions.values().stream().map(ListingDeletion::attemptedAt)
+                .filter(attempted -> attempted.isAfter(since))
+                .toList();
     }
 
     @Override

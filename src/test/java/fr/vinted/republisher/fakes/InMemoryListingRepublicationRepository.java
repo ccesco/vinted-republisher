@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
+import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -43,6 +44,13 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
     public Set<VintedListingId> findNewListings() {
         return republications.values().stream().flatMap(republication -> republication.newListingId().stream())
                 .collect(Collectors.toUnmodifiableSet());
+    }
+
+    @Override
+    public List<Instant> findAttemptedSince(Instant since) {
+        return republications.values().stream().map(ListingRepublication::attemptedAt)
+                .filter(attempted -> attempted.isAfter(since))
+                .toList();
     }
 
     @Override

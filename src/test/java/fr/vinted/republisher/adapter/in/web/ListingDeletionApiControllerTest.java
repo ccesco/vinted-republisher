@@ -1,5 +1,7 @@
 package fr.vinted.republisher.adapter.in.web;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -212,6 +214,17 @@ class ListingDeletionApiControllerTest {
     }
 
     @Test
+    void cadence_limit_is_a_conflict_with_the_date_it_ends() {
+        aValidatedListing();
+        vinted.whereCadenceLimitIsReachedUntil(NOW.plusSeconds(60));
+
+        assertThat(delete("2026-11-10T10:00:00Z"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"reason": "CADENCE_LIMIT_REACHED", "allowedAt": "2026-11-11T10:01:00Z"}""");
+    }
+
+    @Test
     void disconnected_session_is_a_bad_gateway() {
         aValidatedListing();
         vinted.whereSessionIsDisconnected();
@@ -333,7 +346,10 @@ class ListingDeletionApiControllerTest {
                                     InMemoryListingDeletionRepository deletions, FakeListingDeleter vinted) {
             return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
                     DeletionMode.DRY_RUN,
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
+                    new RepublicationDelay(Duration.ofMinutes(5)),
+                    new CadenceCheck(deletions, new InMemoryListingRepublicationRepository(),
+                            new WriteCadence(Duration.ofMinutes(2), 20, 20), Clock.fixed(NOW, ZoneOffset.UTC)),
+                    Clock.fixed(NOW, ZoneOffset.UTC),
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
 

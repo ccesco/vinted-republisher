@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightListingDeleter;
 import fr.vinted.republisher.application.deletion.DeleteListing;
@@ -48,9 +49,9 @@ public class DeletionConfiguration {
                                 ListingBackupRepository listingBackups, PhotoStorage photos,
                                 BackupValidationRepository validations, ListingDeletionRepository deletions,
                                 ListingDeleter deleter, DeletionMode mode, RepublicationDelay republicationDelay,
-                                Clock clock, JournalWriter journal) {
+                                CadenceCheck cadence, Clock clock, JournalWriter journal) {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter, mode,
-                republicationDelay, clock, journal);
+                republicationDelay, cadence, clock, journal);
     }
 
     @Bean

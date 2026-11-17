@@ -71,6 +71,14 @@ republication:
   minimum-delay: 5m
   dry-run: ${REPUBLICATION_DRY_RUN:true}
 
+# Limites de cadence (US-27) : écritures sur Vinted (suppressions et republications réelles) espacées d'au moins
+# minimum-interval, tous types confondus, et au plus daily-* de chaque type sur 24 heures glissantes.
+# Absent, nul, négatif ou illisible, l'application ne démarre pas.
+cadence:
+  minimum-interval: 2m
+  daily-deletions: 20
+  daily-republications: 20
+
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:
   path: ${CHROME_PATH}

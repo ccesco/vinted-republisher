@@ -1,5 +1,7 @@
 package fr.vinted.republisher.adapter.in.web;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
@@ -46,6 +48,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
@@ -105,6 +108,17 @@ class ListingRepublicationApiControllerTest {
                           "newListingId": 2, "newListingUrl": "https://vinted.test/items/2",
                           "backupSavedAt": "2026-11-10T10:00:00Z"}}""");
         assertThat(vinted.publishClicks()).isEqualTo(1);
+    }
+
+    @Test
+    void cadence_limit_is_a_conflict_with_the_date_it_ends() {
+        aDeletedListing(Duration.ofMinutes(6));
+        deletions.save(ListingDeletion.attempted(aBackup(5, NOW), NOW.minusSeconds(60)));
+
+        assertThat(republish("2026-11-10T10:00:00Z"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"reason": "CADENCE_LIMIT_REACHED", "allowedAt": "2026-11-11T10:01:00Z"}""");
     }
 
     @Test
@@ -441,6 +455,7 @@ class ListingRepublicationApiControllerTest {
             Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
             return new RepublishListing(session, new RepublicationChecks(listingBackups, photos, validations,
                     deletions, republications, new RepublicationDelay(Duration.ofMinutes(5)), clock),
+                    new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 20, 20), clock),
                     republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
                     RepublicationMode.REAL, clock, show, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }

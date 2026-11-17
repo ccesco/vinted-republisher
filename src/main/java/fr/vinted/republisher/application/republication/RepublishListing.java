@@ -1,8 +1,10 @@
 package fr.vinted.republisher.application.republication;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.RepublicationChecks.RepublishableBackup;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
@@ -34,6 +36,7 @@ public class RepublishListing {
 
     private final VintedSession session;
     private final RepublicationChecks checks;
+    private final CadenceCheck cadence;
     private final ListingRepublicationRepository republications;
     private final ListingPublisher publisher;
     private final NewListingSearch newListingSearch;
@@ -43,13 +46,14 @@ public class RepublishListing {
     private final JournalWriter journal;
     private final ShowListingRepublication showListingRepublication;
 
-    public RepublishListing(VintedSession session, RepublicationChecks checks,
+    public RepublishListing(VintedSession session, RepublicationChecks checks, CadenceCheck cadence,
                             ListingRepublicationRepository republications, ListingPublisher publisher,
                             NewListingSearch newListingSearch, ListingRepository listings, RepublicationMode mode,
                             Clock clock, ShowListingRepublication showListingRepublication,
                             JournalWriter journal) {
         this.session = session;
         this.checks = checks;
+        this.cadence = cadence;
         this.republications = republications;
         this.publisher = publisher;
         this.newListingSearch = newListingSearch;
@@ -62,7 +66,8 @@ public class RepublishListing {
 
     /**
      * {@code seen} is the date of the backup the member saw. Every check is made before Chrome opens; past the click on
-     * Publish, any failure leaves the republication in error rather than risk a duplicate.
+     * Publish, any failure leaves the republication in error rather than risk a duplicate. The write cadence is
+     * checked under the browser lock, and only for a real republication.
      */
     public RepublicationReport republish(VintedListingId id, Instant seen) {
         return journal.journaled(JournaledAction.REPUBLICATION, id, () -> republishNow(id, seen),
@@ -85,6 +90,9 @@ public class RepublishListing {
         }
         Attempt attempt = new Attempt(republishable.backup());
         try {
+            if (mode == RepublicationMode.REAL) {
+                cadence.check(VintedWrite.REPUBLICATION);
+            }
             publisher.publish(republishable.backup().content(), republishable.photos(), attempt);
             attempt.started().ifPresent(republication -> prove(republication, republishable.backup()));
         } catch (RuntimeException failure) {

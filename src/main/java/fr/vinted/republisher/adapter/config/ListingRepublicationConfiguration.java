@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.adapter.out.browser.BackupProperties;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightListingPublisher;
@@ -62,10 +63,12 @@ public class ListingRepublicationConfiguration {
                                       ListingRepublicationRepository republications, ListingPublisher publisher,
                                       WardrobeReader wardrobe, WardrobeProperties wardrobeProperties,
                                       ListingRepository listings, RepublicationMode mode, RepublicationDelay delay,
+                                      CadenceCheck cadence,
                                       Clock clock, ShowListingRepublication showListingRepublication,
                                       JournalWriter journal) {
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
+                cadence,
                 republications, publisher,
                 new NewListingSearch(wardrobe, WardrobeConfiguration.paceOf(wardrobeProperties.scan()), listings),
                 listings, mode, clock, showListingRepublication, journal);

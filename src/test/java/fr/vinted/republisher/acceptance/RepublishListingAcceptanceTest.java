@@ -1,5 +1,9 @@
 package fr.vinted.republisher.acceptance;
 
+import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
+import fr.vinted.republisher.domain.cadence.VintedWrite;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
@@ -65,6 +69,7 @@ import java.util.Optional;
 import java.util.function.Consumer;
 import java.util.stream.Stream;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
@@ -72,6 +77,7 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.assertj.core.api.Assertions.tuple;
 
@@ -382,6 +388,42 @@ class RepublishListingAcceptanceTest {
                 tuple(JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, Optional.empty()));
     }
 
+    @Test
+    void refusesRepublicationTooSoonAfterADeletion() {
+        // Étant donné une suppression tentée à 10:00
+        aDeletedListing(Duration.ofMinutes(6));
+        clock.set(NOW.plus(Duration.ofMinutes(1)));
+        deletions.save(ListingDeletion.attempted(aBackup(5, SAVED_AT), NOW));
+        // Quand le membre lance la republication d'une autre annonce à 10:01
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:02), rien n'est publié ni enregistré, et le
+        // verrou est libéré
+        assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
+                limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofMinutes(2))));
+        assertNothingHappened();
+    }
+
+    @Test
+    void refusesRepublicationOverTheDailyLimitButNotDeletion() {
+        // Étant donné deux republications tentées depuis moins de 24 heures, la dernière il y a plus de 2 minutes,
+        // quelle que soit leur issue
+        aDeletedListing(Duration.ofMinutes(6));
+        republications.save(ListingRepublication.attempted(aBackup(5, SAVED_AT), NOW.minus(Duration.ofHours(10))));
+        republications.save(ListingRepublication.attempted(aBackup(6, SAVED_AT), NOW.minus(Duration.ofHours(3)))
+                .notPublished(NOW.minus(Duration.ofHours(2))));
+        // Quand le membre lance une republication
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        // Alors elle est refusée (CADENCE_LIMIT_REACHED, 24 heures après la plus ancienne)
+        assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
+                limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofHours(14))));
+        assertThat(vinted.formsOpened()).isZero();
+        assertThat(republications.findLatest(LISTING)).isEmpty();
+        assertThat(session.overview().currentAction()).isEmpty();
+        // Quand il lance une suppression (une seule tentée sur 24 heures, il y a 6 minutes)
+        // Alors elle est permise
+        assertThatCode(() -> cadenceCheck().check(VintedWrite.DELETION)).doesNotThrowAnyException();
+    }
+
     private void assertLeftInError(RepublicationReport report) {
         assertThat(vinted.publishClicks()).isEqualTo(1);
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
@@ -421,8 +463,13 @@ class RepublishListingAcceptanceTest {
                 mode);
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
+                cadenceCheck(),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings, mode, clock,
                 show, new JournalWriter(journal, clock));
+    }
+
+    private CadenceCheck cadenceCheck() {
+        return new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 2, 2), clock);
     }
 
     /** Backed up with two photos kept, validated by the member, absent from the wardrobe: not deleted yet. */
