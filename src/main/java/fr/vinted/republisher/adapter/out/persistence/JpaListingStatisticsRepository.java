@@ -5,7 +5,9 @@ import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 class JpaListingStatisticsRepository implements ListingStatisticsRepository {
@@ -31,5 +33,10 @@ class JpaListingStatisticsRepository implements ListingStatisticsRepository {
     public List<StatisticsReading> historyOf(VintedListingId listing) {
         return repository.findByListingIdOrderByReadAtDesc(listing.value()).stream()
                 .map(ListingStatisticsReadingJpaEntity::toStatisticsReading).toList();
+    }
+
+    @Override
+    public Optional<Instant> findLastReadAt() {
+        return repository.findLastReadAt();
     }
 }

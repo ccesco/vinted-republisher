@@ -47,4 +47,9 @@ class JpaListingRepublicationRepository implements ListingRepublicationRepositor
     public void save(ListingRepublication republication) {
         repository.saveAndFlush(new ListingRepublicationJpaEntity(republication));
     }
+
+    @Override
+    public Optional<ListingRepublication> findPublishedAs(VintedListingId newListing) {
+        return repository.findByNewListingId(newListing.value()).map(ListingRepublicationJpaEntity::toListingRepublication);
+    }
 }

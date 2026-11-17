@@ -4,11 +4,13 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 public class InMemoryListingStatisticsRepository implements ListingStatisticsRepository {
 
@@ -36,5 +38,10 @@ public class InMemoryListingStatisticsRepository implements ListingStatisticsRep
     public List<StatisticsReading> historyOf(VintedListingId listing) {
         return readings.stream().filter(reading -> reading.listingId().equals(listing))
                 .sorted(Comparator.comparing(StatisticsReading::readAt).reversed()).toList();
+    }
+
+    @Override
+    public Optional<Instant> findLastReadAt() {
+        return readings.stream().map(StatisticsReading::readAt).max(Comparator.naturalOrder());
     }
 }

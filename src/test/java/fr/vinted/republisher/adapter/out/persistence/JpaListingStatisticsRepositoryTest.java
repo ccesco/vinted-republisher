@@ -76,6 +76,15 @@ class JpaListingStatisticsRepositoryTest extends ApplicationWithDatabaseTest {
         assertThat(statistics.historyOf(new VintedListingId(3))).isEmpty();
     }
 
+    @Test
+    void last_read_at_is_the_date_of_the_most_recent_reading_of_any_listing() {
+        assertThat(statistics.findLastReadAt()).isEmpty();
+        statistics.addAll(List.of(aReading(2, 4, 1, NEXT_SCAN)));
+        statistics.addAll(List.of(aReading(1, 12, 3, FIRST_SCAN)));
+
+        assertThat(statistics.findLastReadAt()).contains(NEXT_SCAN);
+    }
+
     private static StatisticsReading aReading(long listing, int views, int favourites, Instant readAt) {
         return new StatisticsReading(new VintedListingId(listing), new ListingStatistics(views, favourites), readAt);
     }

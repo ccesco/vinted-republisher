@@ -44,4 +44,13 @@ public record WardrobeListing(int displayedTotal, List<ListingLink> links) {
                 .flatMap(link -> link.statistics().map(shown -> new StatisticsReading(link.id(), shown, readAt)).stream())
                 .toList();
     }
+
+    /** As {@link #statisticsReadAt}, but none at all is not a reading: the cards no longer show them. */
+    public List<StatisticsReading> shownStatisticsReadAt(Instant readAt) {
+        List<StatisticsReading> readings = statisticsReadAt(readAt);
+        if (readings.isEmpty()) {
+            throw new NoStatisticsShown(links.size());
+        }
+        return readings;
+    }
 }

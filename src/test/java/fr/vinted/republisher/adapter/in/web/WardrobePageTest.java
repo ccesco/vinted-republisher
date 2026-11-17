@@ -61,6 +61,7 @@ class WardrobePageTest {
     private final AtomicBoolean applicationDown = new AtomicBoolean();
     private final List<String> launchedScans = new CopyOnWriteArrayList<>();
     private final List<String> launchedBackups = new CopyOnWriteArrayList<>();
+    private final List<String> launchedRefreshes = new CopyOnWriteArrayList<>();
     private final List<String> listingQueries = new CopyOnWriteArrayList<>();
     private final List<String> relaunches = new CopyOnWriteArrayList<>();
     private final AtomicReference<Integer> relaunchStatus = new AtomicReference<>(200);
@@ -102,6 +103,10 @@ class WardrobePageTest {
         });
         fakeApi.createContext("/api/wardrobe/backup", exchange -> {
             launchedBackups.add(exchange.getRequestMethod());
+            respond(exchange, 202, "application/json", launchAnswer.get().getBytes(StandardCharsets.UTF_8));
+        });
+        fakeApi.createContext("/api/wardrobe/statistics-refresh", exchange -> {
+            launchedRefreshes.add(exchange.getRequestMethod());
             respond(exchange, 202, "application/json", launchAnswer.get().getBytes(StandardCharsets.UTF_8));
         });
         fakeApi.createContext("/api/listings/3/relaunch", exchange -> {
@@ -664,6 +669,49 @@ class WardrobePageTest {
         assertThat(backupProgress()).isHidden(new LocatorAssertions.IsHiddenOptions().setTimeout(5000));
         assertThat(backupButton()).isVisible();
         assertThat(button()).isVisible();
+    }
+
+    @Test
+    void statistics_refresh_button_and_state() {
+        open();
+        assertThat(page.locator("#statistics-summary")).hasText("Vues et favoris jamais relevés pour l'instant.");
+
+        page.locator("#statistics-refresh").click();
+
+        page.waitForCondition(() -> !launchedRefreshes.isEmpty());
+        assertThat(launchedRefreshes).containsExactly("POST");
+    }
+
+    @Test
+    void follows_a_statistics_refresh_until_done_without_offering_another_action() {
+        overview.set("""
+                {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": true}""");
+        open();
+        assertThat(page.locator("#statistics-progress")).isVisible();
+        assertThat(page.locator("#statistics-refresh")).isHidden();
+        assertThat(button()).isHidden();
+        assertThat(backupButton()).isHidden();
+
+        overview.set("""
+                {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
+                 "lastStatisticsReadAt": "2026-11-17T09:40:00Z"}""");
+
+        assertThat(page.locator("#statistics-progress"))
+                .isHidden(new LocatorAssertions.IsHiddenOptions().setTimeout(5000));
+        assertThat(page.locator("#statistics-refresh")).isVisible();
+        assertThat(page.locator("#statistics-summary")).containsText("Vues et favoris relevés le 17/11/2026");
+    }
+
+    @Test
+    void explains_a_refresh_without_statistics_shown() {
+        overview.set("""
+                {"scanInProgress": false, "backupInProgress": false, "statisticsRefreshInProgress": false,
+                 "statisticsRefreshProblem": "NO_STATISTICS_SHOWN"}""");
+
+        open();
+
+        assertThat(page.locator("#statistics-problem")).hasText("Aucune carte du dressing ne montre ses vues et "
+                + "favoris : vérifiez que la session Vinted est connectée. Aucun relevé n'a été ajouté.");
     }
 
     @Test

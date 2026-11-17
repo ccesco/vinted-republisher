@@ -15,6 +15,10 @@
 <p id="backup-progress" hidden>Sauvegarde en cours…</p>
 <p id="backup-problem" role="alert" hidden></p>
 <p><button id="backup" type="button" hidden>Sauvegarder</button></p>
+<p id="statistics-summary"></p>
+<p id="statistics-progress" hidden>Rafraîchissement des vues et favoris en cours…</p>
+<p id="statistics-problem" role="alert" hidden></p>
+<p><button id="statistics-refresh" type="button" hidden>Rafraîchir les vues et favoris</button></p>
 <p id="run-summary"></p>
 <p>
     <button id="automatic-run" type="button" hidden>Tout lancer</button>
@@ -122,6 +126,14 @@
         LISTING_UNREADABLE: 'Une annonce est illisible (formulaire changé ou incomplet) : sa sauvegarde précédente est intacte. Voir les logs.',
         BACKUP_FAILED: 'La sauvegarde a échoué : ce qui a été sauvegardé est conservé, la prochaine sauvegarde reprendra. Voir les logs.'
     };
+    // Codes du contrat OpenAPI (StatisticsRefreshProblem) -> libellés affichés (US-25).
+    const STATISTICS_PROBLEM_MESSAGES = {
+        BROWSER_UNAVAILABLE: 'Le navigateur est indisponible (Chrome introuvable ou qui ne répond pas) : voir les logs.',
+        VINTED_UNREACHABLE: 'Vinted est inaccessible (réseau ou blocage anti-robot) : réessayez plus tard.',
+        WARDROBE_UNREADABLE: "Le dressing est illisible (total incohérent ou page changée) : aucun relevé n'a été ajouté. Voir les logs.",
+        NO_STATISTICS_SHOWN: "Aucune carte du dressing ne montre ses vues et favoris : vérifiez que la session Vinted est connectée. Aucun relevé n'a été ajouté.",
+        REFRESH_FAILED: "Le rafraîchissement a échoué : aucun relevé n'a été ajouté. Voir les logs."
+    };
     // Codes du contrat OpenAPI (RunStopReason) -> raison affichée de l'arrêt de la série (US-19).
     const RUN_STOP_MESSAGES = {
         SESSION_DISCONNECTED: "la session Vinted n'est pas connectée (connectez-vous, puis relancez)",
@@ -142,6 +154,10 @@
     const backupProgress = document.getElementById('backup-progress');
     const backupProblem = document.getElementById('backup-problem');
     const backupButton = document.getElementById('backup');
+    const statisticsSummary = document.getElementById('statistics-summary');
+    const statisticsProgress = document.getElementById('statistics-progress');
+    const statisticsProblem = document.getElementById('statistics-problem');
+    const statisticsButton = document.getElementById('statistics-refresh');
     const runSummary = document.getElementById('run-summary');
     const runButton = document.getElementById('automatic-run');
     const pauseButton = document.getElementById('pause-run');
@@ -192,13 +208,26 @@
         return `Dernière sauvegarde terminée le ${dateOf(overview.lastBackupAt)}.`;
     }
 
+    function statisticsSummaryOf(overview) {
+        if (!overview.lastStatisticsReadAt) {
+            return "Vues et favoris jamais relevés pour l'instant.";
+        }
+        return `Vues et favoris relevés le ${dateOf(overview.lastStatisticsReadAt)}.`;
+    }
+
+    function inProgress(overview) {
+        return overview.scanInProgress || overview.backupInProgress || overview.statisticsRefreshInProgress;
+    }
+
     function show(overview) {
         summary.textContent = summaryOf(overview);
         progress.hidden = !overview.scanInProgress;
-        // Une seule action navigateur à la fois : aucune autre n'est proposée pendant un scan ou une sauvegarde.
-        const busy = overview.scanInProgress || overview.backupInProgress;
+        // Une seule action navigateur à la fois : aucune autre n'est proposée pendant un scan, une sauvegarde ou un
+        // rafraîchissement des vues et favoris.
+        const busy = inProgress(overview);
         scanButton.hidden = busy;
         backupButton.hidden = busy;
+        statisticsButton.hidden = busy;
         wardrobeBusy = busy;
         showRunButton();
         backupSummary.textContent = backupSummaryOf(overview);
@@ -207,13 +236,17 @@
         backupProblem.hidden = !overview.backupProblem;
         problemMessage.textContent = PROBLEM_MESSAGES[overview.problem] ?? '';
         problemMessage.hidden = !overview.problem;
+        statisticsSummary.textContent = statisticsSummaryOf(overview);
+        statisticsProgress.hidden = !overview.statisticsRefreshInProgress;
+        statisticsProblem.textContent = STATISTICS_PROBLEM_MESSAGES[overview.statisticsRefreshProblem] ?? '';
+        statisticsProblem.hidden = !overview.statisticsRefreshProblem;
     }
 
     // La liste est relue à chaque aperçu : pendant un scan elle se remplit, à sa fin elle est à jour.
     function follow(overview) {
         show(overview);
         loadListings();
-        if (overview.scanInProgress || overview.backupInProgress) {
+        if (inProgress(overview)) {
             setTimeout(refresh, POLL_INTERVAL_MS);
         }
     }
@@ -392,6 +425,7 @@
     async function launch(path) {
         scanButton.hidden = true;
         backupButton.hidden = true;
+        statisticsButton.hidden = true;
         try {
             const response = await fetch(path, {method: 'POST'});
             if (!response.ok) {
@@ -519,6 +553,7 @@
     }
     scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
     backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
+    statisticsButton.addEventListener('click', () => launch('/api/wardrobe/statistics-refresh'));
     runButton.addEventListener('click', launchRun);
     pauseButton.addEventListener('click', () => controlRun('pause'));
     resumeButton.addEventListener('click', () => controlRun('resume'));

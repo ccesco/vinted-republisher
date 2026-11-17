@@ -64,6 +64,8 @@ Session Vinted : page `http://localhost:8080/vinted-session.html` (contrat d'API
 
 Dressing : page `http://localhost:8080/wardrobe.html`. « Scanner » parcourt le dressing `VINTED_WARDROBE_URL` dans ce Chrome, puis ouvre chaque annonce une à une, sans rien modifier sur Vinted : comptez 10 à 15 secondes par annonce, soit environ 30 à 35 minutes pour 146 annonces. Chaque annonce active est enregistrée dès sa lecture. Un scan interrompu garde ce qu'il a lu et reprend au scan suivant ; une annonce n'est marquée absente qu'à la fin d'un scan terminé. L'onglet du scan passe au premier plan : laissez-le visible pendant le relevé, sinon la page ne charge pas la suite des annonces. L'application n'écoute que sur `127.0.0.1` et refuse les demandes venues d'un autre site.
 
+Vues et favoris : « Rafraîchir les vues et favoris » relit seulement les cartes de la page du dressing, sans ouvrir aucune annonce ni rien modifier sur Vinted (quelques minutes au lieu d'un scan complet), et ajoute un relevé par annonce à l'historique. Il faut être connecté à Vinted : les cartes ne montrent ces nombres qu'au membre. Un dressing incomplet n'ajoute aucun relevé. La fiche d'une annonce mise en vente par une republication montre aussi « Avant / après republication » : le dernier relevé de l'annonce remplacée, le sien, et le total cumulé depuis la première mise en ligne.
+
 Fiche et validation : sur la page du dressing, le titre d'une annonce ouvre sa fiche (`listing.html`) : l'annonce, l'historique de ses vues et favoris, puis l'aperçu de sa sauvegarde : photos gardées, contenu par ses libellés et vérification faite à l'ouverture (au moins une photo, fichiers présents et intacts, annonce présente, titre et prix identiques au dernier scan). « Valider » confirme cette version de la sauvegarde ; une nouvelle sauvegarde de l'annonce annule la validation. Rien n'est demandé à Vinted.
 
 Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui liste les actions de l'outil (scans, sauvegardes du dressing, validations, suppressions, revérifications, republications) avec leur issue, refus, dry-runs et erreurs compris, 50 par page ; la fiche d'une annonce montre les siennes. Les lignes ne sont jamais supprimées.
@@ -108,8 +110,8 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 
 ### Epic 5 – Orchestration
 - US-14 `MVP` États d'une annonce en cours de traitement
-- US-15 `MVP` Traitement en parallèle (plusieurs navigateurs)
-- US-16 `MVP` Reprise après plantage
+- US-15 `V2` Traitement en parallèle (plusieurs navigateurs) : les limites de cadence plafonnent déjà les écritures, et plusieurs navigateurs augmentent le risque de blocage anti-robot
+- US-16 `MVP` Reprise après plantage (couverte par US-19 : étapes déduites de la base, nouveau « Tout lancer » sans redémarrage automatique)
 - US-17 `MVP` Gestion des échecs
 
 ### Epic 6 – Dashboard

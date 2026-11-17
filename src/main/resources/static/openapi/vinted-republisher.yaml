@@ -112,6 +112,26 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WardrobeOverview'
+  /api/wardrobe/statistics-refresh:
+    post:
+      tags: [wardrobe]
+      operationId: refreshStatistics
+      summary: Rafraîchir les vues et favoris
+      description: >
+        Lance en arrière-plan un nouveau relevé des vues et favoris de toutes les annonces, lus sur les cartes de la
+        page du dressing, sans ouvrir aucune annonce ni rien modifier sur Vinted. Ne change ni les annonces ni les
+        scans. Ignorée si une action navigateur est déjà en cours.
+      responses:
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '202':
+          description: >
+            Rafraîchissement lancé (ou ignoré) ; aperçu du dressing juste après la demande.
+            Suivre la suite avec GET /api/wardrobe.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WardrobeOverview'
   /api/wardrobe/backup:
     post:
       tags: [wardrobe]
@@ -758,7 +778,7 @@ components:
     WardrobeOverview:
       type: object
       description: Aperçu du dressing ; un champ absent signifie « aucun ».
-      required: [scanInProgress, backupInProgress]
+      required: [scanInProgress, backupInProgress, statisticsRefreshInProgress]
       properties:
         scanInProgress:
           type: boolean
@@ -778,11 +798,22 @@ components:
           description: Date de fin de la dernière sauvegarde terminée ; absente si aucune n'est terminée.
         backupProblem:
           $ref: '#/components/schemas/BackupProblem'
+        statisticsRefreshInProgress:
+          type: boolean
+          description: Vrai tant qu'un rafraîchissement des vues et favoris est en cours.
+        lastStatisticsReadAt:
+          type: string
+          format: date-time
+          description: Date du relevé de vues et favoris le plus récent, par un scan ou un rafraîchissement ; absente si aucun.
+        statisticsRefreshProblem:
+          $ref: '#/components/schemas/StatisticsRefreshProblem'
       example:
         scanInProgress: false
         lastScanAt: '2026-11-06T10:15:30Z'
         backupInProgress: false
         lastBackupAt: '2026-11-07T11:02:10Z'
+        statisticsRefreshInProgress: false
+        lastStatisticsReadAt: '2026-11-17T09:40:00Z'
     ListingInventory:
       type: object
       description: Annonces qui répondent aux critères, dans l'ordre demandé.
@@ -860,8 +891,8 @@ components:
       type: string
       description: >
         Action journalisée : scan du dressing, sauvegarde du dressing, validation d'une sauvegarde, suppression,
-        revérification d'une suppression, republication.
-      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, DELETION, DELETION_RECHECK, REPUBLICATION]
+        revérification d'une suppression, republication, rafraîchissement des vues et favoris.
+      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, DELETION, DELETION_RECHECK, REPUBLICATION, STATISTICS_REFRESH]
     ActionOutcome:
       type: string
       description: >
@@ -889,6 +920,8 @@ components:
           description: Toutes les lignes du journal de l'annonce, de la plus récente à la plus ancienne ; vide si aucune.
           items:
             $ref: '#/components/schemas/JournalEntry'
+        statisticsComparison:
+          $ref: '#/components/schemas/StatisticsComparison'
       example:
         listing:
           vintedId: 90000000001
@@ -910,6 +943,54 @@ components:
           - viewCount: 5
             favouriteCount: 1
             readAt: '2026-11-06T10:05:00Z'
+    StatisticsComparison:
+      type: object
+      description: >
+        Vues et favoris d'une annonce issue d'une republication, à côté de ceux de l'annonce qu'elle remplace ; absent
+        de la fiche d'une annonce qui ne vient pas d'une republication publiée.
+      required: [previousListingId, republishedAt, cumulatedViewCount, cumulatedFavouriteCount, previousListingCount]
+      properties:
+        previousListingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'annonce remplacée directement.
+        republishedAt:
+          type: string
+          format: date-time
+          description: Date où la nouvelle annonce a été trouvée sur Vinted.
+        before:
+          $ref: '#/components/schemas/ListingStatistics'
+        after:
+          $ref: '#/components/schemas/ListingStatistics'
+        cumulatedViewCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Somme des vues des derniers relevés de toutes les annonces de la chaîne, celle-ci comprise.
+        cumulatedFavouriteCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Somme des favoris des derniers relevés de toutes les annonces de la chaîne, celle-ci comprise.
+        previousListingCount:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Nombre d'annonces qui ont précédé celle-ci (une par republication).
+      example:
+        previousListingId: 90000000001
+        republishedAt: '2026-11-10T09:00:00Z'
+        before:
+          viewCount: 120
+          favouriteCount: 8
+          readAt: '2026-11-09T09:00:00Z'
+        after:
+          viewCount: 30
+          favouriteCount: 4
+          readAt: '2026-11-15T09:00:00Z'
+        cumulatedViewCount: 150
+        cumulatedFavouriteCount: 12
+        previousListingCount: 1
     PresenceFilter:
       type: string
       description: >
@@ -1094,7 +1175,7 @@ components:
     ListingStatistics:
       type: object
       description: >-
-        Dernier relevé des vues et favoris de l'annonce, lus sur sa carte du dressing pendant un scan ; absent si
+        Relevé des vues et favoris de l'annonce, lus sur sa carte du dressing pendant un scan ou un rafraîchissement ; absent si
         l'annonce n'a jamais été relevée (session non connectée, par exemple).
       required: [viewCount, favouriteCount, readAt]
       properties:
@@ -1130,6 +1211,12 @@ components:
       type: string
       description: Raison pour laquelle le dernier scan n'a pas abouti.
       enum: [BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, WARDROBE_UNREADABLE, SCAN_FAILED]
+    StatisticsRefreshProblem:
+      type: string
+      description: >
+        Raison pour laquelle le dernier rafraîchissement des vues et favoris n'a pas abouti : navigateur indisponible,
+        Vinted inaccessible, dressing illisible (incomplet), aucune carte ne montre ses nombres, échec imprévu.
+      enum: [BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, WARDROBE_UNREADABLE, NO_STATISTICS_SHOWN, REFRESH_FAILED]
     BackupProblem:
       type: string
       description: >
@@ -1153,7 +1240,7 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING, REPUBLISHING]
+      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING, REPUBLISHING, REFRESHING_STATISTICS]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.

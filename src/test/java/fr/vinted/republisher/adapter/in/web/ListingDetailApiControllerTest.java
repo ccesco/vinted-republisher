@@ -1,7 +1,10 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
+import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
@@ -25,6 +28,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.UUID;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
@@ -47,6 +53,9 @@ class ListingDetailApiControllerTest {
     @Autowired
     private InMemoryListingStatisticsRepository statistics;
 
+    @Autowired
+    private InMemoryListingRepublicationRepository republications;
+
     @Test
     void shows_the_listing_its_stage_and_its_statistics_history() {
         listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND).absent()));
@@ -66,6 +75,26 @@ class ListingDetailApiControllerTest {
                            {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
                            {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}],
                          "journal": []}""");
+    }
+
+    @Test
+    void detail_shows_the_republication_comparison() {
+        listings.saveAll(List.of(Listing.seen(aListing(100, "Pull rayé", "12.5", ACTIVE), FIRST).absent(),
+                Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND)));
+        statistics.addAll(List.of(
+                new StatisticsReading(new VintedListingId(100), new ListingStatistics(120, 8), FIRST),
+                reading(30, 4, SECOND)));
+        republications.save(new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
+                new VintedListingId(100), FIRST, FIRST, RepublicationOutcome.PUBLISHED, Optional.of(FIRST),
+                Optional.of(new VintedListingId(101)), Optional.empty()));
+
+        assertThat(mvc.get().uri("/api/listings/101"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.statisticsComparison").isEqualTo(Map.of(
+                        "previousListingId", 100, "republishedAt", "2026-11-01T09:00:00Z",
+                        "before", Map.of("viewCount", 120, "favouriteCount", 8, "readAt", "2026-11-01T09:00:00Z"),
+                        "after", Map.of("viewCount", 30, "favouriteCount", 4, "readAt", "2026-11-02T09:00:00Z"),
+                        "cumulatedViewCount", 150, "cumulatedFavouriteCount", 12, "previousListingCount", 1));
     }
 
     @Test
@@ -100,11 +129,17 @@ class ListingDetailApiControllerTest {
         }
 
         @Bean
+        InMemoryListingRepublicationRepository republications() {
+            return new InMemoryListingRepublicationRepository();
+        }
+
+        @Bean
         ShowListingDetail showListingDetail(InMemoryListingRepository listings,
-                                            InMemoryListingStatisticsRepository statistics) {
+                                            InMemoryListingStatisticsRepository statistics,
+                                            InMemoryListingRepublicationRepository republications) {
             return new ShowListingDetail(listings, statistics, new InMemoryListingBackupRepository(),
                     new InMemoryBackupValidationRepository(),
-                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(), new InMemoryActionJournal());
         }
     }

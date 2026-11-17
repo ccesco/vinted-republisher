@@ -9,7 +9,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `VintedAccount` | Compte Vinted | Compte du membre sur Vinted, atteint par un navigateur piloté (port sortant). |
 | `VintedSession` | Session Vinted | Connexion de l'outil au compte Vinted, conservée dans le profil navigateur d'un lancement à l'autre. |
 | `SessionStatus` (`CONNECTED` / `DISCONNECTED`) | État de session (connecté / non connecté) | Connecté si la page des paramètres du profil s'affiche, non connecté si Vinted redirige vers la connexion. Absent tant qu'aucune vérification n'a eu lieu (« non vérifié »). |
-| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP` / `DELETING` / `REPUBLISHING`) | Action navigateur (vérification / connexion / scan / sauvegarde / suppression / republication) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
+| `BrowserAction` (`CHECKING` / `LOGGING_IN` / `SCANNING` / `BACKING_UP` / `DELETING` / `REPUBLISHING` / `REFRESHING_STATISTICS`) | Action navigateur (vérification / connexion / scan / sauvegarde / suppression / republication / rafraîchissement des statistiques) | Opération qui ouvre le profil navigateur ; une seule à la fois. |
 | `SessionCheck` (`checkSession`) | Vérification de session | Ouverture de la page des paramètres du profil dans un onglet de Chrome pour connaître l'état de session ; uniquement sur demande. |
 | `ProfileSettings` | Paramètres du profil | Page `/settings/profile` de Vinted, réservée au membre connecté (un visiteur est redirigé vers la connexion). |
 | `ManualLogin` (`awaitManualLogin`, `LogInToVinted`) | Connexion manuelle | Connexion faite par le membre lui-même dans le Chrome piloté ; l'outil ne saisit jamais d'identifiants. |
@@ -25,11 +25,15 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `WardrobeListing` | Relevé du dressing | Résultat du parcours du dressing : total affiché et liens des annonces. |
 | `ListingLink` | Lien d'annonce | Identifiant et adresse d'une annonce, relevés sur le dressing, avec les statistiques que montre sa carte, s'il y en a. |
 | `ListingStatistics` | Statistiques d'une annonce (vues et favoris) | Nombre de vues et de favoris (les « likes » de Vinted) d'une annonce, lus sur sa carte du dressing, que Vinted ne montre qu'au membre connecté ; les deux ensemble ou aucun. |
-| `StatisticsReading` | Relevé des statistiques | Statistiques d'une annonce à la fin d'un relevé du dressing, datées ; jamais modifié ni supprimé, un par scan qui les lit. |
+| `StatisticsReading` | Relevé des statistiques | Statistiques d'une annonce à la fin d'un relevé du dressing, datées ; jamais modifié ni supprimé, un par scan ou rafraîchissement qui les lit. |
 | `ListingStatisticsRepository` | Historique des statistiques | Tous les relevés de statistiques, y compris des annonces absentes ou non actives ; donne le dernier relevé de chaque annonce. |
+| `StatisticsComparison` | Avant / après republication | Sur la fiche d'une annonce mise en vente par une republication : dernier relevé de l'annonce remplacée (avant), le sien (après), date de republication, et total cumulé des derniers relevés de toute la chaîne de republications (une annonce jamais relevée compte pour zéro). |
 | `WardrobeVisit` | Visite du dressing | Ce que le scan fait de ce que le lecteur trouve : choisir les annonces à ouvrir, enregistrer chaque annonce lue. |
 | `LastScanProblem` | Problème du dernier scan | Problème affiché jusqu'au scan suivant, conservé en mémoire seulement. |
 | `ScanProblem` | Problème de scan | Raison affichée quand un scan n'a pas abouti : navigateur indisponible, Vinted inaccessible, dressing illisible, échec du scan. |
+| `RefreshStatistics` | Rafraîchissement des statistiques | Nouveau relevé des vues et favoris de toutes les annonces, lus sur les cartes du dressing sans ouvrir aucune annonce, uniquement sur demande ; tout ou rien, sans effet sur les annonces ni les scans. |
+| `StatisticsRefreshProblem` / `LastStatisticsRefreshProblem` | Problème du dernier rafraîchissement | Raison affichée jusqu'au rafraîchissement suivant : navigateur indisponible, Vinted inaccessible, dressing illisible, aucune statistique affichée, échec ; en mémoire seulement. |
+| `NoStatisticsShown` | Aucune statistique affichée | Aucune carte du dressing ne montre ses vues et favoris (membre déconnecté ou page changée) : un rafraîchissement n'en tire aucun relevé. |
 | `WardrobeUnreadable` | Dressing illisible | Total illisible ou incohérent, aucun lien relevé, ou page d'annonce sans données `Product` complètes. |
 | `ScannedListing` | Annonce lue | Annonce telle que lue sur sa page lors d'un scan, active si sa disponibilité est `InStock`. |
 | `InvalidListing` | Annonce invalide | Annonce lue dont une valeur est inacceptable (identifiant, titre, lien, prix). |
@@ -56,7 +60,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ActionRecord` | Action enregistrée | Ce qu'une ligne du journal contient : date, action, issue, annonce et raison éventuelles (même code que la réponse de l'API). |
 | `JournalEntry` | Ligne du journal | Une action enregistrée, numérotée dans l'ordre d'écriture ; jamais modifiée ni supprimée. |
 | `JournalPage` | Page du journal | Au plus 50 lignes, les plus récentes d'abord, et s'il en reste de plus anciennes. |
-| `JournaledAction` (`SCAN` / `WARDROBE_BACKUP` / `BACKUP_VALIDATION` / `DELETION` / `DELETION_RECHECK` / `REPUBLICATION`) | Action journalisée | Scan du dressing, sauvegarde du dressing, validation, suppression, revérification, republication. |
+| `JournaledAction` (`SCAN` / `WARDROBE_BACKUP` / `BACKUP_VALIDATION` / `DELETION` / `DELETION_RECHECK` / `REPUBLICATION` / `STATISTICS_REFRESH`) | Action journalisée | Scan du dressing, sauvegarde du dressing, validation, suppression, revérification, republication, rafraîchissement des statistiques. |
 | `ActionOutcome` (`STARTED` / `SUCCEEDED` / `DRY_RUN` / `REFUSED` / `IN_DOUBT` / `NOT_DONE` / `FAILED`) | Issue d'une action | Lancée, réussie, dry-run réussi, refusée, dans le doute, non faite, en échec. |
 | `JournalWriter` | Écriture du journal | Écrit la ligne de chaque action pour les cas d'usage ; une écriture impossible est seulement notée dans les logs, l'action et sa réponse ne changent pas. |
 | `ListingNotFound` | Annonce inconnue | L'outil ne connaît aucune annonce de cet identifiant. |

@@ -2,8 +2,10 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.adapter.in.web.api.ListingDetailApi;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingDetailDto;
+import fr.vinted.republisher.adapter.in.web.api.model.StatisticsComparisonDto;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
+import fr.vinted.republisher.domain.inventory.StatisticsComparison;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -30,6 +32,18 @@ public class ListingDetailApiController implements ListingDetailApi {
                 .statisticsHistory(detail.history().stream().map(ListingInventoryApiController::statisticsOf).toList())
                 .journal(detail.journal().stream()
                         .map(entry -> ActionJournalApiController.toDto(entry, Optional.of(detail.entry().listing().title())))
-                        .toList()));
+                        .toList())
+                .statisticsComparison(detail.comparison().map(ListingDetailApiController::toDto).orElse(null)));
+    }
+
+    private static StatisticsComparisonDto toDto(StatisticsComparison comparison) {
+        return new StatisticsComparisonDto()
+                .previousListingId(comparison.previousListing().value())
+                .republishedAt(comparison.republishedAt().atOffset(ZoneOffset.UTC))
+                .before(comparison.before().map(ListingInventoryApiController::statisticsOf).orElse(null))
+                .after(comparison.after().map(ListingInventoryApiController::statisticsOf).orElse(null))
+                .cumulatedViewCount(comparison.cumulated().viewCount())
+                .cumulatedFavouriteCount(comparison.cumulated().favouriteCount())
+                .previousListingCount(comparison.previousListingCount());
     }
 }
