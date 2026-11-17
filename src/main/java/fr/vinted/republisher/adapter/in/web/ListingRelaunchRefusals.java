@@ -28,6 +28,7 @@ import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
+import fr.vinted.republisher.domain.wardrobe.WardrobeUnreadable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
@@ -106,7 +107,8 @@ public class ListingRelaunchRefusals {
         return failed(ReasonEnum.SESSION_DISCONNECTED, problem);
     }
 
-    @ExceptionHandler({ListingPageUnreadable.class, ListingFormUnreadable.class, ListingUnreadable.class})
+    @ExceptionHandler({ListingPageUnreadable.class, ListingFormUnreadable.class, ListingUnreadable.class,
+            WardrobeUnreadable.class})
     ResponseEntity<RelaunchRefusalDto> pageUnreadable(RuntimeException problem) {
         return failed(ReasonEnum.VINTED_PAGE_UNREADABLE, problem);
     }

@@ -391,6 +391,24 @@ class WardrobePageTest {
     }
 
     @Test
+    void shows_an_uncertain_outcome() {
+        // Étant donné une annonce « Prête à supprimer » dont la suppression reste non confirmée après la relance
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        relaunchAnswer.set("""
+                {"action": "DELETION", "dryRun": false,
+                 "listing": {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                             "url": "https://vinted.test/items/3", "present": true, "stage": "DELETION_TO_CHECK"}}""");
+        relaunchAnswered.countDown();
+        open();
+        // Quand la réponse arrive
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        // Alors la ligne montre « Suppression à vérifier » et « Issue incertaine : à vérifier sur Vinted »
+        assertThat(cell(0, STAGE)).hasText("Suppression à vérifier");
+        assertThat(cell(0, ACTION)).containsText("Issue incertaine : à vérifier sur Vinted");
+        assertThat(cell(0, ACTION)).not().containsText("Suppression faite");
+    }
+
+    @Test
     void shows_a_dry_run_relaunch() {
         // Étant donné une relance arrêtée en dry-run
         inventory.set(TO_DELETE_AND_TO_VALIDATE);

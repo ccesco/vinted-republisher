@@ -18,6 +18,7 @@ import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.session.BrowserAction;
@@ -86,7 +87,13 @@ class ListingRelaunchApiControllerTest {
     private InMemoryListingDeletionRepository deletions;
 
     @Autowired
+    private InMemoryListingRepublicationRepository republications;
+
+    @Autowired
     private FakeListingDeleter deleter;
+
+    @Autowired
+    private FakeWardrobeReader wardrobe;
 
     @Autowired
     private VintedSession session;
@@ -178,6 +185,19 @@ class ListingRelaunchApiControllerTest {
     }
 
     @Test
+    void unreadable_wardrobe_is_a_bad_gateway() {
+        ListingBackup backup = aValidatedListing();
+        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(3605)).confirmed(NOW.minusSeconds(3600)));
+        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600)));
+        wardrobe.whereTheWardrobeIsUnreadable();
+
+        assertThat(relaunch("REPUBLICATION_TO_CHECK"))
+                .hasStatus(502)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"reason": "VINTED_PAGE_UNREADABLE"}""");
+    }
+
+    @Test
     void unexpected_failure_is_a_server_error() {
         aValidatedListing();
         deleter.whereBrowserFailsUnexpectedly();
@@ -247,19 +267,29 @@ class ListingRelaunchApiControllerTest {
         }
 
         @Bean
+        InMemoryListingRepublicationRepository republications() {
+            return new InMemoryListingRepublicationRepository();
+        }
+
+        @Bean
+        FakeWardrobeReader wardrobe() {
+            return new FakeWardrobeReader();
+        }
+
+        @Bean
         RelaunchListing relaunchListing(InMemoryListingRepository listings,
                                         InMemoryListingBackupRepository listingBackups, InMemoryPhotoStorage photos,
                                         InMemoryBackupValidationRepository validations,
-                                        InMemoryListingDeletionRepository deletions, FakeListingDeleter deleter,
+                                        InMemoryListingDeletionRepository deletions,
+                                        InMemoryListingRepublicationRepository republications,
+                                        FakeListingDeleter deleter, FakeWardrobeReader wardrobe,
                                         VintedSession session) {
-            InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
             InMemoryActionJournal journal = new InMemoryActionJournal();
             AdjustableClock clock = new AdjustableClock(NOW);
             RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
             JournalWriter journalWriter = new JournalWriter(journal, clock);
             CadenceCheck cadence = new CadenceCheck(deletions, republications,
                     new WriteCadence(Duration.ofMinutes(2), 20, 20), clock);
-            FakeWardrobeReader wardrobe = new FakeWardrobeReader();
             NewListingSearch newListingSearch = new NewListingSearch(wardrobe, noPause(), listings);
             ShowListingRepublication showRepublication = new ShowListingRepublication(new ShowListingDeletion(listings,
                     listingBackups, photos, validations, deletions, DeletionMode.REAL, delay), republications,

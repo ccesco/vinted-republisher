@@ -86,6 +86,7 @@
         REPUBLICATION: 'Republication faite', REPUBLICATION_VERIFICATION: 'Vérification faite'
     };
     const RELAUNCH_DRY_RUN_MESSAGE = "Dry-run réussi, rien n'a été modifié sur Vinted";
+    const RELAUNCH_UNCERTAIN_MESSAGE = 'Issue incertaine : à vérifier sur Vinted';
     const RELAUNCH_FAILED_MESSAGE = 'Échec de la relance : vérifiez la fiche avant de relancer';
     // Codes du contrat OpenAPI (RelaunchRefusal) -> message ; ACTION_REFUSED ajoute le lien de la fiche.
     const RELAUNCH_REFUSAL_MESSAGES = {
@@ -291,6 +292,17 @@
         return td;
     }
 
+    // Une action dont l'annonce reste ou devient « à vérifier » n'a pas d'issue prouvée (US-17).
+    function relaunchMessageOf(report) {
+        if (report.dryRun) {
+            return RELAUNCH_DRY_RUN_MESSAGE;
+        }
+        if (STAGES_TO_CHECK.includes(report.listing.stage)) {
+            return RELAUNCH_UNCERTAIN_MESSAGE;
+        }
+        return RELAUNCH_DONE_MESSAGES[report.action];
+    }
+
     function refusalMessageOf(listing, refusal) {
         if (refusal.reason === 'NOT_RELAUNCHABLE' && refusal.allowedAt) {
             return [`Republication possible à partir du ${dateOf(refusal.allowedAt)}`];
@@ -319,7 +331,7 @@
             const body = await response.json().catch(() => ({}));
             if (response.ok && body.listing) {
                 shown = body.listing;
-                message = [body.dryRun ? RELAUNCH_DRY_RUN_MESSAGE : RELAUNCH_DONE_MESSAGES[body.action]];
+                message = [relaunchMessageOf(body)];
             } else if (response.ok) {
                 message = [RELAUNCH_FAILED_MESSAGE];
             } else {
