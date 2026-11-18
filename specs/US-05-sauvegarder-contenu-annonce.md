@@ -13,7 +13,7 @@ En tant que membre, je veux lancer la sauvegarde du contenu de toutes les annonc
 1. La page `/wardrobe.html` gagne un bouton « Sauvegarder », la date de fin de la dernière sauvegarde terminée, un éventuel problème de sauvegarde, et pour chaque annonce sa date de sauvegarde (« non sauvegardée » sinon). Tant qu'une sauvegarde est en cours, elle affiche « sauvegarde en cours » et relit l'état toutes les 2 secondes.
 2. « Sauvegarder » lance la sauvegarde en arrière-plan. Elle partage le verrou « une seule action navigateur » d'US-03 (nouvelle action `BACKING_UP`) : une demande reçue pendant une action en cours est ignorée. Aucune vérification de session préalable.
 3. **Reprise** : s'il existe une sauvegarde non terminée, la nouvelle la reprend ; sinon une sauvegarde est créée avec sa date de début. Les annonces traitées sont les annonces présentes de l'inventaire ; celles déjà sauvegardées depuis le début de la sauvegarde en cours sont sautées. Inventaire vide : la sauvegarde se termine aussitôt.
-4. **Lecture** : dans un seul onglet du Chrome piloté, passé au premier plan, l'outil ouvre une à une `https://www.vinted.fr/items/<id>/edit`, avec une pause aléatoire de 10 à 15 secondes entre deux annonces. Il lit l'objet de l'annonce dans les scripts de la page (identifiants), le libellé de la catégorie dans l'arbre des catégories de ces mêmes scripts, et les autres libellés affichés par le formulaire. Il attend au plus 10 secondes que chaque champ renseigné affiche son libellé ; passé ce délai, le libellé est enregistré vide. Il ne clique sur rien, ne saisit rien et ne soumet rien.
+4. **Lecture** : dans un seul onglet du Chrome piloté, passé au premier plan, l'outil ouvre une à une `https://www.vinted.fr/items/<id>/edit`, avec une pause aléatoire de 5 à 10 secondes entre deux annonces. Il lit l'objet de l'annonce dans les scripts de la page (identifiants), le libellé de la catégorie dans l'arbre des catégories de ces mêmes scripts, et les autres libellés affichés par le formulaire. Il attend au plus 10 secondes que chaque champ renseigné affiche son libellé ; passé ce délai, le libellé est enregistré vide. Il ne clique sur rien, ne saisit rien et ne soumet rien.
 5. **Enregistrement** : une lecture complète remplace aussitôt la sauvegarde de l'annonce (`listing_content`), avec `saved_at` à l'instant de la lecture.
 6. **Fin** : quand toutes les annonces sont traitées, l'outil ferme l'onglet et termine la sauvegarde.
 7. **Échec** : la sauvegarde s'arrête, reste non terminée, le problème est affiché. Les sauvegardes déjà écrites restent ; celle de l'annonce en cours n'est pas touchée.
@@ -36,7 +36,7 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - [x] Une sauvegarde interrompue se reprend sans relire les annonces déjà sauvegardées par elle.
 - [x] Une redirection vers la connexion arrête la sauvegarde et passe l'état de session à « non connecté ».
 - [x] Toute réponse HTTP ≥ 400 sur un formulaire arrête la sauvegarde, sans nouvelle tentative automatique.
-- [x] La pause entre deux annonces est comprise entre 10 et 15 secondes.
+- [x] La pause entre deux annonces est comprise entre 5 et 10 secondes.
 - [x] Une seule action navigateur a lieu à la fois.
 - [x] Les sauvegardes restent en base après un redémarrage de l'application, une colonne typée par donnée.
 - [x] Un autre site ouvert dans le navigateur ne peut pas lancer de sauvegarde.
@@ -139,7 +139,7 @@ Test : `PlaywrightListingContentReaderTest.Local_form`
 ```gherkin
 Étant donné une sauvegarde en cours
 Quand l'outil passe d'une annonce à la suivante
-Alors il attend entre 10 et 15 secondes
+Alors il attend entre 5 et 10 secondes
 ```
 Test : `BackUpWardrobeTest.pauses_between_two_listings()`
 
@@ -237,10 +237,12 @@ Recette du 2026-11-11 (10 annonces présentes, scan partiel) : sauvegarde termin
   Les `itemAttributes` sont répartis par `code` dans leurs colonnes (`condition`, `size`, `material`).
 - Attribut inconnu, décidé par l'utilisateur : un `itemAttributes` dont le `code` n'a pas de colonne rend la lecture incomplète ; la sauvegarde s'arrête (« annonce illisible », code écrit dans les logs), l'ancienne version reste intacte. On ajoute alors la colonne.
 - Session non connectée, décidé par l'utilisateur : pas de vérification préalable. Si un formulaire de modification redirige vers la connexion, la sauvegarde s'arrête (reprenable), affiche « session non connectée » et l'état de session passe à `DISCONNECTED` (US-03).
-- Règles reprises d'US-04, décidé par l'utilisateur : un seul onglet au premier plan, pause aléatoire de 10 à 15 secondes entre deux annonces (configuration) ; annonces présentes au début de la sauvegarde ; table `wardrobe_backup` (`id`, `started_at`, `finished_at`), une annonce est déjà traitée si son `saved_at` n'est pas antérieur au début de la sauvegarde en cours ; réponse HTTP ≥ 400 du formulaire → « Vinted inaccessible », arrêt sans nouvelle tentative ; ressources tierces ignorées ; navigateur injoignable → « navigateur indisponible » ; erreur inattendue ou base indisponible → « échec de la sauvegarde » ; verrou toujours libéré ; `POST` d'un autre site → 403.
+- Règles reprises d'US-04, décidé par l'utilisateur : un seul onglet au premier plan, pause aléatoire de 10 à 15 secondes entre deux annonces (configuration, raccourcie ensuite, voir plus bas) ; annonces présentes au début de la sauvegarde ; table `wardrobe_backup` (`id`, `started_at`, `finished_at`), une annonce est déjà traitée si son `saved_at` n'est pas antérieur au début de la sauvegarde en cours ; réponse HTTP ≥ 400 du formulaire → « Vinted inaccessible », arrêt sans nouvelle tentative ; ressources tierces ignorées ; navigateur injoignable → « navigateur indisponible » ; erreur inattendue ou base indisponible → « échec de la sauvegarde » ; verrou toujours libéré ; `POST` d'un autre site → 403.
 - Page et API, laissées à Claude par l'utilisateur : la sauvegarde s'ajoute à `wardrobe.html` et à `WardrobeOverview` (bouton, état, date, problème, date par annonce), sans exposer le contenu. Le problème de sauvegarde est distinct de celui du scan (`backupProblem`), affiché jusqu'à la sauvegarde suivante, en mémoire seulement. Attente des libellés : 10 secondes au plus. Aucune nouvelle dépendance.
 - Libellé non affiché, décidé par l'utilisateur après une troisième lecture du formulaire (2026-11-07, aucun clic) : l'annonce 10208778166 a `size` 588, mais le formulaire affiche « Sélectionne une taille » même entièrement chargé. Un identifiant dont le libellé ne s'affiche pas sous 10 secondes est donc sauvegardé avec un libellé vide : les identifiants servent à republier, les libellés seulement à lire. Pour US-12 : une taille non affichée n'est peut-être plus proposée par Vinted pour la catégorie.
 - Même lecture : l'objet de l'annonce se trouve dans les scripts `self.__next_f.push([1,"…"])`, dont les chaînes décodées et mises bout à bout forment des lignes `<clé>:<JSON>` ; un seul objet porte `catalogId` et l'`id` de l'annonce. L'arbre des catégories y figure aussi (`{"id":1653,"title":"Chaussures bébé",…}`) : le libellé de la catégorie en est tiré. `self.__next_f` lui-même est vide une fois la page chargée. Les autres libellés sont dans `[data-testid="<champ>-…-input--value"]` ; celui du format du colis est le titre du bouton radio coché.
+
+- Pause raccourcie, décidé par l'utilisateur (2026-11-18) : 5 à 10 secondes au lieu de 10 à 15 entre deux pages ouvertes par la sauvegarde, pour gagner environ 10 secondes par annonce (environ 23 minutes pour 137 annonces). Les lectures des validations et vérifications de republication (US-12, US-13) partagent ce réglage.
 
 ## Questions ouvertes
 - Aucune. Les points inconnus (autres codes d'attribut, catégories à champs propres) sont vérifiés par AT-05-17.

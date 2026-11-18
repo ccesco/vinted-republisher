@@ -53,8 +53,8 @@ vinted:
   backup:
     edit-form-url: https://www.vinted.fr/items/{id}/edit
     listing-page-url: https://www.vinted.fr/items/{id}
-    min-page-pause: 10s
-    max-page-pause: 15s
+    min-page-pause: 5s
+    max-page-pause: 10s
     label-timeout: 10s
     photo-timeout: 30s
 
