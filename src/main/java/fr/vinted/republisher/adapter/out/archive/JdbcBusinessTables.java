@@ -110,7 +110,12 @@ public class JdbcBusinessTables implements BusinessTables {
         generator.writeStartObject();
         for (int column = 1; column <= columns.getColumnCount(); column++) {
             generator.writeName(columns.getColumnName(column));
-            writeValue(row.getObject(column), generator);
+            // A JSON column stays JSON, so that the restore script reloads it as it was (US-40 failures).
+            if (columns.getColumnTypeName(column).startsWith("json") && row.getString(column) != null) {
+                generator.writeRawValue(row.getString(column));
+            } else {
+                writeValue(row.getObject(column), generator);
+            }
         }
         generator.writeEndObject();
     }
