@@ -2,6 +2,7 @@ package fr.vinted.republisher.adapter.in.web;
 
 import com.microsoft.playwright.Browser;
 import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Download;
 import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
@@ -51,6 +52,8 @@ class WardrobePageTest {
               {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
                "url": "https://vinted.test/items/1", "present": false}]}""";
 
+    private static final byte[] ARCHIVE = {'P', 'K', 5, 6};
+
     private static Playwright playwright;
     private static Browser chrome;
 
@@ -70,6 +73,7 @@ class WardrobePageTest {
     private final AtomicReference<String> runOverview = new AtomicReference<>(IDLE_RUN);
     private final List<String> launchedRuns = new CopyOnWriteArrayList<>();
     private final List<String> runControls = new CopyOnWriteArrayList<>();
+    private final AtomicReference<Integer> archiveStatus = new AtomicReference<>(200);
     private Page page;
 
     @BeforeAll
@@ -134,6 +138,18 @@ class WardrobePageTest {
                 respond(exchange, 202, "application/json", runOverview.get().getBytes(StandardCharsets.UTF_8));
             });
         }
+        fakeApi.createContext("/api/data-archive", exchange -> {
+            int status = archiveStatus.get();
+            if (status == 200) {
+                exchange.getResponseHeaders().add("Content-Disposition",
+                        "attachment; filename=\"vinted-republisher-archive-2026-11-17T14-05-09.zip\"");
+                respond(exchange, 200, "application/zip", ARCHIVE);
+            } else {
+                String reason = status == 409 ? "BROWSER_BUSY" : "ARCHIVE_FAILED";
+                respond(exchange, status, "application/json",
+                        ("{\"reason\": \"" + reason + "\"}").getBytes(StandardCharsets.UTF_8));
+            }
+        });
         fakeApi.setExecutor(Executors.newCachedThreadPool());
         fakeApi.start();
         page = chrome.newPage();
@@ -800,6 +816,43 @@ class WardrobePageTest {
 
     private Locator backupButton() {
         return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Sauvegarder").setExact(true));
+    }
+
+    @Test
+    void downloads_data_archive_and_shows_refusal() throws IOException {
+        // US-26 AT-26-06. Étant donné la page du dressing
+        open();
+
+        // Quand le membre clique sur « Télécharger une archive »
+        Download download = page.waitForDownload(() -> archiveButton().click());
+
+        // Alors le navigateur reçoit le zip en téléchargement
+        assertThat(download.suggestedFilename()).isEqualTo("vinted-republisher-archive-2026-11-17T14-05-09.zip");
+        try (InputStream content = download.createReadStream()) {
+            assertThat(content.readAllBytes()).isEqualTo(ARCHIVE);
+        }
+        assertThat(archiveProblem()).isHidden();
+
+        // Et un refus ou un échec s'affiche à côté du bouton
+        archiveStatus.set(409);
+        archiveButton().click();
+        assertThat(archiveProblem()).hasText("Une action navigateur est en cours : réessayez quand elle sera finie.");
+
+        archiveStatus.set(500);
+        archiveButton().click();
+        assertThat(archiveProblem()).hasText("L'archive n'a pas pu être créée : rien n'a été téléchargé. Voir les logs.");
+
+        archiveStatus.set(200);
+        page.waitForDownload(() -> archiveButton().click());
+        assertThat(archiveProblem()).isHidden();
+    }
+
+    private Locator archiveButton() {
+        return page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Télécharger une archive"));
+    }
+
+    private Locator archiveProblem() {
+        return page.locator("#archive-problem");
     }
 
     private void open() {

@@ -30,7 +30,43 @@ tags:
     description: Tags posés sur une sélection d'annonces, gardés dans l'outil (US-34)
   - name: automatic-run
     description: Série automatique « Tout lancer » (US-19)
+  - name: data-archive
+    description: Archive complète des données de l'outil, à télécharger (US-26)
 paths:
+  /api/data-archive:
+    get:
+      tags: [data-archive]
+      operationId: downloadDataArchive
+      summary: Télécharger une archive des données
+      description: >
+        Zip de toutes les tables métier (data.json) et de toutes les photos gardées (photos/), sans le profil Chrome.
+        Ne modifie rien et n'accède pas à Vinted ; l'outil n'en garde aucune copie. Construite entièrement avant
+        l'envoi : jamais de zip tronqué. Tient le navigateur pendant sa construction.
+      responses:
+        '200':
+          description: L'archive, en pièce jointe nommée vinted-republisher-archive-<AAAA-MM-JJTHH-MM-SS>.zip.
+          headers:
+            Content-Disposition:
+              description: attachment; filename="vinted-republisher-archive-<AAAA-MM-JJTHH-MM-SS>.zip"
+              schema:
+                type: string
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+        '409':
+          description: Une action navigateur est en cours (BROWSER_BUSY).
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataArchiveRefusal'
+        '500':
+          description: L'archive n'a pas pu être construite (ARCHIVE_FAILED) ; aucun zip envoyé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataArchiveRefusal'
   /api/vinted-session:
     get:
       tags: [vinted-session]
@@ -1292,6 +1328,17 @@ components:
           description: Vrai si l'action s'est arrêtée en dry-run, sans rien modifier sur Vinted ni rien garder.
         listing:
           $ref: '#/components/schemas/Listing'
+    DataArchiveRefusal:
+      type: object
+      description: Raison pour laquelle l'archive n'a pas été envoyée.
+      required: [reason]
+      properties:
+        reason:
+          $ref: '#/components/schemas/DataArchiveRefusalReason'
+    DataArchiveRefusalReason:
+      type: string
+      description: Action navigateur en cours, ou archive impossible à construire.
+      enum: [BROWSER_BUSY, ARCHIVE_FAILED]
     RelaunchRefusal:
       type: object
       description: Raison pour laquelle la relance n'a pas abouti.
@@ -1381,7 +1428,7 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING, REPUBLISHING, REFRESHING_STATISTICS]
+      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING, REPUBLISHING, REFRESHING_STATISTICS, ARCHIVING]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.
