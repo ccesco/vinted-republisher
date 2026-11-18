@@ -39,12 +39,13 @@ final class ListingEditForm {
     private static final String PLACEHOLDER = "Sélectionne";
     private static final Set<String> KNOWN_ATTRIBUTES = Set.of("condition", "size", "material");
 
+    // A label is the value of a read-only field, empty until displayed (observed 2026-11-18).
     // The badge "Recommandé" sits inside the title of a package size: it is not part of its label.
     private static final String LABELS = """
             () => {
-              const text = id => {
-                const element = document.querySelector(`[data-testid="${id}"]`);
-                return element ? element.innerText.trim() : null;
+              const value = id => {
+                const field = document.getElementById(id);
+                return field ? field.value.trim() : null;
               };
               const checked = document.querySelector('input[data-testid^="package_type_selector_"]:checked');
               let packageSize = null;
@@ -58,10 +59,10 @@ final class ListingEditForm {
                 }
               }
               return {
-                condition: text('category-condition-single-list-input--value'),
-                size: text('category-size-single-grid_chips-input--value'),
-                color: text('color-select-dropdown-input--value'),
-                material: text('category-material-multi-list-input--value'),
+                condition: value('condition'),
+                size: value('size'),
+                color: value('color'),
+                material: value('material'),
                 packageSize
               };
             }""";

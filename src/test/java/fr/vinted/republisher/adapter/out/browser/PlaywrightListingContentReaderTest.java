@@ -48,7 +48,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
- * Runs the installed Chrome against local pages imitating Vinted's edit form, as observed on 2026-11-07: never
+ * Runs the installed Chrome against local pages imitating Vinted's edit form, as observed on 2026-11-18: never
  * the real site. The form displays its labels a little after loading, as Vinted does. The public pages imitate
  * the ones observed on 2026-11-11.
  */
@@ -64,11 +64,14 @@ class PlaywrightListingContentReaderTest {
             <form action="/save" method="post">
               <input name="title" data-testid="title--input" value="Paire chaussure 9-12 mois">
               <textarea name="description" data-testid="description--input">2 paires</textarea>
-              <input name="condition" type="text" readonly>
-              <div data-testid="category-condition-single-list-input--value" id="condition">Sélectionne un état</div>
-              <div data-testid="category-size-single-grid_chips-input--value" id="size">Sélectionne une taille</div>
-              <div data-testid="color-select-dropdown-input--value" id="color">Sélectionne une couleur</div>
-              <div data-testid="category-material-multi-list-input--value">Sélectionne un matériau</div>
+              <input data-testid="category-condition-single-list-input" id="condition" name="condition" readonly
+                placeholder="Sélectionne un état" value="">
+              <input data-testid="category-size-single-grid-input" id="size" name="size" readonly
+                placeholder="Sélectionne une taille" value="">
+              <input data-testid="color-select-dropdown-input" id="color" name="color" readonly
+                placeholder="Sélectionne 2 couleurs maximum" value="">
+              <input data-testid="category-material-multi-list-input" id="material" name="material" readonly
+                placeholder="Sélectionne un matériau" value="">
               <div data-testid="1-package-size--cell--title"><span
                 data-testid="package-size-suggestion-badge-id-1">Recommandé</span> Petit</div>
               <input type="radio" name="package" data-testid="package_type_selector_1--input" checked>
@@ -80,10 +83,10 @@ class PlaywrightListingContentReaderTest {
             %s
             <script>
               setTimeout(() => {
-                document.getElementById('condition').textContent = 'Très bon état';
-                document.getElementById('color').textContent = 'Blanc';
+                document.getElementById('condition').value = 'Très bon état';
+                document.getElementById('color').value = 'Blanc';
                 const size = %s;
-                if (size) document.getElementById('size').textContent = size;
+                if (size) document.getElementById('size').value = size;
               }, 300);
               for (const type of ['click', 'input', 'change', 'submit', 'keydown']) {
                 addEventListener(type, () => fetch('/interaction?' + type), true);
