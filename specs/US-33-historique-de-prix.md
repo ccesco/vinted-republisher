@@ -1,5 +1,5 @@
 # US-33 – Historique de prix
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-04 (scan, prix lu sur la page de l'annonce), US-18b (fiche), US-12 et US-13 (nouvelle annonce enregistrée par la republication)
 
@@ -37,12 +37,12 @@ PriceChange:
 ```
 
 ## Critères d'acceptation
-- [ ] La première fois qu'une annonce est enregistrée, son prix commence son historique.
-- [ ] Un prix différent du dernier de l'historique (montant ou devise) s'ajoute à l'historique, daté du scan qui l'a lu.
-- [ ] Un prix inchangé n'ajoute rien ; une annonce marquée absente n'ajoute rien.
-- [ ] Une annonce mise en vente par une republication commence son propre historique avec son prix.
-- [ ] Une annonce connue avant cette US commence son historique au prochain enregistrement.
-- [ ] L'API et la fiche montrent l'historique, du plus récent au plus ancien.
+- [x] La première fois qu'une annonce est enregistrée, son prix commence son historique.
+- [x] Un prix différent du dernier de l'historique (montant ou devise) s'ajoute à l'historique, daté du scan qui l'a lu.
+- [x] Un prix inchangé n'ajoute rien ; une annonce marquée absente n'ajoute rien.
+- [x] Une annonce mise en vente par une republication commence son propre historique avec son prix.
+- [x] Une annonce connue avant cette US commence son historique au prochain enregistrement.
+- [x] L'API et la fiche montrent l'historique, du plus récent au plus ancien.
 
 ## Tests d'acceptation
 ### AT-33-01 – Le premier scan commence l'historique
@@ -105,8 +105,8 @@ Et la fiche montre « Historique des prix » avec, pour chaque prix, sa date et 
 Test : `ListingDetailApiControllerTest.detail_shows_the_price_history()`, `ListingDetailPageTest.shows_the_price_history()`
 
 ## Cas limites et erreurs
-- Enregistrement en échec (base indisponible) : l'annonce et son historique sont enregistrés ensemble ou pas du tout.
-- Plusieurs annonces enregistrées ensemble (fin de scan, annonces marquées absentes) : chacune est comparée à son propre dernier prix.
+- Enregistrement en échec (base indisponible, historique refusé) : l'annonce et son historique sont enregistrés ensemble ou pas du tout (`JpaListingRepositoryTest.a_failing_price_history_saves_no_listing()`).
+- Plusieurs annonces enregistrées ensemble (fin de scan, annonces marquées absentes) : chacune est comparée à son propre dernier prix ; une même annonce deux fois dans un lot est comparée au prix ajouté juste avant (`JpaListingRepositoryTest.same_listing_twice_in_one_save_adds_its_price_once()`).
 - Deux enregistrements de la même annonce à la même date avec deux prix (impossible en pratique : la date est celle du scan ou de la vérification) : les deux prix sont gardés.
 
 ## Hors périmètre

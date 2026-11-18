@@ -63,7 +63,7 @@ public class ShowListingDetail {
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
                 clock.instant());
         return new ListingDetail(inventory.entries().getFirst(), history, journal.of(id),
-                comparison(id, history.stream().findFirst()));
+                comparison(id, history.stream().findFirst()), listings.priceHistoryOf(id));
     }
 
     /** Walks back the chain of republications that led to this listing, stopping on a listing already seen. */

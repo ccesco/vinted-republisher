@@ -15,6 +15,17 @@
 <section id="listing" hidden>
     <p id="stage"></p>
     <p id="listing-price"></p>
+    <h2>Historique des prix</h2>
+    <p id="no-price" hidden>Aucun prix relevé</p>
+    <table id="price-history" hidden>
+        <thead>
+        <tr>
+            <th scope="col">Depuis le</th>
+            <th scope="col">Prix</th>
+        </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
     <p><a id="vinted-link" rel="noopener noreferrer">Voir sur Vinted</a></p>
     <p id="presence"></p>
     <h2>Vues et favoris</h2>
@@ -193,6 +204,8 @@
     const vintedLink = document.getElementById('vinted-link');
     const presence = document.getElementById('presence');
     const stage = document.getElementById('stage');
+    const noPrice = document.getElementById('no-price');
+    const priceHistory = document.getElementById('price-history');
     const noReading = document.getElementById('no-reading');
     const history = document.getElementById('history');
     const statisticsComparison = document.getElementById('statistics-comparison');
@@ -519,6 +532,13 @@
         listingTitle.textContent = listing.title;
         stage.textContent = 'Étape : ' + (STAGE_LABELS[listing.stage] ?? '');
         listingPrice.textContent = priceOf(listing.price);
+        noPrice.hidden = detail.priceHistory.length > 0;
+        priceHistory.hidden = detail.priceHistory.length === 0;
+        priceHistory.tBodies[0].replaceChildren(...detail.priceHistory.map(change => {
+            const row = document.createElement('tr');
+            row.append(cell(dateOf(change.changedAt)), cell(priceOf(change.price)));
+            return row;
+        }));
         vintedLink.href = listing.url;
         presence.textContent = listing.present ? 'Présente dans le dressing.'
             : 'Absente du dressing, vue pour la dernière fois le ' + dateOf(detail.lastSeenAt) + '.';

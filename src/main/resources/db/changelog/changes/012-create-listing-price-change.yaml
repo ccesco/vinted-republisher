@@ -1,0 +1,27 @@
+# US-33 : historique de prix, une ligne par changement de prix d'une annonce ; jamais modifiée ni supprimée.
+# Aucune reprise : l'historique d'une annonce déjà connue commence à son prochain enregistrement.
+databaseChangeLog:
+  - changeSet:
+      id: 012-create-listing-price-change
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_price_change
+            columns:
+              - column: {name: id, type: bigint, autoIncrement: true, constraints: {primaryKey: true, nullable: false}}
+              - column:
+                  name: listing_id
+                  type: bigint
+                  constraints: {nullable: false, foreignKeyName: listing_price_change_listing, references: listing(vinted_id)}
+              - column: {name: price_amount, type: 'numeric(10,2)', constraints: {nullable: false}}
+              - column: {name: price_currency, type: char(3), constraints: {nullable: false}}
+              - column: {name: changed_at, type: timestamptz, constraints: {nullable: false}}
+        # Sert l'historique d'une annonce et son dernier prix, comparé à chaque enregistrement.
+        - sql:
+            sql: >
+              ALTER TABLE listing_price_change
+                ADD CONSTRAINT listing_price_change_amount_not_negative CHECK (price_amount >= 0);
+              CREATE INDEX listing_price_change_history ON listing_price_change (listing_id, changed_at DESC, id DESC);
+      rollback:
+        - dropTable:
+            tableName: listing_price_change

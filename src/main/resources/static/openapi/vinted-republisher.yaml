@@ -902,7 +902,7 @@ components:
     ListingDetail:
       type: object
       description: Fiche d'une annonce.
-      required: [listing, lastSeenAt, statisticsHistory, journal]
+      required: [listing, lastSeenAt, statisticsHistory, journal, priceHistory]
       properties:
         listing:
           $ref: '#/components/schemas/Listing'
@@ -922,6 +922,13 @@ components:
             $ref: '#/components/schemas/JournalEntry'
         statisticsComparison:
           $ref: '#/components/schemas/StatisticsComparison'
+        priceHistory:
+          type: array
+          description: >
+            Tous les prix de l'annonce, du plus récent au plus ancien ; vide tant que l'annonce n'a pas été enregistrée
+            depuis le début de l'historique de prix (US-33).
+          items:
+            $ref: '#/components/schemas/PriceChange'
       example:
         listing:
           vintedId: 90000000001
@@ -943,6 +950,22 @@ components:
           - viewCount: 5
             favouriteCount: 1
             readAt: '2026-11-06T10:05:00Z'
+        priceHistory:
+          - price: {amount: 1.5, currency: EUR}
+            changedAt: '2026-11-07T10:05:00Z'
+          - price: {amount: 2, currency: EUR}
+            changedAt: '2026-11-06T10:05:00Z'
+    PriceChange:
+      type: object
+      description: Un prix de l'annonce et la date où l'outil l'a vu pour la première fois.
+      required: [price, changedAt]
+      properties:
+        price:
+          $ref: '#/components/schemas/Price'
+        changedAt:
+          type: string
+          format: date-time
+          description: Date de l'enregistrement de l'annonce (scan, republication) qui a vu ce prix pour la première fois.
     StatisticsComparison:
       type: object
       description: >

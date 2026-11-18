@@ -74,7 +74,21 @@ class ListingDetailApiControllerTest {
                          "statisticsHistory": [
                            {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
                            {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}],
-                         "journal": []}""");
+                         "journal": [],
+                         "priceHistory": [
+                           {"price": {"amount": 12.50, "currency": "EUR"}, "changedAt": "2026-11-02T09:00:00Z"}]}""");
+    }
+
+    @Test
+    void detail_shows_the_price_history() {
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), FIRST)));
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "10", ACTIVE), SECOND)));
+
+        assertThat(mvc.get().uri("/api/listings/101"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.priceHistory").isEqualTo(List.of(
+                        Map.of("price", Map.of("amount", 10.0, "currency", "EUR"), "changedAt", "2026-11-02T09:00:00Z"),
+                        Map.of("price", Map.of("amount", 12.5, "currency", "EUR"), "changedAt", "2026-11-01T09:00:00Z")));
     }
 
     @Test
