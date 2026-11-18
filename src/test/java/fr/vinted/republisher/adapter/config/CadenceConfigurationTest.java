@@ -30,10 +30,10 @@ class CadenceConfigurationTest {
             .withBean(Clock.class, Clock::systemUTC);
 
     @Test
-    void defaultCadenceIs30SecondsAnd140DeletionsTwoMinutesAnd20Republications() {
+    void defaultCadenceIs30SecondsAnd140DeletionsTwoMinutesAnd140Republications() {
         application.withInitializer(new ConfigDataApplicationContextInitializer())
                 .run(context -> assertThat(context).getBean(WriteCadence.class)
-                        .isEqualTo(new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 140, 20)));
+                        .isEqualTo(new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 140, 140)));
     }
 
     @Test

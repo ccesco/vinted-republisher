@@ -78,7 +78,7 @@ cadence:
   deletion-interval: 30s
   republication-interval: 2m
   daily-deletions: 140
-  daily-republications: 20
+  daily-republications: 140
 
 # Traitement en parallèle (US-15) : nombre d'actions sur des annonces (suppression, republication et leurs
 # vérifications) menées en même temps, chacune dans son onglet du même Chrome, par la série comme à la main.
