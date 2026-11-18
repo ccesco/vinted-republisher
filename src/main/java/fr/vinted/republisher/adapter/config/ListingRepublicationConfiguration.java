@@ -3,6 +3,7 @@ package fr.vinted.republisher.adapter.config;
 import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.adapter.out.browser.BackupProperties;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
+import fr.vinted.republisher.adapter.out.time.SleepingRunWaiting;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightListingPublisher;
 import fr.vinted.republisher.adapter.out.browser.WardrobeProperties;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -69,13 +70,15 @@ public class ListingRepublicationConfiguration {
                                       ListingRepository listings, RepublicationMode mode, RepublicationDelay delay,
                                       CadenceCheck cadence,
                                       Clock clock, ShowListingRepublication showListingRepublication,
-                                      JournalWriter journal) {
+                                      JournalWriter journal,
+                                      RepublicationConfiguration.RepublicationProperties republication) {
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
                 cadence,
                 republications, publisher,
                 new NewListingSearch(wardrobe, WardrobeConfiguration.paceOf(wardrobeProperties.scan()), listings),
-                listings, mode, clock, showListingRepublication, journal);
+                listings, mode, clock, showListingRepublication, journal,
+                new SleepingRunWaiting(clock, Duration.ofSeconds(1)), republication.proofDelay());
     }
     // A manual validation reads one page at most: it runs within the request too.
     @Bean

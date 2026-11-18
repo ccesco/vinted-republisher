@@ -338,7 +338,7 @@ class VerifyListingRepublicationAcceptanceTest {
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
                 new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
-                RepublicationMode.REAL, clock, show(), new JournalWriter(new InMemoryActionJournal(), clock));
+                RepublicationMode.REAL, clock, show(), new JournalWriter(new InMemoryActionJournal(), clock), (instant, interrupted) -> { }, Duration.ZERO);
     }
 
     private ShowListingRepublication show() {

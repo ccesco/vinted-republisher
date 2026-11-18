@@ -14,6 +14,7 @@ import java.time.Instant;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
 
 /** US-15: a write that passed the cadence holds it until its action ends, whatever tab it runs in. */
@@ -35,6 +36,18 @@ class CadenceCheckTest {
                 () -> cadence.reserve(VintedWrite.REPUBLICATION));
 
         assertThat(refused.allowedAt()).isEqualTo(NOW.plusSeconds(120));
+    }
+
+    @Test
+    void tells_from_when_a_write_is_allowed_counting_reservations_without_holding_the_cadence() {
+        WriteReservation first = cadence.reserve(VintedWrite.DELETION);
+        clock.advance(Duration.ofSeconds(30));
+
+        assertThat(cadence.allowedAt(VintedWrite.DELETION)).isEqualTo(NOW.plusSeconds(120));
+
+        cadence.release(first);
+        assertThat(cadence.allowedAt(VintedWrite.DELETION)).isEqualTo(clock.instant());
+        assertThatCode(() -> cadence.reserve(VintedWrite.DELETION)).doesNotThrowAnyException();
     }
 
     @Test

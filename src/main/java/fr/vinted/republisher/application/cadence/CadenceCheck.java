@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.cadence;
 
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
@@ -35,12 +36,24 @@ public class CadenceCheck {
     /** Throws {@code CadenceLimitReached} when the write is not allowed now; otherwise holds the cadence for it. */
     public synchronized WriteReservation reserve(VintedWrite write) {
         Instant now = clock.instant();
-        Instant since = cadence.windowStart(now);
-        cadence.check(write, withReserved(VintedWrite.DELETION, deletions.findAttemptedSince(since)),
-                withReserved(VintedWrite.REPUBLICATION, republications.findAttemptedSince(since)), now);
+        Instant allowedAt = allowedAt(write, now);
+        if (now.isBefore(allowedAt)) {
+            throw new CadenceLimitReached(allowedAt);
+        }
         WriteReservation reservation = new WriteReservation(write, now);
         reservations.add(reservation);
         return reservation;
+    }
+
+    /** From when the write would pass {@link #reserve}, counting the writes in progress; holds nothing. */
+    public synchronized Instant allowedAt(VintedWrite write) {
+        return allowedAt(write, clock.instant());
+    }
+
+    private Instant allowedAt(VintedWrite write, Instant now) {
+        Instant since = cadence.windowStart(now);
+        return cadence.allowedAt(write, withReserved(VintedWrite.DELETION, deletions.findAttemptedSince(since)),
+                withReserved(VintedWrite.REPUBLICATION, republications.findAttemptedSince(since)), now);
     }
 
     /** Once its action is over, a write only counts by its attempt, if recorded. */

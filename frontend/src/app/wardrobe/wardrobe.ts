@@ -14,6 +14,7 @@ import { dateOf, dayOf, listingLink, plural, priceOf } from '../shared/format';
 import { inventoryCriteriaOf } from './inventory-criteria';
 import { keyFiguresOf } from './key-figures';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
+import { republicationCellOf } from './republication-cell';
 import { runningSummaryOf } from './run-summary';
 import {
   APPLICATION_DOWN_MESSAGE, ARCHIVE_PROBLEM_MESSAGES, ARCHIVE_UNREACHABLE_MESSAGE, BACKUP_PROBLEM_MESSAGES,
@@ -41,6 +42,8 @@ export class Wardrobe {
   protected readonly priceOf = priceOf;
   protected readonly listingLink = listingLink;
   protected readonly stageLabels = STAGE_LABELS;
+  protected readonly stages = Object.entries(STAGE_LABELS);
+  protected readonly republicationCellOf = republicationCellOf;
   protected readonly stagesToCheck = STAGES_TO_CHECK;
   protected readonly relaunchableStages = RELAUNCHABLE_STAGES;
 
@@ -66,6 +69,7 @@ export class Wardrobe {
   protected readonly sort = signal('RECENCY');
   protected readonly direction = signal('DESC');
   protected readonly tag = signal('');
+  protected readonly stage = signal('');
   protected readonly tags = signal<string[]>([]);
 
   protected readonly rows = signal<Row[] | null>(null);
@@ -175,8 +179,12 @@ export class Wardrobe {
   }
 
   // Critères de la liste : un choix relit la liste aussitôt, la recherche après une pause de frappe.
-  protected choose(criterion: 'presence' | 'backup' | 'sort' | 'direction' | 'tag', value: string): void {
+  // Une étape choisie montre aussi les annonces absentes : supprimées ou republiées, elles ne sont plus en ligne.
+  protected choose(criterion: 'presence' | 'backup' | 'sort' | 'direction' | 'tag' | 'stage', value: string): void {
     this[criterion].set(value);
+    if (criterion === 'stage' && value) {
+      this.presence.set('ALL');
+    }
     clearTimeout(this.searchTimer);
     this.loadListings();
   }
@@ -368,11 +376,11 @@ export class Wardrobe {
     const request = ++this.lastRequest;
     const criteria = inventoryCriteriaOf({
       presence: this.presence(), backup: this.backup(), search: this.search(), sort: this.sort(),
-      direction: this.direction(), tag: this.tag()
+      direction: this.direction(), tag: this.tag(), stage: this.stage()
     });
     try {
       const inventory = await answerOf(this.inventory.showListingInventory(criteria.presence, criteria.backup,
-        criteria.search, criteria.sort, criteria.direction, criteria.tag));
+        criteria.search, criteria.sort, criteria.direction, criteria.tag, criteria.stage));
       if (request === this.lastRequest) {
         this.showListings(inventory.listings);
       }

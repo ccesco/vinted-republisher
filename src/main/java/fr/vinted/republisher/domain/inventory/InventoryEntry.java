@@ -1,6 +1,7 @@
 package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
@@ -12,11 +13,13 @@ import java.util.Optional;
 
 /**
  * A listing with its latest statistics reading, its current backup and the date of the validation that holds for
- * that backup, where it stands, whether the tool advises republishing it, and the tags it bears, in alphabetical
- * order.
+ * that backup, where it stands, whether the tool advises republishing it, the republication that makes it republished
+ * or to check (none at any other stage) with the new listing it led to when the tool knows it, and the tags it bears,
+ * in alphabetical order.
  */
 public record InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<ListingBackup> backup,
                              Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice,
+                             Optional<ListingRepublication> republication, Optional<Listing> newListing,
                              List<Tag> tags) {
 
     public InventoryEntry {
@@ -26,16 +29,19 @@ public record InventoryEntry(Listing listing, Optional<StatisticsReading> statis
         Objects.requireNonNull(validatedAt);
         Objects.requireNonNull(stage);
         Objects.requireNonNull(advice);
+        Objects.requireNonNull(republication);
+        Objects.requireNonNull(newListing);
         tags = tags.stream().distinct().sorted().toList();
     }
 
-    /** Without tags. */
+    /** Without republication nor tags. */
     public InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<ListingBackup> backup,
                           Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice) {
-        this(listing, statistics, backup, validatedAt, stage, advice, List.of());
+        this(listing, statistics, backup, validatedAt, stage, advice, Optional.empty(), Optional.empty(), List.of());
     }
 
     InventoryEntry withTags(List<Tag> borne) {
-        return new InventoryEntry(listing, statistics, backup, validatedAt, stage, advice, borne);
+        return new InventoryEntry(listing, statistics, backup, validatedAt, stage, advice, republication, newListing,
+                borne);
     }
 }

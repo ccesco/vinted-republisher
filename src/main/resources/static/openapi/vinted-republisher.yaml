@@ -241,6 +241,12 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - name: stage
+          in: query
+          required: false
+          description: Étape des annonces retenues (US-38) ; absente = toutes les étapes.
+          schema:
+            $ref: '#/components/schemas/ListingStage'
       responses:
         '200':
           description: Annonces retenues, dans l'ordre demandé.
@@ -1368,6 +1374,12 @@ components:
           $ref: '#/components/schemas/ListingStage'
         republicationAdvice:
           $ref: '#/components/schemas/RepublicationAdvice'
+        republication:
+          allOf:
+            - $ref: '#/components/schemas/ListingRepublication'
+          description: >
+            Republication qui fixe l'étape (US-38) : présente seulement si l'annonce est republiée ou sa
+            republication à vérifier ; rendue par la liste, absente de la fiche et de la relance.
         tags:
           type: array
           items:

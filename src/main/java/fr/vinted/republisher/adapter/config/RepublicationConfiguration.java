@@ -27,7 +27,7 @@ public class RepublicationConfiguration {
     }
 
     @ConfigurationProperties("republication")
-    record RepublicationProperties(Duration minimumDelay) {
+    record RepublicationProperties(Duration minimumDelay, Duration proofDelay) {
     }
 
     static class InvalidRepublicationConfiguration extends RuntimeException {

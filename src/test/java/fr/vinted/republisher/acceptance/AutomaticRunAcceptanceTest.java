@@ -52,7 +52,7 @@ import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
-import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -162,22 +162,44 @@ class AutomaticRunAcceptanceTest {
             inParallel(2);
             aValidatedListing(ROBE, "Robe bleue", "12.00");
             aValidatedListing(PULL, "Pull rayé", "15.00");
-            // La première écriture ne se termine qu'une fois l'autre relance refusée : elle est bien en cours
+            List<List<VintedListingId>> rounds = Collections.synchronizedList(new ArrayList<>());
+            deleter.onOpening(() -> rounds.add(launchAutomaticRun.overview().currentListings()));
             deleter.beforeDeleting(() -> {
-                if (deletions.findAll().isEmpty()) {
-                    awaitRefusal();
-                } else {
+                if (!deletions.findAll().isEmpty()) {
                     launchAutomaticRun.stop();
                 }
             });
-            // Quand la série les relance dans la même tournée
+            // Quand la série tourne
             launch();
-            // Alors une seule est supprimée pendant la tournée, l'autre refusée pour cadence pendant la première
+            // Alors la première tournée ne supprime que la première, la seconde n'est pas tentée
+            assertThat(rounds).first().isEqualTo(List.of(ROBE));
+            // Et la série attend 2 minutes, puis supprime la seconde
             assertThat(deletions.findAll()).extracting(ListingDeletion::attemptedAt)
                     .containsExactly(NOW, NOW.plusSeconds(120));
-            // Et la série attend 2 minutes, puis supprime la seconde
             assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(120));
-            assertThat(launchAutomaticRun.overview().stopReason()).contains(RunStopReason.STOPPED_BY_MEMBER);
+            // Et le journal n'a aucun refus « limite de cadence atteinte »
+            assertNoCadenceRefusal();
+        }
+
+        @Test
+        void a_check_goes_without_the_write_the_cadence_does_not_allow_yet() {
+            // Étant donné une annonce « Suppression à vérifier » tentée il y a une minute, et une « Prête à supprimer »
+            inParallel(2);
+            ListingBackup robe = aValidatedListing(ROBE, "Robe bleue", "12.00");
+            deletions.save(ListingDeletion.attempted(robe, NOW.minusSeconds(60)));
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            List<List<VintedListingId>> roundsBeforeWaiting = new ArrayList<>();
+            waiting.during(() -> {
+                roundsBeforeWaiting.add(launchAutomaticRun.overview().currentListings());
+                launchAutomaticRun.stop();
+            });
+            // Quand la série tourne
+            launch();
+            // Alors la première tournée ne fait que la vérification, puis la série attend la fin de l'intervalle
+            assertThat(roundsBeforeWaiting).containsExactly(List.of(ROBE));
+            assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(60));
+            assertThat(deletions.findLatest(PULL)).isEmpty();
+            assertNoCadenceRefusal();
         }
 
         @Test
@@ -268,16 +290,6 @@ class AutomaticRunAcceptanceTest {
             barrier.await(5, TimeUnit.SECONDS);
         } catch (InterruptedException | BrokenBarrierException | TimeoutException notTogether) {
             throw new IllegalStateException("the relaunches did not run at the same time", notTogether);
-        }
-    }
-
-    private void awaitRefusal() {
-        Instant deadline = Instant.now().plusSeconds(5);
-        while (journal.records().stream().noneMatch(record -> record.outcome() == ActionOutcome.REFUSED)) {
-            if (Instant.now().isAfter(deadline)) {
-                throw new IllegalStateException("the other relaunch was not refused while this write was in progress");
-            }
-            Thread.onSpinWait();
         }
     }
 
@@ -384,9 +396,43 @@ class AutomaticRunAcceptanceTest {
         aValidatedListing(ROBE, "Robe bleue", "12.00");
         // Quand la série tourne
         launch();
-        // Alors elle attend une minute, puis supprime l'annonce
+        // Alors elle attend une minute sans tenter la suppression, puis supprime l'annonce
         assertThat(waiting.untils()).first().isEqualTo(NOW.plusSeconds(60));
         assertThat(deletions.findLatest(ROBE)).map(ListingDeletion::attemptedAt).contains(NOW.plusSeconds(60));
+        // Et le journal n'a aucun refus « limite de cadence atteinte »
+        assertNoCadenceRefusal();
+    }
+
+    @Test
+    void waits_for_the_cadence_limit_before_republishing() {
+        // Étant donné une écriture sur Vinted il y a une minute, intervalle 2 minutes, et une annonce à republier
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        aDeletedListing(ROBE, "Robe bleue", "12.00");
+        // Quand la série tourne
+        launch();
+        // Alors elle attend une minute sans tenter la republication, puis republie l'annonce
+        assertThat(waiting.untils()).first().isEqualTo(NOW.plusSeconds(60));
+        assertThat(republications.findLatest(ROBE)).map(ListingRepublication::attemptedAt)
+                .contains(NOW.plusSeconds(60));
+        assertNoCadenceRefusal();
+    }
+
+    @Test
+    void dry_run_does_not_wait_for_the_cadence() {
+        // Étant donné une écriture sur Vinted il y a une minute, et une annonce « Prête à supprimer » en dry-run
+        deletionMode = DeletionMode.DRY_RUN;
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        aValidatedListing(ROBE, "Robe bleue", "12.00");
+        // Quand la série tourne
+        launch();
+        // Alors elle passe l'annonce en dry-run sans attendre
+        assertThat(deleter.opened()).containsExactly(ROBE);
+        assertThat(waiting.untils()).isEmpty();
+    }
+
+    private void assertNoCadenceRefusal() {
+        assertThat(journal.records()).extracting(ActionRecord::reason)
+                .doesNotContain(Optional.of("CADENCE_LIMIT_REACHED"));
     }
 
     @Test
@@ -664,7 +710,7 @@ class AutomaticRunAcceptanceTest {
                         new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay,
                                 clock),
                         cadence, republications, publisher, newListingSearch, listings, RepublicationMode.REAL, clock,
-                        showRepublication, journalWriter),
+                        showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
                         contents, noBackupPause(), clock, showRepublication));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,

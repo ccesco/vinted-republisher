@@ -118,7 +118,7 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .republishableAt(republishableAt.map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null));
     }
 
-    private static ListingRepublicationDto toDto(ListingRepublication republication, Optional<Listing> newListing) {
+    static ListingRepublicationDto toDto(ListingRepublication republication, Optional<Listing> newListing) {
         return new ListingRepublicationDto()
                 .outcome(RepublicationOutcomeDto.valueOf(republication.outcome().name()))
                 .attemptedAt(republication.attemptedAt().atOffset(ZoneOffset.UTC))

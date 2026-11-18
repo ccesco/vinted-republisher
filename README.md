@@ -164,3 +164,4 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 
 ### Epic 10 – Interface `V2`
 - [x] US-37 Interface Angular (refonte à fonctions égales, Angular Material)
+- [x] US-38 Filtre par étape et suivi des republications dans la liste

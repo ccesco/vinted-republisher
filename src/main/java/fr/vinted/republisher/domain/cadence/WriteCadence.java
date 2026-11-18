@@ -42,16 +42,22 @@ public record WriteCadence(Duration deletionInterval, Duration republicationInte
      * window. Throws with the latest date any limit imposes when the write is not allowed now.
      */
     public void check(VintedWrite write, List<Instant> deletions, List<Instant> republications, Instant now) {
+        Instant allowedAt = allowedAt(write, deletions, republications, now);
+        if (now.isBefore(allowedAt)) {
+            throw new CadenceLimitReached(allowedAt);
+        }
+    }
+
+    /** From when the write is allowed, given the same dates as {@link #check}: {@code now} if it is allowed now. */
+    public Instant allowedAt(VintedWrite write, List<Instant> deletions, List<Instant> republications, Instant now) {
         Optional<Instant> afterInterval = Stream.concat(deletions.stream(), republications.stream())
                 .max(Instant::compareTo)
                 .map(last -> last.plus(write == VintedWrite.DELETION ? deletionInterval : republicationInterval));
         Optional<Instant> afterLimit = write == VintedWrite.DELETION
                 ? freedPlace(deletions, dailyDeletions, now)
                 : freedPlace(republications, dailyRepublications, now);
-        Stream.of(afterInterval, afterLimit).flatMap(Optional::stream).filter(now::isBefore)
-                .max(Instant::compareTo).ifPresent(allowedAt -> {
-                    throw new CadenceLimitReached(allowedAt);
-                });
+        return Stream.of(afterInterval, afterLimit).flatMap(Optional::stream).filter(now::isBefore)
+                .max(Instant::compareTo).orElse(now);
     }
 
     private Optional<Instant> freedPlace(List<Instant> writes, int limit, Instant now) {

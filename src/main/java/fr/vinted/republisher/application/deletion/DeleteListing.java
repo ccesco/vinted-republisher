@@ -79,6 +79,11 @@ public class DeleteListing {
                 mode, republicationDelay);
     }
 
+    /** From when the cadence allows a real deletion; empty in dry run, where nothing is written. */
+    public Optional<Instant> realWriteAllowedAt() {
+        return mode == DeletionMode.REAL ? Optional.of(cadence.allowedAt(VintedWrite.DELETION)) : Optional.empty();
+    }
+
     /**
      * {@code seen} is the date of the backup the member saw. Every check is made before Chrome opens, then again on
      * the page of the listing before any click: a refusal touches nothing on Vinted. The write cadence is checked under

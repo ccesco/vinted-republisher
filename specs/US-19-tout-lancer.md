@@ -19,6 +19,7 @@ En tant que membre, je veux lancer d'un clic le traitement de toutes mes annonce
    
    Aucune annonce candidate → la série est **terminée**.
 3. **Chaque tour** relance l'annonce (US-20, avec l'étape lue), donc avec tous ses garde-fous : contrôles, dry-run, cadence, verrou du navigateur, journal.
+   **Cadence vérifiée avant** : pour une écriture réelle (`TO_DELETE` → suppression, `TO_REPUBLISH` → republication ; pas en dry-run, pas pour une vérification), la série demande d'abord à la cadence (US-27) la date à partir de laquelle cette écriture est permise, sans rien réserver. Date future → la série attend (`WAITING` avec cette date), puis refait le tour (choix de l'annonce compris). La relance garde sa propre vérification : un refus `CADENCE_LIMIT_REACHED` reste possible si une autre écriture passe entre-temps (autre onglet, action manuelle) et suit alors la conduite du point 5. En parallèle (US-15), au plus une écriture réelle par tournée.
 4. **Après une relance réussie** : si l'étape de l'annonce n'a pas changé (dry-run, issue toujours « à vérifier »), l'annonce est **écartée** de la série : le membre tranchera. Sinon, tour suivant.
    Une annonce revenue à une étape déjà relancée dans la série (suppression non confirmée, revérifiée « non faite », de nouveau prête) est **écartée** sans être relancée : jamais deux écritures pour la même étape dans une série.
 5. **Après un échec**, conduite d'US-17 :
@@ -37,7 +38,8 @@ En tant que membre, je veux lancer d'un clic le traitement de toutes mes annonce
 
 ## Critères d'acceptation
 - [x] La série relance les annonces dans l'ordre des étapes, puis des identifiants, jusqu'à ne plus en trouver.
-- [x] Elle attend la date de republication ou la fin de la limite de cadence, puis reprend.
+- [x] Elle attend la date de republication, puis reprend.
+- [x] Avant une écriture réelle, elle attend la fin de la limite de cadence sans tenter l'écriture : aucun refus de cadence au journal.
 - [x] Une annonce dont l'étape ne change pas, ou refusée pour elle-même, est écartée ; la série continue.
 - [x] Un problème du compte ou de Vinted arrête la série avec sa raison.
 - [x] Une seule série à la fois ; elle ne redémarre jamais seule.
@@ -92,9 +94,10 @@ Test : `AutomaticRunAcceptanceTest.listing_refused_for_itself_is_skipped()`
 ```gherkin
 Étant donné une écriture sur Vinted il y a une minute, intervalle 2 minutes, et une annonce « Prête à supprimer »
 Quand la série tourne
-Alors elle attend une minute, puis supprime l'annonce
+Alors elle attend une minute sans tenter la suppression, puis supprime l'annonce
+Et le journal n'a aucun refus « limite de cadence atteinte »
 ```
-Test : `AutomaticRunAcceptanceTest.waits_for_the_cadence_limit()`
+Test : `AutomaticRunAcceptanceTest.waits_for_the_cadence_limit()`, `waits_for_the_cadence_limit_before_republishing()` (republication), `dry_run_does_not_wait_for_the_cadence()` (dry-run)
 
 ### AT-19-07 – Problème du compte : tout arrêter
 ```gherkin
@@ -146,7 +149,9 @@ Test : `WardrobePageTest.launches_an_automatic_run_and_follows_it()`, `WardrobeP
 
 ## Cas limites et erreurs
 - Navigateur pris par une action manuelle : attente de 30 secondes, puis nouveau tour.
-- Plafond de cadence par 24 heures atteint : la série attend jusqu'à la date permise, éventuellement des heures ; l'arrêt manuel relève d'US-21.
+- Plafond de cadence par 24 heures atteint : la série attend jusqu'à la date permise, sans tenter l'écriture, éventuellement des heures ; l'arrêt manuel relève d'US-21.
+- Dry-run : la cadence n'est pas consultée (elle ne s'applique qu'aux écritures réelles).
+- Relance manuelle (bouton « Relancer », page « Échecs ») : inchangée, la cadence la refuse avec sa date.
 - Plusieurs annonces en attente : la série attend la date de celle d'identifiant le plus petit ; les autres devenues republiables entre-temps passent au tour suivant.
 - Annonce disparue ou changée pendant la série : la relance la refuse (étape changée, annonce inconnue) → écartée.
 - Redémarrage pendant une série : l'aperçu repart à `IDLE` ; rien n'est relancé seul.
@@ -167,6 +172,7 @@ Test : `WardrobePageTest.launches_an_automatic_run_and_follows_it()`, `WardrobeP
   - aperçu en mémoire, perdu au redémarrage : les actions elles-mêmes sont dans le journal (US-23).
   - relevé par la revue : une annonce n'est relancée qu'une fois par étape dans une série (sinon suppression, revérification « non faite » et nouvelle suppression en boucle sur le vrai compte) ; une tâche refusée par l'exécuteur arrête la série (RUN_FAILED).
 - Premier lancement sur le vrai compte : seulement avec l'accord explicite de l'utilisateur (règle du projet), en dry-run d'abord.
+- Cadence vérifiée avant l'écriture, décidé par l'utilisateur (2026-11-18) : la série ne tente plus une écriture que la cadence refuserait ; elle attend la date permise, pour ne plus avoir de refus `CADENCE_LIMIT_REACHED` au journal.
 
 ## Questions ouvertes
 - Aucune.
@@ -174,6 +180,7 @@ Test : `WardrobePageTest.launches_an_automatic_run_and_follows_it()`, `WardrobeP
 ## Modèle de domaine
 - `AutomaticRun` (série automatique) : état (`RunStatus`), dates, annonce en cours, relances faites, annonces écartées, raison d'arrêt (`RunStopReason`).
 - `RunWaiting` (attente de la série) : port sortant, attendre jusqu'à une date.
+- `CadenceCheck.allowedAt(VintedWrite)` : date à partir de laquelle l'écriture est permise (maintenant si elle l'est), sans réservation ; `reserve` reste le garde-fou de l'écriture.
 - Application : `LaunchAutomaticRun` (lance la série en arrière-plan, garde son aperçu), réutilise `ShowListingInventory`, `RelaunchListing`, `FailureHandling`.
 
 ## Tests unitaires et d'intégration attendus
