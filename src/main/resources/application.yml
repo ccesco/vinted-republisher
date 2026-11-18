@@ -69,6 +69,8 @@ deletion:
 # active les republications réelles, toute autre valeur empêche l'application de démarrer.
 republication:
   minimum-delay: 5m
+  # Preuve (US-12, AT-12-20) : attente après le clic sur « Publier » avant de lire le dressing, le temps que Vinted y montre la nouvelle annonce.
+  proof-delay: 30s
   dry-run: ${REPUBLICATION_DRY_RUN:true}
 
 # Limites de cadence (US-27) : une écriture sur Vinted (suppression ou republication réelle) attend l'intervalle de son

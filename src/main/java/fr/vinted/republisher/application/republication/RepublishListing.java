@@ -15,6 +15,7 @@ import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.republication.RepublicationReport;
 import fr.vinted.republisher.domain.republication.RepublicationVisit;
+import fr.vinted.republisher.domain.run.RunWaiting;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -26,6 +27,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -46,12 +48,17 @@ public class RepublishListing {
     private final Clock clock;
     private final JournalWriter journal;
     private final ShowListingRepublication showListingRepublication;
+    private final RunWaiting waiting;
+    private final Duration proofDelay;
 
+    /** {@code proofDelay}: how long Vinted is given, once Publish is clicked, to show the new listing in the wardrobe. */
     public RepublishListing(VintedSession session, RepublicationChecks checks, CadenceCheck cadence,
                             ListingRepublicationRepository republications, ListingPublisher publisher,
                             NewListingSearch newListingSearch, ListingRepository listings, RepublicationMode mode,
                             Clock clock, ShowListingRepublication showListingRepublication,
-                            JournalWriter journal) {
+                            JournalWriter journal, RunWaiting waiting, Duration proofDelay) {
+        this.waiting = waiting;
+        this.proofDelay = proofDelay;
         this.session = session;
         this.checks = checks;
         this.cadence = cadence;
@@ -110,6 +117,7 @@ public class RepublishListing {
     }
 
     private void prove(ListingRepublication republication, ListingBackup backup) {
+        waiting.until(republication.attemptedAt().plus(proofDelay), () -> false);
         Optional<ScannedListing> found = newListingSearch.find(backup.content());
         if (found.isEmpty()) {
             LOG.warn("Republication of listing {}: no single new listing found in the wardrobe", backup.id().value());

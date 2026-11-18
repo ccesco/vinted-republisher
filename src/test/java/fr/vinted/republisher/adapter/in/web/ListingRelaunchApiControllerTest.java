@@ -306,7 +306,7 @@ class ListingRelaunchApiControllerTest {
                             new RepublicationChecks(listingBackups, photos, validations, deletions, republications,
                                     delay, clock),
                             cadence, republications, new FakeListingPublisher(wardrobe), newListingSearch, listings,
-                            RepublicationMode.REAL, clock, showRepublication, journalWriter),
+                            RepublicationMode.REAL, clock, showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                     new VerifyListingRepublication(session, listingBackups, republications, listings,
                             newListingSearch, new FakeListingContentReader(), noBackupPause(), clock,
                             showRepublication));
