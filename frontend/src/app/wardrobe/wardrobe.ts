@@ -13,6 +13,7 @@ import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import { dateOf, dayOf, listingLink, plural, priceOf } from '../shared/format';
 import { inventoryCriteriaOf } from './inventory-criteria';
 import { keyFiguresOf } from './key-figures';
+import { runningSummaryOf } from './run-summary';
 import {
   APPLICATION_DOWN_MESSAGE, ARCHIVE_PROBLEM_MESSAGES, ARCHIVE_UNREACHABLE_MESSAGE, BACKUP_PROBLEM_MESSAGES,
   PROBLEM_MESSAGES, RELAUNCHABLE_STAGES, RELAUNCH_DONE_MESSAGES, RELAUNCH_DRY_RUN_MESSAGE, RELAUNCH_FAILED_MESSAGE,
@@ -55,7 +56,11 @@ export class Wardrobe {
   protected readonly archiveProblem = signal('');
   protected readonly archiving = signal(false);
 
-  protected readonly runSummary = signal('');
+  private readonly run = signal<AutomaticRunOverview | null>(null);
+  protected readonly runSummary = computed(() => {
+    const run = this.run();
+    return run ? runSummaryOf(run, (this.rows() ?? []).map(row => row.listing)) + requestOf(run) : '';
+  });
   protected readonly runButtonShown = signal(false);
   protected readonly pauseShown = signal(false);
   protected readonly resumeShown = signal(false);
@@ -437,7 +442,7 @@ export class Wardrobe {
 
   private showRun(run: AutomaticRunOverview): void {
     this.runInProgress = run.status === 'RUNNING' || run.status === 'WAITING' || run.status === 'PAUSED';
-    this.runSummary.set(runSummaryOf(run) + requestOf(run));
+    this.run.set(run);
     this.showRunButton();
     const active = run.status === 'RUNNING' || run.status === 'WAITING';
     this.pauseShown.set(active && !run.pauseRequested && !run.stopRequested);
@@ -481,22 +486,10 @@ function inProgress(overview: WardrobeOverview): boolean {
   return overview.scanInProgress || overview.backupInProgress || overview.statisticsRefreshInProgress;
 }
 
-// Annonces de la tournée en cours (US-15) : une seule par défaut.
-function runningSummaryOf(listingIds: number[]): string {
-  switch (listingIds.length) {
-    case 0:
-      return 'Traitement en cours.';
-    case 1:
-      return `Traitement en cours : annonce ${listingIds[0]}.`;
-    default:
-      return `Traitement en cours : annonces ${listingIds.join(', ')}.`;
-  }
-}
-
-function runSummaryOf(run: AutomaticRunOverview): string {
+function runSummaryOf(run: AutomaticRunOverview, listings: Listing[]): string {
   switch (run.status) {
     case 'RUNNING':
-      return runningSummaryOf(run.currentListingIds);
+      return runningSummaryOf(run.currentListingIds, listings);
     case 'WAITING':
       return `En attente jusqu'au ${dateOf(run.waitingUntil ?? '')}.`;
     case 'FINISHED': {

@@ -27,7 +27,7 @@ En tant que membre, je veux lancer d'un clic le traitement de toutes mes annonce
    - `SKIP_LISTING` : l'annonce est écartée de la série ;
    - `STOP_RUN` : la série s'**arrête**, avec sa raison.
 6. **Aperçu** : état (`IDLE` aucune série depuis le démarrage, `RUNNING`, `WAITING` avec la date de fin d'attente, `FINISHED`, `STOPPED` avec la raison), date de début et de fin, annonce en cours, nombre de relances faites, annonces écartées.
-7. **Page du dressing** : bouton « Tout lancer », masqué pendant une série ou un scan ou une sauvegarde ; ligne d'état (« Traitement en cours : annonce <id> », « En attente jusqu'au <date> », « Traitement terminé : <n> relances, <m> annonces écartées », « Traitement arrêté : <raison> ») ; la page suit la série et relit la liste tant qu'elle tourne.
+7. **Page du dressing** : bouton « Tout lancer », masqué pendant une série ou un scan ou une sauvegarde ; ligne d'état (« Traitement en cours : <titre> (annonce <id>) », identifiant seul si l'annonce n'est pas dans la liste affichée, « En attente jusqu'au <date> », « Traitement terminé : <n> relances, <m> annonces écartées », « Traitement arrêté : <raison> ») ; la page suit la série et relit la liste tant qu'elle tourne.
 8. **Reprise (US-16)** : l'étape de chaque annonce est en base et une écriture douteuse reste « à vérifier » : après un redémarrage, un nouveau « Tout lancer » reprend là où la série s'était arrêtée. La série ne redémarre jamais seule.
 
 ## Contrat d'API
