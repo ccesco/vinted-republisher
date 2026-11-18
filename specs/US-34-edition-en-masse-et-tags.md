@@ -1,5 +1,5 @@
 # US-34 – Édition en masse et tags
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-18 (liste des annonces, critères d'affichage)
 
@@ -16,11 +16,11 @@ En tant que membre, je veux poser des tags sur une sélection d'annonces en une 
 
 ## Comportement attendu
 1. **Tag** : étiquette libre posée par le membre sur une annonce, gardée dans l'outil seulement ; jamais envoyée à Vinted. Une annonce porte zéro, un ou plusieurs tags, chacun une seule fois. Présentes ou absentes, toutes les annonces connues peuvent en porter.
-2. **Forme d'un tag** : texte saisi, espaces autour retirés, espaces intérieurs réduits à un seul, mis en minuscules ; accents gardés (« Été » devient « été »). Entre 1 et 30 caractères une fois mis en forme. Deux saisies de même forme sont le même tag.
+2. **Forme d'un tag** : texte saisi, accents composés (NFC, « e » + accent = « é »), espaces autour retirés, espaces intérieurs réduits à un seul, mis en minuscules ; accents gardés (« Été » devient « été »). Entre 1 et 30 caractères une fois mis en forme. Deux saisies de même forme sont le même tag.
 3. **Édition en masse** : le membre coche des annonces dans le tableau (ou toutes les lignes affichées d'un clic), saisit un tag et choisit « Ajouter le tag » ou « Retirer le tag ». L'opération porte sur toutes les annonces cochées, tout ou rien. Ajouter un tag déjà porté, ou retirer un tag absent, ne change rien à cette annonce et n'est pas une erreur.
 4. **Annonce inconnue** : si une annonce de la sélection n'est pas connue de l'outil, rien n'est modifié (404).
-5. **Sélection** : de 1 à 1 000 annonces, sans doublon. Elle se garde quand la liste est relue (scan, série, changement de critère) mais ne contient jamais que des lignes affichées : une annonce qui sort de la liste sort de la sélection. Elle se vide après une édition réussie.
-6. **Liste** : une colonne « Tags » montre les tags de chaque annonce, par ordre alphabétique, séparés par des virgules (texte, jamais HTML). Une colonne de cases à cocher en tête de ligne ; la case de l'en-tête coche ou décoche toutes les lignes affichées. Au-dessus du tableau : « N annonces sélectionnées », un champ « Tag » et les deux boutons, inactifs tant que la sélection est vide ou le tag vide.
+5. **Sélection** : de 1 à 1 000 annonces ; une annonce en double compte une fois. Elle se garde quand la liste est relue (scan, série, changement de critère) mais ne contient jamais que des lignes affichées : une annonce qui sort de la liste sort de la sélection. Elle se vide après une édition réussie.
+6. **Liste** : une colonne « Tags » montre les tags de chaque annonce, par ordre alphabétique, séparés par des virgules (texte, jamais HTML). Une dernière colonne de cases à cocher (après « Tags », en fin de ligne pour ne pas décaler les colonnes existantes) ; la case de l'en-tête coche ou décoche toutes les lignes affichées. Au-dessus du tableau : « N annonces sélectionnées », un champ « Tag » et les deux boutons, inactifs tant que la sélection est vide ou le tag vide.
 7. **Filtre par tag** : une liste déroulante « Tag » parmi les critères (« Tous » par défaut, puis chaque tag porté par au moins une annonce, par ordre alphabétique). Elle n'affiche que les annonces portant ce tag. Le tag demandé est mis en forme comme en 2 ; un tag que personne ne porte donne une liste vide.
 8. **Après une édition** : message « Tag « x » ajouté à N annonces » ou « Tag « x » retiré de N annonces » (N = nombre d'annonces sélectionnées), puis la page relit les tags proposés au filtre et la liste. En cas de refus : « Une annonce sélectionnée n'est plus connue : aucun tag modifié » (404), « Tag invalide (1 à 30 caractères) : aucun tag modifié » (400), « Échec de la modification des tags : aucun tag modifié » sinon.
 9. Rien n'est lu ni écrit sur Vinted ; l'édition n'entre pas au journal des actions (US-23), qui ne trace que les actions sur Vinted.
@@ -28,21 +28,21 @@ En tant que membre, je veux poser des tags sur une sélection d'annonces en une 
 ## Contrat d'API
 | Requête | Opération | Réponse |
 | --- | --- | --- |
-| `POST /api/listings/tag-edits` | `editListingTags` | Corps `TagEdit` : `listingIds` (tableau d'entiers int64 ≥ 1, de 1 à 1 000, sans doublon), `tag` (chaîne, 1 à 100 caractères, au moins un caractère non blanc), `operation` (`TagOperation` : `ADD`, `REMOVE`), tous obligatoires. 204 fait ; 400 corps invalide ou tag de plus de 30 caractères une fois mis en forme ; 403 autre origine ; 404 annonce inconnue, rien modifié. |
+| `POST /api/listings/tag-edits` | `editListingTags` | Corps `TagEdit` : `listingIds` (tableau d'entiers int64 ≥ 1, de 1 à 1 000, une annonce en double comptant une fois), `tag` (chaîne, 1 à 100 caractères ; vide une fois mis en forme = 400), `operation` (`TagOperation` : `ADD`, `REMOVE`), tous obligatoires. 204 fait ; 400 corps invalide ou tag de plus de 30 caractères une fois mis en forme ; 403 autre origine ; 404 annonce inconnue, rien modifié. |
 | `GET /api/listing-tags` | `showListingTags` | 200, `ListingTags` : `tags` (tableau de chaînes, ordre alphabétique, chaque tag porté par au moins une annonce). |
 | `GET /api/listings` | `showListingInventory` | Nouveau paramètre facultatif `tag` (chaîne, 100 caractères au plus ; vide = pas de filtre). 400 si `tag` dépasse 100 caractères, ou 30 une fois mis en forme. |
 
-`Listing` gagne `tags` (tableau de chaînes, obligatoire, ordre alphabétique, vide si aucun tag). Il est aussi rendu par la fiche (US-18b) et la relance (US-20), qui ne l'affichent pas.
+`Listing` gagne `tags` (tableau de chaînes, ordre alphabétique), facultatif : toujours rendu par la liste (`GET /api/listings`, vide si aucun tag), absent de la fiche (US-18b) et de la relance (US-20), qui ne l'affichent pas.
 
 ## Critères d'acceptation
-- [ ] Ajouter un tag à une sélection le pose sur chacune ; une annonce qui le portait déjà le garde une seule fois.
-- [ ] Retirer un tag d'une sélection l'ôte de chacune ; une annonce qui ne le portait pas est inchangée.
-- [ ] Un tag est mis en forme (espaces, minuscules) avant d'être posé, retiré ou filtré ; un tag vide ou trop long est refusé.
-- [ ] Une sélection contenant une annonce inconnue est refusée en entier.
-- [ ] La liste montre les tags de chaque annonce et se filtre sur un tag.
-- [ ] La liste des tags proposés contient chaque tag porté, une fois, par ordre alphabétique.
-- [ ] Les tags survivent au redémarrage de l'application (base PostgreSQL).
-- [ ] La page permet de cocher des annonces, d'ajouter ou retirer un tag à la sélection, et de filtrer sur un tag ; tags affichés comme texte.
+- [x] Ajouter un tag à une sélection le pose sur chacune ; une annonce qui le portait déjà le garde une seule fois.
+- [x] Retirer un tag d'une sélection l'ôte de chacune ; une annonce qui ne le portait pas est inchangée.
+- [x] Un tag est mis en forme (espaces, minuscules) avant d'être posé, retiré ou filtré ; un tag vide ou trop long est refusé.
+- [x] Une sélection contenant une annonce inconnue est refusée en entier.
+- [x] La liste montre les tags de chaque annonce et se filtre sur un tag.
+- [x] La liste des tags proposés contient chaque tag porté, une fois, par ordre alphabétique.
+- [x] Les tags survivent au redémarrage de l'application (base PostgreSQL).
+- [x] La page permet de cocher des annonces, d'ajouter ou retirer un tag à la sélection, et de filtrer sur un tag ; tags affichés comme texte.
 
 ## Tests d'acceptation
 ### AT-34-01 – Ajouter un tag à une sélection
@@ -138,10 +138,10 @@ Test : `ListingTagsPageTest.selects_listings_edits_their_tags_and_filters_on_a_t
 
 ## Cas limites et erreurs
 - Sélection vide côté page : boutons inactifs ; côté API, 400.
-- Une même annonce deux fois dans la sélection : 400 (contrat `uniqueItems`).
+- Une même annonce deux fois dans la sélection : comptée une fois.
 - Annonce absente de Vinted : on peut lui poser ou retirer des tags comme aux autres.
 - Annonce republiée : la nouvelle annonce (nouvel identifiant Vinted) ne reprend pas les tags de l'ancienne (voir Hors périmètre).
-- Deux éditions simultanées sur les mêmes annonces : chacune en une transaction ; ajout et retrait sont idempotents, la dernière l'emporte.
+- Deux éditions simultanées sur les mêmes annonces : chacune en une transaction ; ajout et retrait sont idempotents, la dernière l'emporte. Un ajout simultané du même tag ne crée ni doublon ni erreur (`INSERT … ON CONFLICT DO NOTHING`).
 - Tag contenant `<`, `%` ou `'` : gardé tel quel, affiché comme texte, comparé en Java.
 - Base indisponible : 500 de Spring, la page affiche « Échec de la modification des tags : aucun tag modifié » (la transaction garantit le tout ou rien).
 

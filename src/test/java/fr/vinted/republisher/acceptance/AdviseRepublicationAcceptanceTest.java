@@ -23,6 +23,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -52,7 +53,8 @@ class AdviseRepublicationAcceptanceTest {
     private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics, backups,
             new InMemoryBackupValidationRepository(), deletions, republications,
-            new RepublicationDelay(Duration.ofMinutes(5)), new AdjustableClock(NOV_17));
+            new RepublicationDelay(Duration.ofMinutes(5)), new AdjustableClock(NOV_17),
+            new InMemoryListingTagRepository());
 
     @Test
     void advises_a_dormant_listing() {

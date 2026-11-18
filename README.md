@@ -71,6 +71,8 @@ Fiche et validation : sur la page du dressing, le titre d'une annonce ouvre sa f
 
 Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui liste les actions de l'outil (scans, sauvegardes du dressing, validations, suppressions, revérifications, republications) avec leur issue, refus, dry-runs et erreurs compris, 50 par page ; la fiche d'une annonce montre les siennes. Les lignes ne sont jamais supprimées.
 
+Tags : dans la liste de la page du dressing, cochez des annonces (la case de l'en-tête coche toutes les lignes affichées), saisissez un tag puis « Ajouter le tag » ou « Retirer le tag » ; le filtre « Tag » n'affiche que les annonces qui le portent. Les tags restent dans l'outil, rien n'est envoyé à Vinted ; une annonce republiée ne reprend pas les tags de l'ancienne.
+
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
 | `DB_NAME` | nom de la base | `appdb` |
@@ -135,6 +137,6 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 ### Epic 9 – Gestion d'annonces `V2`
 - US-32 Cycle de vie des annonces
 - [x] US-33 Historique de prix
-- US-34 Édition en masse et tags
+- [x] US-34 Édition en masse et tags
 - US-35 Règles d'aide à la décision (implémentée)
 - US-36 Suivi des ventes

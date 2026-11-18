@@ -13,6 +13,7 @@ import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
@@ -23,6 +24,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.TestConfiguration;
@@ -69,6 +71,9 @@ class ListingInventoryApiControllerTest {
     @Autowired
     private InMemoryBackupValidationRepository validations;
 
+    @Autowired
+    private InMemoryListingTagRepository tags;
+
     @Test
     void empty_inventory_has_no_listing() {
         assertThat(mvc.get().uri("/api/listings"))
@@ -94,11 +99,11 @@ class ListingInventoryApiControllerTest {
                         {"listings": [{"vintedId": 18, "title": "Jupe",
                                        "price": {"amount": 3.00, "currency": "EUR"},
                                        "url": "https://vinted.test/items/18", "present": true,
-                                       "stage": "TO_BACK_UP"},
+                                       "stage": "TO_BACK_UP", "tags": []},
                                       {"vintedId": 17, "title": "Pull rayé",
                                        "price": {"amount": 1.50, "currency": "EUR"},
                                        "url": "https://vinted.test/items/17", "present": true,
-                                       "stage": "TO_DELETE",
+                                       "stage": "TO_DELETE", "tags": [],
                                        "savedAt": "2026-11-07T10:00:00Z", "photoCount": 3,
                                        "validatedAt": "2026-11-07T11:00:00Z",
                                        "statistics": {"viewCount": 15, "favouriteCount": 4,
@@ -152,6 +157,32 @@ class ListingInventoryApiControllerTest {
     }
 
     @Test
+    void filters_on_tag_and_shows_tags() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT),
+                Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT)));
+        tags.add(new Tag("lot"), List.of(new VintedListingId(17), new VintedListingId(18)));
+        tags.add(new Tag("été"), List.of(new VintedListingId(17)));
+
+        // Quand elle demande GET /api/listings?tag=Été
+        // Alors les annonces renvoyées portent « été » et chacune donne ses tags
+        assertThat(mvc.get().uri("/api/listings").param("tag", "Été"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listings[*].vintedId").isEqualTo(List.of(17));
+        assertThat(mvc.get().uri("/api/listings").param("tag", "Été"))
+                .bodyJson().extractingPath("$.listings[0].tags").isEqualTo(List.of("été", "lot"));
+    }
+
+    @Test
+    void blank_tag_means_no_tag_filter_and_too_long_tag_is_refused() {
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+
+        assertThat(mvc.get().uri("/api/listings").param("tag", "  "))
+                .hasStatusOk().bodyJson().extractingPath("$.listings[*].vintedId").isEqualTo(List.of(17));
+        assertThat(mvc.get().uri("/api/listings").param("tag", "a".repeat(31))).hasStatus(400);
+        assertThat(mvc.get().uri("/api/listings").param("tag", "a".repeat(101))).hasStatus(400);
+    }
+
+    @Test
     void contract_knows_every_criterion() {
         assertThat(names(PresenceFilterDto.values())).containsExactly(names(PresenceFilter.values()));
         assertThat(names(BackupFilterDto.values())).containsExactly(names(BackupFilter.values()));
@@ -190,10 +221,16 @@ class ListingInventoryApiControllerTest {
         ShowListingInventory showListingInventory(InMemoryListingRepository listings,
                                                   InMemoryListingStatisticsRepository statistics,
                                                   InMemoryListingBackupRepository backups,
-                                                  InMemoryBackupValidationRepository validations) {
+                                                  InMemoryBackupValidationRepository validations,
+                                                  InMemoryListingTagRepository tags) {
             return new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC), tags);
+        }
+
+        @Bean
+        InMemoryListingTagRepository tags() {
+            return new InMemoryListingTagRepository();
         }
     }
 }

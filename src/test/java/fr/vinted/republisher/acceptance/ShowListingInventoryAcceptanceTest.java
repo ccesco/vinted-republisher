@@ -22,6 +22,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -51,7 +52,8 @@ class ShowListingInventoryAcceptanceTest {
     private final ShowListingInventory showListingInventory =
             new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
+                    new InMemoryListingTagRepository());
 
     @Test
     void present_listings_most_recent_first_by_default() {

@@ -21,6 +21,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -49,7 +50,7 @@ class ListingStageAcceptanceTest {
     private final AdjustableClock clock = new AdjustableClock(DELETED_AT);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), backups, validations, deletions, republications,
-            new RepublicationDelay(Duration.ofMinutes(5)), clock);
+            new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository());
 
     @Test
     void listing_without_backup_is_to_back_up() {

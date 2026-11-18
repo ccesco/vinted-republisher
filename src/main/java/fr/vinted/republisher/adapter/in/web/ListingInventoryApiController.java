@@ -19,6 +19,7 @@ import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
+import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import org.springframework.http.ResponseEntity;
@@ -26,6 +27,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 
 /** Implements the contract-first API: the inventory as the member filters, sorts and searches it. */
 @RestController
@@ -40,14 +42,20 @@ public class ListingInventoryApiController implements ListingInventoryApi {
     @Override
     public ResponseEntity<ListingInventoryDto> showListingInventory(PresenceFilterDto presence, BackupFilterDto backup,
                                                                     String search, InventorySortDto sort,
-                                                                    SortDirectionDto direction) {
+                                                                    SortDirectionDto direction, String tag) {
         InventoryCriteria criteria = new InventoryCriteria(PresenceFilter.valueOf(presence.name()),
                 BackupFilter.valueOf(backup.name()), search, InventorySort.valueOf(sort.name()),
-                SortDirection.valueOf(direction.name()));
-        return ResponseEntity.ok(new ListingInventoryDto().listings(
-                showListingInventory.show(criteria).stream().map(ListingInventoryApiController::toDto).toList()));
+                SortDirection.valueOf(direction.name()), tagOf(tag));
+        return ResponseEntity.ok(new ListingInventoryDto().listings(showListingInventory.show(criteria).stream()
+                .map(entry -> toDto(entry).tags(entry.tags().stream().map(Tag::name).toList())).toList()));
     }
 
+    /** A blank tag means no tag filter. */
+    private static Optional<Tag> tagOf(String tag) {
+        return tag == null || tag.isBlank() ? Optional.empty() : Optional.of(new Tag(tag));
+    }
+
+    /** Without tags: only the list shows them, the detail and the relaunch leave them out. */
     static ListingDto toDto(InventoryEntry entry) {
         Listing listing = entry.listing();
         return new ListingDto()
@@ -64,7 +72,8 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .statistics(entry.statistics().map(ListingInventoryApiController::statisticsOf).orElse(null))
                 .republicationAdvice(entry.advice().map(advice -> new RepublicationAdviceDto()
                         .viewsGained(advice.viewsGained())
-                        .since(advice.since().atOffset(ZoneOffset.UTC))).orElse(null));
+                        .since(advice.since().atOffset(ZoneOffset.UTC))).orElse(null))
+                .tags(null);
     }
 
     static ListingStatisticsDto statisticsOf(StatisticsReading reading) {

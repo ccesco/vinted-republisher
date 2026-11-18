@@ -26,6 +26,8 @@ tags:
     description: Journal des actions de l'outil, refus, dry-runs et erreurs compris (US-23)
   - name: listing-relaunch
     description: Relance d'une annonce, d'une étape, depuis la liste (US-20)
+  - name: listing-tag
+    description: Tags posés sur une sélection d'annonces, gardés dans l'outil (US-34)
   - name: automatic-run
     description: Série automatique « Tout lancer » (US-19)
 paths:
@@ -189,6 +191,14 @@ paths:
           required: false
           schema:
             $ref: '#/components/schemas/SortDirection'
+        - name: tag
+          in: query
+          required: false
+          description: >
+            Tag que les annonces doivent porter, mis en forme comme à l'édition ; vide = pas de filtre (US-34).
+          schema:
+            type: string
+            maxLength: 100
       responses:
         '200':
           description: Annonces retenues, dans l'ordre demandé.
@@ -197,7 +207,46 @@ paths:
               schema:
                 $ref: '#/components/schemas/ListingInventory'
         '400':
-          description: Valeur de critère inconnue, ou recherche de plus de 100 caractères.
+          description: >
+            Valeur de critère inconnue, recherche de plus de 100 caractères, ou tag de plus de 100 caractères
+            (30 une fois mis en forme).
+  /api/listings/tag-edits:
+    post:
+      tags: [listing-tag]
+      operationId: editListingTags
+      summary: Ajouter ou retirer un tag sur une sélection d'annonces
+      description: >
+        Pose le tag sur chaque annonce sélectionnée (ADD) ou l'en retire (REMOVE), tout ou rien. Le tag est mis en
+        forme (espaces autour retirés, espaces intérieurs réduits à un, minuscules) ; un tag déjà porté ou absent ne
+        change rien. Gardé dans l'outil seulement, jamais envoyé à Vinted.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TagEdit'
+      responses:
+        '204':
+          description: Tag ajouté ou retiré sur chaque annonce sélectionnée.
+        '400':
+          description: Corps invalide, ou tag vide ou de plus de 30 caractères une fois mis en forme ; rien modifié.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: Une annonce sélectionnée est inconnue de l'outil ; rien modifié.
+  /api/listing-tags:
+    get:
+      tags: [listing-tag]
+      operationId: showListingTags
+      summary: Tags portés par les annonces
+      description: Chaque tag porté par au moins une annonce, une fois, par ordre alphabétique.
+      responses:
+        '200':
+          description: Tags portés.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListingTags'
   /api/listings/{listingId}:
     get:
       tags: [listing-detail]
@@ -1081,6 +1130,13 @@ components:
           $ref: '#/components/schemas/ListingStage'
         republicationAdvice:
           $ref: '#/components/schemas/RepublicationAdvice'
+        tags:
+          type: array
+          items:
+            type: string
+          description: >
+            Tags portés par l'annonce, par ordre alphabétique (US-34) ; toujours rendu par la liste (vide si aucun),
+            absent de la fiche et de la relance.
     RepublicationAdvice:
       type: object
       description: >
@@ -1101,6 +1157,46 @@ components:
       example:
         viewsGained: 6
         since: '2026-11-08T10:00:00Z'
+    TagEdit:
+      type: object
+      description: Tag à ajouter à, ou retirer de, chaque annonce sélectionnée.
+      required: [listingIds, tag, operation]
+      properties:
+        listingIds:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            type: integer
+            format: int64
+            minimum: 1
+          description: Identifiants Vinted des annonces sélectionnées ; une annonce en double compte une fois.
+        tag:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Tag saisi ; 30 caractères au plus une fois mis en forme.
+        operation:
+          $ref: '#/components/schemas/TagOperation'
+      example:
+        listingIds: [90000000001, 90000000002]
+        tag: été
+        operation: ADD
+    TagOperation:
+      type: string
+      description: Ajouter le tag, ou le retirer.
+      enum: [ADD, REMOVE]
+    ListingTags:
+      type: object
+      description: Tags portés par au moins une annonce, par ordre alphabétique.
+      required: [tags]
+      properties:
+        tags:
+          type: array
+          items:
+            type: string
+      example:
+        tags: [été, lot]
     ListingStage:
       type: string
       description: >

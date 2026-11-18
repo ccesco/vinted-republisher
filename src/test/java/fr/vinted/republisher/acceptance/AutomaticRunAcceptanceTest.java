@@ -50,6 +50,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 
@@ -484,7 +485,8 @@ class AutomaticRunAcceptanceTest {
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
                         contents, noBackupPause(), clock, showRepublication));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
-                deletions, republications, delay, clock), relaunch, waiting, clock, Runnable::run);
+                deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch, waiting, clock,
+                Runnable::run);
     }
 
     /** Present, backed up with its photo kept, validated by the member, and shown as is on Vinted. */

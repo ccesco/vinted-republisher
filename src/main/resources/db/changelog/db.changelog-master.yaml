@@ -24,3 +24,5 @@ databaseChangeLog:
       file: db/changelog/changes/011-create-action-journal-entry.yaml
   - include:
       file: db/changelog/changes/012-create-listing-price-change.yaml
+  - include:
+      file: db/changelog/changes/013-create-listing-tag.yaml

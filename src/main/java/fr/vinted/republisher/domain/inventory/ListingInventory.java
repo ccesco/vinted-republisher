@@ -6,6 +6,8 @@ import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.tag.ListingTag;
+import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -69,6 +71,15 @@ public record ListingInventory(List<InventoryEntry> entries) {
             return new InventoryEntry(listing, latest, backup, validation.map(BackupValidation::validatedAt), stage,
                     RepublicationAdvice.of(stage, latest, Optional.ofNullable(baselineOf.get(listing.id())), now));
         }).toList());
+    }
+
+    /** The same inventory, each listing bearing its tags among {@code tags}. */
+    public ListingInventory withTags(List<ListingTag> tags) {
+        Map<VintedListingId, List<Tag>> tagsOf = tags.stream().collect(Collectors.groupingBy(ListingTag::listingId,
+                Collectors.mapping(ListingTag::tag, Collectors.toList())));
+        return new ListingInventory(entries.stream()
+                .map(entry -> entry.withTags(tagsOf.getOrDefault(entry.listing().id(), List.of())))
+                .toList());
     }
 
     public List<InventoryEntry> select(InventoryCriteria criteria) {
