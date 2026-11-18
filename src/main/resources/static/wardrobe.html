@@ -19,6 +19,8 @@
 <p id="statistics-progress" hidden>Rafraîchissement des vues et favoris en cours…</p>
 <p id="statistics-problem" role="alert" hidden></p>
 <p><button id="statistics-refresh" type="button" hidden>Rafraîchir les vues et favoris</button></p>
+<p id="archive-problem" role="alert" hidden></p>
+<p><button id="data-archive" type="button">Télécharger une archive</button></p>
 <p id="run-summary"></p>
 <p>
     <button id="automatic-run" type="button" hidden>Tout lancer</button>
@@ -143,6 +145,11 @@
         VINTED_PAGE_UNREADABLE: 'une page de Vinted est illisible (page changée ?) : voir les logs',
         RUN_FAILED: 'échec inattendu (voir les logs)'
     };
+    // Codes du contrat OpenAPI (DataArchiveRefusalReason) -> libellés affichés (US-26).
+    const ARCHIVE_PROBLEM_MESSAGES = {
+        BROWSER_BUSY: 'Une action navigateur est en cours : réessayez quand elle sera finie.',
+        ARCHIVE_FAILED: "L'archive n'a pas pu être créée : rien n'a été téléchargé. Voir les logs."
+    };
     const APPLICATION_DOWN_MESSAGE = "L'application ne répond pas : nouvel essai dans 2 secondes.";
     const POLL_INTERVAL_MS = 2000;
     const SEARCH_DELAY_MS = 300;
@@ -159,6 +166,8 @@
     const statisticsProgress = document.getElementById('statistics-progress');
     const statisticsProblem = document.getElementById('statistics-problem');
     const statisticsButton = document.getElementById('statistics-refresh');
+    const archiveProblem = document.getElementById('archive-problem');
+    const archiveButton = document.getElementById('data-archive');
     const runSummary = document.getElementById('run-summary');
     const runButton = document.getElementById('automatic-run');
     const pauseButton = document.getElementById('pause-run');
@@ -566,7 +575,38 @@
     }
     scanButton.addEventListener('click', () => launch('/api/wardrobe/scan'));
     backupButton.addEventListener('click', () => launch('/api/wardrobe/backup'));
+    // Fetch plutôt qu'un simple lien : un refus s'affiche sur la page au lieu d'être téléchargé comme fichier.
+    async function downloadArchive() {
+        archiveButton.disabled = true;
+        try {
+            const response = await fetch('/api/data-archive');
+            if (!response.ok) {
+                const refusal = await response.json().catch(() => ({}));
+                showArchiveProblem(ARCHIVE_PROBLEM_MESSAGES[refusal.reason] ?? ARCHIVE_PROBLEM_MESSAGES.ARCHIVE_FAILED);
+                return;
+            }
+            const disposition = response.headers.get('Content-Disposition') ?? '';
+            const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? 'vinted-republisher-archive.zip';
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(await response.blob());
+            link.download = name;
+            link.click();
+            setTimeout(() => URL.revokeObjectURL(link.href), 0);
+            showArchiveProblem('');
+        } catch (unreachable) {
+            showArchiveProblem("L'application ne répond pas : rien n'a été téléchargé.");
+        } finally {
+            archiveButton.disabled = false;
+        }
+    }
+
+    function showArchiveProblem(message) {
+        archiveProblem.textContent = message;
+        archiveProblem.hidden = !message;
+    }
+
     statisticsButton.addEventListener('click', () => launch('/api/wardrobe/statistics-refresh'));
+    archiveButton.addEventListener('click', downloadArchive);
     runButton.addEventListener('click', launchRun);
     pauseButton.addEventListener('click', () => controlRun('pause'));
     resumeButton.addEventListener('click', () => controlRun('resume'));

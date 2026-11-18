@@ -82,6 +82,18 @@ Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui
 | `CHROME_DEBUG_PORT` | port de débogage de Chrome (127.0.0.1 uniquement) | `9222` |
 | `VINTED_WARDROBE_URL` | adresse de votre dressing, `https://www.vinted.fr/member/<id>` | obligatoire |
 
+### Archive des données (US-26)
+Une annonce supprimée de Vinted n'existe plus que dans la base et dans `APP_DATA_DIR/photos`. Le bouton « Télécharger une archive » de la page du dressing (`GET /api/data-archive`) donne un zip de toutes les tables (`data.json`) et de toutes les photos (`photos/`) ; rangez-le hors du poste. Il ne contient jamais le profil Chrome (la session Vinted). Refusé pendant une action navigateur.
+
+Restauration, dans une base vide et avec la version de l'application qui a fait l'archive (le script refuse une autre version du schéma) :
+1. Base vide : `docker compose down -v` puis `docker compose up -d` (**efface la base actuelle**), démarrer l'application une fois pour que Liquibase crée les tables, puis l'arrêter.
+2. Dézipper l'archive, puis recharger `data.json` (tout ou rien) :
+   ```bash
+   docker compose cp data.json db:/tmp/data.json
+   docker compose exec -T db psql -U appuser -d appdb -v ON_ERROR_STOP=1 < scripts/restaurer-archive.sql
+   ```
+3. Recopier le dossier `photos/` de l'archive dans `APP_DATA_DIR`.
+
 ## User stories (proposition de découpage)
 
 Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères d'acceptation seront écrits dans les specs.
