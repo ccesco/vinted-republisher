@@ -1,4 +1,4 @@
-import type { BackupFilter, InventorySort, PresenceFilter, SortDirection } from '../../generated/api';
+import type { BackupFilter, InventorySort, ListingStage, PresenceFilter, SortDirection } from '../../generated/api';
 
 export interface InventoryChoices {
   presence: string;
@@ -7,6 +7,7 @@ export interface InventoryChoices {
   sort: string;
   direction: string;
   tag: string;
+  stage: string;
 }
 
 export interface InventoryCriteria {
@@ -16,6 +17,7 @@ export interface InventoryCriteria {
   sort?: InventorySort;
   direction?: SortDirection;
   tag?: string;
+  stage?: ListingStage;
 }
 
 // Un critère vide n'est pas envoyé : l'API prend alors sa valeur par défaut.
@@ -27,6 +29,7 @@ export function inventoryCriteriaOf(choices: InventoryChoices): InventoryCriteri
     search: given(choices.search),
     sort: given(choices.sort) as InventorySort | undefined,
     direction: given(choices.direction) as SortDirection | undefined,
-    tag: given(choices.tag)
+    tag: given(choices.tag),
+    stage: given(choices.stage) as ListingStage | undefined
   };
 }

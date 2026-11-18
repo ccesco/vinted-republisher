@@ -3,6 +3,7 @@ package fr.vinted.republisher.domain.inventory;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.tag.ListingTag;
 import fr.vinted.republisher.domain.tag.Tag;
@@ -151,6 +152,66 @@ class ListingInventoryTest {
 
         assertThat(inventory.entries()).singleElement()
                 .satisfies(entry -> assertThat(entry.stage()).isEqualTo(ListingStage.DELETION_TO_CHECK));
+    }
+
+    @Test
+    void republished_listing_bears_its_new_listing_when_known() {
+        ListingBackup backup = aBackup(1, SAVED_AT);
+        Instant clickedAt = SAVED_AT.plusSeconds(3600);
+        ListingRepublication published = ListingRepublication.attempted(backup, clickedAt)
+                .published(new VintedListingId(2), clickedAt.plusSeconds(60));
+        Listing newListing = present(2, "a", "1");
+
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent(), newListing),
+                List.of(), List.of(), List.of(backup), List.of(), List.of(), List.of(published),
+                new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
+
+        assertThat(inventory.entries().getFirst().republication()).contains(published);
+        assertThat(inventory.entries().getFirst().newListing()).contains(newListing);
+        assertThat(inventory.entries().getLast().newListing()).isEmpty();
+    }
+
+    @Test
+    void stage_filter_keeps_only_listings_at_that_stage() {
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
+                List.of(), List.of(), List.of(aBackup(2, SAVED_AT)), List.of(), List.of(), List.of(),
+                new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
+
+        assertThat(ids(inventory, new InventoryCriteria(PresenceFilter.ALL, BackupFilter.ALL, "",
+                InventorySort.RECENCY, SortDirection.DESC, Optional.empty(), Optional.of(ListingStage.TO_VALIDATE))))
+                .containsExactly(2L);
+    }
+
+    @Test
+    void republication_to_check_is_borne_without_new_listing() {
+        ListingBackup backup = aBackup(1, SAVED_AT);
+        Instant clickedAt = SAVED_AT.plusSeconds(3600);
+        ListingRepublication toCheck = ListingRepublication.attempted(backup, clickedAt);
+
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
+                List.of(), List.of(backup), List.of(), List.of(), List.of(toCheck),
+                new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
+
+        assertThat(inventory.entries()).singleElement().satisfies(entry -> {
+            assertThat(entry.stage()).isEqualTo(ListingStage.REPUBLICATION_TO_CHECK);
+            assertThat(entry.republication()).contains(toCheck);
+            assertThat(entry.newListing()).isEmpty();
+        });
+    }
+
+    @Test
+    void republication_checked_not_published_is_not_borne() {
+        ListingBackup backup = aBackup(1, SAVED_AT);
+        Instant clickedAt = SAVED_AT.plusSeconds(3600);
+        ListingRepublication notPublished = ListingRepublication.attempted(backup, clickedAt)
+                .notPublished(clickedAt.plusSeconds(60));
+
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
+                List.of(), List.of(backup), List.of(), List.of(), List.of(notPublished),
+                new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
+
+        assertThat(inventory.entries()).singleElement()
+                .satisfies(entry -> assertThat(entry.republication()).isEmpty());
     }
 
     @Test
