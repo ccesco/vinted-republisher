@@ -29,7 +29,7 @@ En tant que membre, je veux pouvoir autoriser l'outil à mener plusieurs actions
 6. **Pause et arrêt (US-21)** : prennent effet entre deux tournées. Toutes les relances de la tournée en cours se terminent (jamais coupées), puis la série passe en pause ou s'arrête. Une attente reste interrompue comme en US-21.
 7. **Reprise (US-19)** : inchangée. Les étapes sont en base ; après un redémarrage, un nouveau « Tout lancer » reprend, en tournées si le parallélisme le permet.
 8. **Relance (US-20)** : une relance manuelle prend une place libre du verrou ; sans place, ou si la série relance déjà cette annonce, elle est refusée (`BROWSER_BUSY`). Une relance de la série refusée pour la même raison attend 30 secondes (US-19).
-9. **Aperçu** : `currentListingIds` remplace `currentListingId` : les annonces de la dernière tournée, dans l'ordre, tant que la série tourne. Page du dressing : « Traitement en cours : annonce 1. » ou « Traitement en cours : annonces 1, 2. »
+9. **Aperçu** : `currentListingIds` remplace `currentListingId` : les annonces de la dernière tournée, dans l'ordre, tant que la série tourne. Page du dressing : « Traitement en cours : Bonnet (annonce 1). » ou « Traitement en cours : Bonnet (annonce 1), Pull (annonce 2). », titre lu dans la liste affichée (« annonce <id> » seul pour une annonce absente de la liste)
 
 ## Contrat d'API
 - `AutomaticRunOverview` : `currentListingIds` (tableau d'identifiants Vinted, obligatoire, vide hors tournée) remplace `currentListingId`. Aucun autre changement ; aucun nouveau chemin.
@@ -121,9 +121,9 @@ Test : `AutomaticRunAcceptanceTest.Parallel.waits_only_when_the_whole_round_wait
 
 ### AT-15-09 – Contrat et page
 ```gherkin
-Étant donné une série en cours sur une tournée de deux annonces
+Étant donné une série en cours sur une tournée de deux annonces, « Bonnet » (1) et « Pull » (2), affichées dans la liste
 Quand le membre lit l'aperçu ou la page du dressing
-Alors l'API donne currentListingIds et la page affiche « Traitement en cours : annonces 1, 2. »
+Alors l'API donne currentListingIds et la page affiche « Traitement en cours : Bonnet (annonce 1), Pull (annonce 2). »
 ```
 Test : `AutomaticRunApiControllerTest`, `WardrobePageTest.shows_every_listing_of_the_round()`
 
