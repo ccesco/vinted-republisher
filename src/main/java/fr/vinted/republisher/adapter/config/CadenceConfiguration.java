@@ -20,13 +20,13 @@ public class CadenceConfiguration {
 
     @Bean
     WriteCadence writeCadence(CadenceProperties cadence) {
-        if (cadence.minimumInterval() == null || cadence.dailyDeletions() == null
-                || cadence.dailyRepublications() == null) {
+        if (cadence.deletionInterval() == null || cadence.republicationInterval() == null
+                || cadence.dailyDeletions() == null || cadence.dailyRepublications() == null) {
             throw new InvalidCadenceConfiguration("missing value");
         }
         try {
-            return new WriteCadence(cadence.minimumInterval(), cadence.dailyDeletions(),
-                    cadence.dailyRepublications());
+            return new WriteCadence(cadence.deletionInterval(), cadence.republicationInterval(),
+                    cadence.dailyDeletions(), cadence.dailyRepublications());
         } catch (InvalidWriteCadence invalid) {
             throw new InvalidCadenceConfiguration(invalid.getMessage());
         }
@@ -39,7 +39,8 @@ public class CadenceConfiguration {
     }
 
     @ConfigurationProperties("cadence")
-    record CadenceProperties(Duration minimumInterval, Integer dailyDeletions, Integer dailyRepublications) {
+    record CadenceProperties(Duration deletionInterval, Duration republicationInterval, Integer dailyDeletions,
+                             Integer dailyRepublications) {
     }
 
     static class InvalidCadenceConfiguration extends RuntimeException {

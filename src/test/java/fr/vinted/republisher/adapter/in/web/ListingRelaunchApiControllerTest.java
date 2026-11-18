@@ -289,7 +289,7 @@ class ListingRelaunchApiControllerTest {
             RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
             JournalWriter journalWriter = new JournalWriter(journal, clock);
             CadenceCheck cadence = new CadenceCheck(deletions, republications,
-                    new WriteCadence(Duration.ofMinutes(2), 20, 20), clock);
+                    new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock);
             NewListingSearch newListingSearch = new NewListingSearch(wardrobe, noPause(), listings);
             ShowListingRepublication showRepublication = new ShowListingRepublication(new ShowListingDeletion(listings,
                     listingBackups, photos, validations, deletions, DeletionMode.REAL, delay), republications,

@@ -336,7 +336,7 @@ class VerifyListingRepublicationAcceptanceTest {
         RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
         return new RepublishListing(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
-                new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 20, 20), clock),
+                new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
                 RepublicationMode.REAL, clock, show(), new JournalWriter(new InMemoryActionJournal(), clock));
     }

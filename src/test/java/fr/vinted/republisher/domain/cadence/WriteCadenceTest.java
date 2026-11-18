@@ -13,7 +13,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class WriteCadenceTest {
 
     private static final Instant NOW = Instant.parse("2026-11-16T10:00:00Z");
-    private static final WriteCadence CADENCE = new WriteCadence(Duration.ofMinutes(2), 2, 3);
+    private static final WriteCadence CADENCE = new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 2, 3);
 
     private static Instant minutesAgo(long minutes) {
         return NOW.minus(Duration.ofMinutes(minutes));
@@ -96,14 +96,35 @@ class WriteCadenceTest {
     }
 
     @Test
-    void interval_must_be_under_24_hours_and_limits_strictly_positive() {
-        assertThatThrownBy(() -> new WriteCadence(Duration.ZERO, 1, 1)).isInstanceOf(InvalidWriteCadence.class);
-        assertThatThrownBy(() -> new WriteCadence(Duration.ofMinutes(-1), 1, 1))
-                .isInstanceOf(InvalidWriteCadence.class);
-        assertThatThrownBy(() -> new WriteCadence(Duration.ofHours(24), 1, 1)).isInstanceOf(InvalidWriteCadence.class);
-        assertThatThrownBy(() -> new WriteCadence(Duration.ofMinutes(2), 0, 1))
-                .isInstanceOf(InvalidWriteCadence.class);
-        assertThatThrownBy(() -> new WriteCadence(Duration.ofMinutes(2), 1, -1))
-                .isInstanceOf(InvalidWriteCadence.class);
+    void intervals_must_be_under_24_hours_and_limits_strictly_positive() {
+        Duration valid = Duration.ofMinutes(2);
+        for (Duration invalid : List.of(Duration.ZERO, Duration.ofMinutes(-1), Duration.ofHours(24))) {
+            assertThatThrownBy(() -> new WriteCadence(invalid, valid, 1, 1)).isInstanceOf(InvalidWriteCadence.class);
+            assertThatThrownBy(() -> new WriteCadence(valid, invalid, 1, 1)).isInstanceOf(InvalidWriteCadence.class);
+        }
+        assertThatThrownBy(() -> new WriteCadence(valid, valid, 0, 1)).isInstanceOf(InvalidWriteCadence.class);
+        assertThatThrownBy(() -> new WriteCadence(valid, valid, 1, -1)).isInstanceOf(InvalidWriteCadence.class);
+    }
+
+    @Test
+    void each_kind_waits_its_own_interval_after_the_last_write_of_any_kind() {
+        // AT-27-10
+        WriteCadence cadence = new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 140, 20);
+        Instant republishedAt = NOW;
+        // Étant donné une republication tentée à 10:00, quand le membre lance une suppression à 10:00:20
+        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:00:30)
+        assertThatThrownBy(() -> cadence.check(VintedWrite.DELETION, List.of(), List.of(republishedAt),
+                NOW.plusSeconds(20)))
+                .isInstanceOfSatisfying(CadenceLimitReached.class,
+                        refusal -> assertThat(refusal.allowedAt()).isEqualTo(NOW.plusSeconds(30)));
+        // Quand il la relance à 10:00:30, alors elle a lieu
+        assertThatCode(() -> cadence.check(VintedWrite.DELETION, List.of(), List.of(republishedAt),
+                NOW.plusSeconds(30)))
+                .doesNotThrowAnyException();
+        // Et une republication lancée à 10:01 est refusée (à partir de 10:02:30)
+        assertThatThrownBy(() -> cadence.check(VintedWrite.REPUBLICATION, List.of(NOW.plusSeconds(30)),
+                List.of(republishedAt), NOW.plusSeconds(60)))
+                .isInstanceOfSatisfying(CadenceLimitReached.class,
+                        refusal -> assertThat(refusal.allowedAt()).isEqualTo(NOW.plusSeconds(150)));
     }
 }

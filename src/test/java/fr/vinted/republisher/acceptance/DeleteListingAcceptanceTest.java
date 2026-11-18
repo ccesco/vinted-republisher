@@ -363,20 +363,20 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1));
         anotherDeletionAttemptedAt(NOW);
-        // Quand le membre lance la suppression d'une autre annonce à 10:01
-        clock.advance(Duration.ofMinutes(1));
+        // Quand le membre lance la suppression d'une autre annonce à 10:00:20
+        clock.advance(Duration.ofSeconds(20));
         Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
-        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:02), rien n'est touché sur Vinted ni
+        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:00:30), rien n'est touché sur Vinted ni
         // enregistré, et le verrou est libéré
         assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
-                limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofMinutes(2))));
+                limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plusSeconds(30)));
         assertNothingTouchedOnVinted();
         // Et le journal contient « Suppression : refusée », raison « limite de cadence atteinte » (US-23)
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason)
                 .containsExactly(tuple(JournaledAction.DELETION, ActionOutcome.REFUSED,
                         Optional.of("CADENCE_LIMIT_REACHED")));
-        // Quand il la relance à 10:02
-        clock.advance(Duration.ofMinutes(1));
+        // Quand il la relance à 10:00:30
+        clock.advance(Duration.ofSeconds(10));
         // Alors elle a lieu
         assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
                 .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
@@ -639,7 +639,8 @@ class DeleteListingAcceptanceTest {
 
     private DeleteListing deleteListing(DeletionMode mode) {
         if (cadence == null) {
-            cadence = new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 2, 2), clock);
+            cadence = new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 2, 2),
+                    clock);
         }
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted, mode,
                 new RepublicationDelay(Duration.ofMinutes(5)), cadence, clock, new JournalWriter(journal, clock));

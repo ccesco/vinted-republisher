@@ -8,21 +8,27 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * How fast the tool may write on Vinted: a minimum interval between two writes of any kind, and a limit per kind over
- * the last 24 hours. Computed from the attempts already recorded, it survives any restart.
+ * How fast the tool may write on Vinted: per kind, a minimum interval since the last write of any kind, and a limit
+ * over the last 24 hours. Computed from the attempts already recorded, it survives any restart.
  */
-public record WriteCadence(Duration minimumInterval, int dailyDeletions, int dailyRepublications) {
+public record WriteCadence(Duration deletionInterval, Duration republicationInterval, int dailyDeletions,
+                           int dailyRepublications) {
 
     private static final Duration WINDOW = Duration.ofHours(24);
 
     public WriteCadence {
-        Objects.requireNonNull(minimumInterval);
-        if (minimumInterval.isZero() || minimumInterval.isNegative() || minimumInterval.compareTo(WINDOW) >= 0) {
-            // Only the writes of the window are read: a longer interval could not be enforced.
-            throw new InvalidWriteCadence("minimum interval " + minimumInterval + " must be positive and under 24 hours");
-        }
+        requireUnderWindow(deletionInterval);
+        requireUnderWindow(republicationInterval);
         if (dailyDeletions <= 0 || dailyRepublications <= 0) {
             throw new InvalidWriteCadence("daily limits must be strictly positive");
+        }
+    }
+
+    private static void requireUnderWindow(Duration interval) {
+        Objects.requireNonNull(interval);
+        if (interval.isZero() || interval.isNegative() || interval.compareTo(WINDOW) >= 0) {
+            // Only the writes of the window are read: a longer interval could not be enforced.
+            throw new InvalidWriteCadence("minimum interval " + interval + " must be positive and under 24 hours");
         }
     }
 
@@ -37,7 +43,8 @@ public record WriteCadence(Duration minimumInterval, int dailyDeletions, int dai
      */
     public void check(VintedWrite write, List<Instant> deletions, List<Instant> republications, Instant now) {
         Optional<Instant> afterInterval = Stream.concat(deletions.stream(), republications.stream())
-                .max(Instant::compareTo).map(last -> last.plus(minimumInterval));
+                .max(Instant::compareTo)
+                .map(last -> last.plus(write == VintedWrite.DELETION ? deletionInterval : republicationInterval));
         Optional<Instant> afterLimit = write == VintedWrite.DELETION
                 ? freedPlace(deletions, dailyDeletions, now)
                 : freedPlace(republications, dailyRepublications, now);

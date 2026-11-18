@@ -130,7 +130,7 @@ class RepublicationDelayAcceptanceTest {
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted,
                 DeletionMode.REAL, FIVE_MINUTES,
                 new CadenceCheck(deletions, new InMemoryListingRepublicationRepository(),
-                        new WriteCadence(Duration.ofMinutes(2), 20, 20), clock),
+                        new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
                 clock, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
     }
 

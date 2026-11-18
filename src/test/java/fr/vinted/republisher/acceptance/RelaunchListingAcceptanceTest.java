@@ -263,7 +263,7 @@ class RelaunchListingAcceptanceTest {
     private RelaunchListing relaunchListing(DeletionMode deletionMode) {
         JournalWriter journalWriter = new JournalWriter(journal, clock);
         CadenceCheck cadence = new CadenceCheck(deletions, republications,
-                new WriteCadence(Duration.ofMinutes(2), 20, 20), clock);
+                new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock);
         ShowListingRepublication showRepublication = new ShowListingRepublication(new ShowListingDeletion(listings,
                 listingBackups, photos, validations, deletions, deletionMode, delay), republications, listings,
                 RepublicationMode.REAL);
