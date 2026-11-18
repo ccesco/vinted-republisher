@@ -10,7 +10,7 @@ L'IHM actuelle est faite de six pages HTML statiques avec du JS écrit à la mai
 En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afin de suivre et piloter mon dressing plus facilement, y compris depuis mon téléphone.
 
 ## Comportement attendu
-1. L'application se lance toujours avec `mvn spring-boot:run` ; `http://localhost:8080/` ouvre l'interface Angular.
+1. Deux applications dans le même dépôt : le back (`mvn spring-boot:run`, API seule sur `http://localhost:8080/api`) et l'interface Angular (`npm start` dans `frontend/`, sur `http://localhost:4200/`, rechargée à chaque modification, qui relaie `/api` vers le back).
 2. Une barre de navigation (à gauche sur ordinateur, en bas sur téléphone) mène à six écrans :
    - **Dressing** (`#/`) : reprend `wardrobe.html` (scan, sauvegarde, rafraîchissement des vues et favoris, archive, série automatique avec pause / reprise / arrêt, liste filtrable et triable, sélection et tags).
    - **Annonce** (`#/listings/{listingId}`) : reprend `listing.html` (historique des prix, vues et favoris, journal, sauvegarde et photos, validation, suppression, revérification, republication, vérification, validation manuelle, relance). Ouverte depuis une ligne du Dressing.
@@ -32,7 +32,8 @@ En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afi
 - [x] Les chiffres clés du Dressing correspondent aux annonces renvoyées par l'API.
 - [x] Le thème suit le système et peut être basculé.
 - [x] Aucun défilement horizontal de la page à 375 px de large.
-- [x] `mvn test` construit l'interface sans Node ni Chrome installés sur le poste (Node est téléchargé par Maven).
+- [x] Back et interface se lancent séparément ; `mvn test` ne demande ni Node ni Chrome, l'interface se teste avec `npm test` et ses pages avec `mvn test -Pbrowser` une fois construite.
+- [x] Les actions (POST) de l'interface passent le filtre d'origine du back grâce à l'origine `http://localhost:4200` déclarée de confiance dans le profil `local` ; toute autre origine reste refusée.
 
 ## Tests d'acceptation
 Les tests de pages Playwright existants sont les tests d'acceptation de la refonte : ils restent boîte noire (Chrome installé, API simulée qui répond selon le contrat) et visent désormais l'interface Angular construite. Leurs scénarios ne changent pas ; seuls les sélecteurs et l'URL d'entrée sont adaptés. S'y ajoutent :
@@ -103,12 +104,13 @@ Test : `WardrobePageTest.showsAnErrorWhenListingsCannotBeLoaded()`
 Prises par délégation de l'utilisateur (« fais comme tu veux »), confirmées à la validation le 18/11/2026.
 - **Angular 22** (dernière version stable sur npm au 18/11/2026 : `@angular/core` 22.2.6) et **Angular Material 22** (Material 3), composants autonomes et signaux. Raison : version courante, Material est la bibliothèque officielle, accessible et thémable.
 - **Migration en une fois** dans cette US, anciennes pages supprimées à la fin. Raison : six pages seulement ; deux interfaces en parallèle doubleraient le travail et les tests.
-- **Code dans `frontend/`** à la racine du dépôt, construit par **`frontend-maven-plugin` 2.0.2** (télécharge Node et npm dans le projet) ; le résultat de `ng build` est copié dans `target/classes/static`, à côté du contrat OpenAPI. Raison : `mvn` reste la seule commande, aucun Node requis sur le poste.
-- **Client d'API généré** par `openapi-generator` (générateur `typescript-angular`, même version 7.25.0, nouvelle exécution du plugin existant) dans `frontend/src/generated` (ignoré par git). Raison : contract first jusqu'au navigateur.
+- **Deux applications séparées dans le même dépôt** (décision de l'utilisateur après la première livraison, qui imbriquait l'interface dans le jar via `frontend-maven-plugin`) : le back ne sert que l'API ; l'interface, dans `frontend/`, se lance avec `npm start` (`ng serve`, proxy `/api` vers `http://127.0.0.1:8080`) et se construit avec `npm run build`. Node est requis sur le poste. Raison : chaque application se lance, se construit et se teste seule, avec rechargement automatique de l'interface.
+- **Origine de confiance** : le filtre qui refuse les actions venues d'un autre site accepte en plus les origines listées dans `web.trusted-origins` (vide par défaut, `http://localhost:4200` dans le profil `local`). Raison : derrière le proxy, le navigateur envoie l'origine de `ng serve` ; aucun autre site ne peut l'usurper.
+- **Client d'API généré** par `openapi-generator` (générateur `typescript-angular`, même version 7.25.0, nouvelle exécution du plugin Maven existant) dans `frontend/src/generated` (ignoré par git) ; `npm start` et `npm run build` le régénèrent d'abord par `mvn generate-sources`. Raison : contract first jusqu'au navigateur, le contrat restant côté back, sans dépendance de plus.
 - **Routage par fragment** (`withHashLocation`). Raison : aucune redirection à ajouter côté Spring pour les liens directs.
-- **Tests** : les tests de pages Playwright actuels restent les tests d'acceptation (boîte noire, inchangés sur le fond) ; la logique propre aux composants (calcul des chiffres clés, filtres) a des tests unitaires Angular avec **Vitest** (outil par défaut d'Angular), lancés par Maven pendant `mvn test`.
+- **Tests** : les tests de pages Playwright actuels restent les tests d'acceptation (boîte noire, inchangés sur le fond) ; la logique propre aux composants (calcul des chiffres clés, filtres) a des tests unitaires Angular avec **Vitest** (outil par défaut d'Angular), lancés par `npm test`. Les tests de pages lisent l'interface construite dans `frontend/dist/browser`.
 - **Polices et icônes embarquées** via npm (`@fontsource/roboto` 5.3.0, `material-symbols` 0.49.0). Raison : aucun appel hors de l'application, fonctionne hors ligne.
-- **Nouvelles dépendances** (accord requis par `CLAUDE.md`, donné en validant cette spec) : Maven `com.github.eirslett:frontend-maven-plugin` ; npm `@angular/*` (`core`, `common`, `compiler`, `platform-browser`, `router`), `@angular/material`, `@angular/cdk`, `rxjs` et `tslib` (requis par Angular), `@fontsource/roboto`, `material-symbols`, et en développement `@angular/cli`, `@angular/build`, `@angular/compiler-cli`, `typescript`, `vitest`.
+- **Nouvelles dépendances** (accord requis par `CLAUDE.md`, donné en validant cette spec) : npm `@angular/*` (`core`, `common`, `compiler`, `platform-browser`, `router`), `@angular/material`, `@angular/cdk`, `rxjs` et `tslib` (requis par Angular), `@fontsource/roboto`, `material-symbols`, et en développement `@angular/cli`, `@angular/build`, `@angular/compiler-cli`, `typescript`, `vitest`.
 
 ## Questions ouvertes
 - Aucune.

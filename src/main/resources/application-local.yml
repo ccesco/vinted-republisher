@@ -13,3 +13,6 @@ app:
 chrome:
   path: ${CHROME_PATH:C:/Program Files/Google/Chrome/Application/chrome.exe}
   debug-port: ${CHROME_DEBUG_PORT:9222}
+web:
+  # Interface Angular servie à part par ng serve (US-37) : ses actions passent par son proxy, sous cette origine.
+  trusted-origins: http://localhost:4200

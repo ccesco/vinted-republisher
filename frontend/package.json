@@ -2,6 +2,10 @@
   "name": "vinted-republisher-frontend",
   "private": true,
   "scripts": {
+    "generate-api": "mvn -q -f ../pom.xml generate-sources",
+    "prestart": "npm run generate-api",
+    "start": "ng serve",
+    "prebuild": "npm run generate-api",
     "build": "ng build",
     "test": "vitest run"
   },
