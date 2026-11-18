@@ -41,6 +41,7 @@ mvn test "-Pbrowser,docker"   # tous les tests (avant de rendre la main)
 mvn spring-boot:run           # back (API seule), profil local (lit .env) actif par défaut
 cd frontend && npm start      # interface sur http://localhost:4200 (proxy /api vers le back)
 cd frontend && npm test       # tests Vitest de l'interface
+.\scripts\demarrer.ps1        # PostgreSQL + generate-sources, puis back et front dans deux fenêtres
 ```
 
 ## Configuration
