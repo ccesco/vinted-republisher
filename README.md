@@ -74,6 +74,8 @@ Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui
 Tags : dans la liste de la page du dressing, cochez des annonces (la case de l'en-tête coche toutes les lignes affichées), saisissez un tag puis « Ajouter le tag » ou « Retirer le tag » ; le filtre « Tag » n'affiche que les annonces qui le portent. Les tags restent dans l'outil, rien n'est envoyé à Vinted ; une annonce republiée ne reprend pas les tags de l'ancienne.
 Cycle de vie : la fiche d'une annonce indique depuis quand l'outil la connaît (« Vue pour la première fois le … ») et, sous « Cycle de vie », les faits établis de l'article à travers toutes ses annonces successives : première détection de chacune, suppression confirmée, republication (avec un lien vers la nouvelle annonce) et sortie du dressing (annonce absente sans suppression par l'outil : vendue ou retirée, datée de sa dernière vue). Pour les annonces connues avant cette fonctionnalité, la première détection est reprise de leur plus ancien relevé de vues et favoris, ou à défaut de leur dernière vue (approximation).
 
+Ventes : le lien « Ventes » de la page du dressing ouvre `sales.html`, qui liste les annonces vues « Vendu » dans le dressing au scan ou au rafraîchissement des vues et favoris, la plus récente d'abord, avec la date du constat (pas celle de la vente), le dernier prix lu et le total des prix. Seules les annonces déjà connues de l'outil sont comptées ; rien n'est ouvert ni modifié sur Vinted pour cela.
+
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
 | `DB_NAME` | nom de la base | `appdb` |
@@ -152,4 +154,4 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 - [x] US-33 Historique de prix
 - [x] US-34 Édition en masse et tags
 - US-35 Règles d'aide à la décision (implémentée)
-- US-36 Suivi des ventes
+- [x] US-36 Suivi des ventes

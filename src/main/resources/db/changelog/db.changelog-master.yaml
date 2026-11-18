@@ -28,3 +28,5 @@ databaseChangeLog:
       file: db/changelog/changes/013-create-listing-tag.yaml
   - include:
       file: db/changelog/changes/014-listing-first-seen-at.yaml
+  - include:
+      file: db/changelog/changes/015-create-listing-sale.yaml

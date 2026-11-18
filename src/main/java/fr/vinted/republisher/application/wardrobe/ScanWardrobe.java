@@ -1,6 +1,7 @@
 package fr.vinted.republisher.application.wardrobe;
 
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.session.BrowserAction;
@@ -42,6 +43,7 @@ public class ScanWardrobe {
     private final WardrobeReader reader;
     private final ListingRepository listings;
     private final ListingStatisticsRepository statistics;
+    private final NoticeSales noticeSales;
     private final ScanPace pace;
     private final Clock clock;
     private final Executor background;
@@ -49,13 +51,15 @@ public class ScanWardrobe {
 
     public ScanWardrobe(VintedSession session, LastScanProblem lastProblem, WardrobeScanRepository scans,
                         WardrobeReader reader, ListingRepository listings, ListingStatisticsRepository statistics,
-                        ScanPace pace, Clock clock, Executor background, JournalWriter journal) {
+                        NoticeSales noticeSales, ScanPace pace, Clock clock, Executor background,
+                        JournalWriter journal) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.scans = scans;
         this.reader = reader;
         this.listings = listings;
         this.statistics = statistics;
+        this.noticeSales = noticeSales;
         this.pace = pace;
         this.clock = clock;
         this.background = background;
@@ -128,6 +132,7 @@ public class ScanWardrobe {
         public List<ListingLink> listingsToOpen(WardrobeListing wardrobe) {
             wardrobe.requireComplete();
             statistics.addAll(wardrobe.statisticsReadAt(clock.instant()));
+            noticeSales.notice(wardrobe);
             return scan.linksToOpen(wardrobe.links(), listings.findAll());
         }
 

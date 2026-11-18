@@ -6,11 +6,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
-/** What going through the wardrobe found: the total it announces and the links to its listings, each once. */
-public record WardrobeListing(int displayedTotal, List<ListingLink> links) {
+/**
+ * What going through the wardrobe found: the total it announces, the links to its listings, each once, and the
+ * listings its cards show sold, each once. Sold listings are never opened and the total does not count them.
+ */
+public record WardrobeListing(int displayedTotal, List<ListingLink> links, List<VintedListingId> soldListings) {
 
     public WardrobeListing {
         links = onePerListing(links);
+        soldListings = soldListings.stream().distinct().toList();
+    }
+
+    public WardrobeListing(int displayedTotal, List<ListingLink> links) {
+        this(displayedTotal, links, List.of());
     }
 
     /** A listing counted twice would make up for a missing one, and the total would no longer prove anything. */
@@ -20,8 +28,9 @@ public record WardrobeListing(int displayedTotal, List<ListingLink> links) {
         return List.copyOf(byListing.values());
     }
 
-    public WardrobeListing with(List<ListingLink> further) {
-        return new WardrobeListing(displayedTotal, Stream.concat(links.stream(), further.stream()).toList());
+    public WardrobeListing with(List<ListingLink> further, List<VintedListingId> furtherSold) {
+        return new WardrobeListing(displayedTotal, Stream.concat(links.stream(), further.stream()).toList(),
+                Stream.concat(soldListings.stream(), furtherSold.stream()).toList());
     }
 
     public boolean allLinksFound() {

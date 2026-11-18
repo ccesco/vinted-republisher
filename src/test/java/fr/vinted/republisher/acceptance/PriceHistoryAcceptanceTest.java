@@ -2,6 +2,7 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -17,6 +18,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
@@ -47,7 +49,8 @@ class PriceHistoryAcceptanceTest {
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
     private final AdjustableClock clock = new AdjustableClock(FIRST);
     private final ScanWardrobe scanWardrobe = new ScanWardrobe(new VintedSession(), new LastScanProblem(),
-            new InMemoryWardrobeScanRepository(), reader, listings, statistics, noPause(), clock, RIGHT_AWAY,
+            new InMemoryWardrobeScanRepository(), reader, listings, statistics,
+            new NoticeSales(listings, new InMemoryListingSaleRepository(), clock), noPause(), clock, RIGHT_AWAY,
             new JournalWriter(journal, clock));
     private final ShowListingDetail showListingDetail = new ShowListingDetail(listings, statistics,
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),

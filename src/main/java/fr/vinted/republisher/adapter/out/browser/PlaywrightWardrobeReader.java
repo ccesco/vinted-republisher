@@ -48,7 +48,9 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
 
     private WardrobeListing openWardrobe(WardrobePage wardrobe) {
         wardrobe.open();
-        return new WardrobeListing(wardrobe.displayedTotal(stallTimeout), wardrobe.listingLinks());
+        int displayedTotal = wardrobe.displayedTotal(stallTimeout);
+        WardrobePage.ShownCards shown = wardrobe.shownCards();
+        return new WardrobeListing(displayedTotal, shown.links(), shown.soldListings());
     }
 
     private WardrobeListing goThroughWardrobe(Page page, ScanPace pace) {
@@ -58,7 +60,8 @@ public class PlaywrightWardrobeReader implements WardrobeReader {
         while (!found.allLinksFound() && !hasStalled(lastProgress)) {
             wardrobe.scrollDown();
             ChromeTabs.pause(page, pace.nextPauseBetweenScrolls(), clock);
-            WardrobeListing extended = found.with(wardrobe.listingLinks());
+            WardrobePage.ShownCards shown = wardrobe.shownCards();
+            WardrobeListing extended = found.with(shown.links(), shown.soldListings());
             if (extended.links().size() > found.links().size()) {
                 lastProgress = clock.instant();
             }

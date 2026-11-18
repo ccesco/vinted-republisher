@@ -327,6 +327,23 @@ class PlaywrightWardrobeReaderTest {
         }
 
         @Test
+        void notes_the_cards_of_sold_listings() {
+            // US-36 AT-36-05
+            listingsOnVinted = 1;
+            header = "1 article";
+            strayLinks = """
+                    <div data-testid="grid-item"><a href="/items/2-pull">Pull</a>
+                      <div><span> Vendu </span></div></div>
+                    <div data-testid="grid-item"><a href="https://ailleurs.test/items/3-pull">Pull</a>
+                      <div><span>Vendu</span></div></div>""";
+
+            WardrobeListing wardrobe = goThrough();
+
+            assertThat(wardrobe.links()).extracting(link -> link.id().value()).containsExactly(1L);
+            assertThat(wardrobe.soldListings()).containsExactly(new VintedListingId(2));
+        }
+
+        @Test
         void closes_its_tab_and_leaves_chrome_open() {
             readEverything();
 

@@ -83,7 +83,8 @@ class WardrobeListingTest {
 
     @Test
     void further_links_add_up_without_duplicates() {
-        WardrobeListing wardrobe = new WardrobeListing(2, List.of(aLink(1))).with(List.of(aLink(1), aLink(2)));
+        WardrobeListing wardrobe =
+                new WardrobeListing(2, List.of(aLink(1))).with(List.of(aLink(1), aLink(2)), List.of());
 
         assertThat(wardrobe.links()).containsExactly(aLink(1), aLink(2));
     }
@@ -92,5 +93,20 @@ class WardrobeListingTest {
     void knows_when_all_the_links_announced_were_found() {
         assertThat(new WardrobeListing(2, List.of(aLink(1))).allLinksFound()).isFalse();
         assertThat(new WardrobeListing(1, List.of(aLink(1))).allLinksFound()).isTrue();
+    }
+
+    @Test
+    void sold_listings_are_noted_once_and_left_out_of_the_total() {
+        WardrobeListing wardrobe = new WardrobeListing(1, List.of(aLink(1)), List.of(new VintedListingId(2)))
+                .with(List.of(aLink(1)), List.of(new VintedListingId(2), new VintedListingId(3)));
+
+        assertThat(wardrobe.soldListings()).containsExactly(new VintedListingId(2), new VintedListingId(3));
+        assertThatCode(wardrobe::requireComplete).doesNotThrowAnyException();
+    }
+
+    @Test
+    void a_wardrobe_without_sold_cards_has_no_sold_listing() {
+        assertThat(new WardrobeListing(1, List.of(aLink(1))).with(List.of(aLink(1)), List.of()).soldListings())
+                .isEmpty();
     }
 }

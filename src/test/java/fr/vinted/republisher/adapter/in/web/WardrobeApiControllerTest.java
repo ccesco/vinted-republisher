@@ -3,6 +3,7 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
@@ -25,6 +26,7 @@ import fr.vinted.republisher.domain.wardrobe.ScanProblem;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
@@ -307,7 +309,8 @@ class WardrobeApiControllerTest {
                                   FakeWardrobeReader reader,
                                   InMemoryListingRepository listings, InMemoryListingStatisticsRepository statistics,
                                   Background background) {
-            return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, noPause(),
+            return new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics,
+                    new NoticeSales(new InMemoryListingRepository(), new InMemoryListingSaleRepository(), Clock.systemUTC()), noPause(),
                     Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background,
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
@@ -327,7 +330,8 @@ class WardrobeApiControllerTest {
         RefreshStatistics refreshStatistics(VintedSession session, LastStatisticsRefreshProblem lastProblem,
                                             FakeWardrobeReader reader, InMemoryListingStatisticsRepository statistics,
                                             Background background) {
-            return new RefreshStatistics(session, lastProblem, reader, statistics, noPause(),
+            return new RefreshStatistics(session, lastProblem, reader, statistics,
+                    new NoticeSales(new InMemoryListingRepository(), new InMemoryListingSaleRepository(), Clock.systemUTC()), noPause(),
                     Clock.fixed(SCANNED_AT, ZoneOffset.UTC), background,
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }

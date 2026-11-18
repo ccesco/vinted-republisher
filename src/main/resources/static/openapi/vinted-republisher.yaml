@@ -32,6 +32,8 @@ tags:
     description: Série automatique « Tout lancer » (US-19)
   - name: data-archive
     description: Archive complète des données de l'outil, à télécharger (US-26)
+  - name: sales
+    description: Ventes constatées dans le dressing (US-36)
 paths:
   /api/data-archive:
     get:
@@ -331,6 +333,22 @@ paths:
                 $ref: '#/components/schemas/ActionJournal'
         '400':
           description: before qui n'est pas un entier d'au moins 1.
+  /api/sales:
+    get:
+      tags: [sales]
+      operationId: showSales
+      summary: Ventes constatées
+      description: >
+        Les annonces connues vues « Vendu » dans le dressing au scan ou au rafraîchissement des statistiques, de la
+        plus récemment constatée à la plus ancienne, avec le total des prix par devise. Lit les données conservées,
+        sans accéder à Vinted.
+      responses:
+        '200':
+          description: Les ventes et leurs totaux.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesOverview'
   /api/listings/{listingId}/backup:
     get:
       tags: [listing-backup]
@@ -923,6 +941,46 @@ components:
               viewCount: 12
               favouriteCount: 3
               readAt: '2026-11-07T10:05:00Z'
+    SalesOverview:
+      type: object
+      description: Les ventes constatées, la plus récente d'abord, et le total de leurs prix dans chaque devise.
+      required: [sales, totals]
+      properties:
+        sales:
+          type: array
+          items:
+            $ref: '#/components/schemas/Sale'
+        totals:
+          type: array
+          description: Un total par devise, trié par devise, sans change ; vide sans vente.
+          items:
+            $ref: '#/components/schemas/Price'
+      example:
+        sales:
+          - listingId: 90000000002
+            title: Jean
+            price: {amount: 25.5, currency: EUR}
+            noticedAt: '2026-11-17T10:00:00Z'
+        totals:
+          - {amount: 25.5, currency: EUR}
+    Sale:
+      type: object
+      description: >
+        Annonce connue vue « Vendu » dans le dressing ; jamais modifiée ni supprimée. Le prix est le dernier lu sur
+        l'annonce (prix affiché, hors frais), pas le montant encaissé.
+      required: [listingId, title, price, noticedAt]
+      properties:
+        listingId:
+          type: integer
+          format: int64
+        title:
+          type: string
+        price:
+          $ref: '#/components/schemas/Price'
+        noticedAt:
+          type: string
+          format: date-time
+          description: Date du premier relevé du dressing qui l'a montrée vendue, pas la date réelle de la vente.
     ActionJournal:
       type: object
       description: Une page du journal, des lignes les plus récentes aux plus anciennes.

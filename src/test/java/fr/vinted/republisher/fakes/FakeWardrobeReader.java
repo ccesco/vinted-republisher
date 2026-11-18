@@ -19,12 +19,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.stream.LongStream;
 
 public class FakeWardrobeReader implements WardrobeReader {
 
     private final Map<VintedListingId, ScannedListing> wardrobe = new LinkedHashMap<>();
     private final Map<VintedListingId, ListingStatistics> statistics = new LinkedHashMap<>();
     private final List<VintedListingId> opened = new ArrayList<>();
+    private final List<VintedListingId> sold = new ArrayList<>();
     private final List<Duration> pausesBetweenListings = new ArrayList<>();
     private int displayedTotal;
     private int reads;
@@ -42,10 +44,17 @@ public class FakeWardrobeReader implements WardrobeReader {
         wardrobe.clear();
         List.of(listings).forEach(listing -> wardrobe.put(listing.id(), listing));
         statistics.clear();
+        sold.clear();
         displayedTotal = total;
         opened.clear();
         failure = Optional.empty();
         refused = Optional.empty();
+        return this;
+    }
+
+    /** The grid also shows these listings under a "Vendu" banner, outside the total. */
+    public FakeWardrobeReader sold(long... listings) {
+        LongStream.of(listings).mapToObj(VintedListingId::new).forEach(sold::add);
         return this;
     }
 
@@ -120,7 +129,7 @@ public class FakeWardrobeReader implements WardrobeReader {
             throw reason;
         });
         WardrobeListing found = new WardrobeListing(displayedTotal,
-                wardrobe.values().stream().limit(shown).map(this::cardOf).toList());
+                wardrobe.values().stream().limit(shown).map(this::cardOf).toList(), sold);
         Iterator<ListingLink> toOpen = visit.listingsToOpen(found).iterator();
         while (toOpen.hasNext()) {
             visit.record(open(toOpen.next()));

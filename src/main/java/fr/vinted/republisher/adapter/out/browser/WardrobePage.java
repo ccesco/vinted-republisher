@@ -86,15 +86,18 @@ final class WardrobePage {
         page.mouse().wheel(0, WHEEL_STEP_PIXELS);
     }
 
-    /** Anything else is left out: the count against the total then tells something is wrong. */
-    List<ListingLink> listingLinks() {
+    /** The cards shown so far: the links to the listings for sale, and the listings shown sold. */
+    ShownCards shownCards() {
         List<?> cards = (List<?>) page.locator(LISTING_CARDS).evaluateAll(LINKS_AND_TEXTS);
-        return cards.stream().map(card -> (Map<?, ?>) card).flatMap(card -> linkOn(card).stream()).toList();
+        List<Map<?, ?>> read = cards.stream().<Map<?, ?>>map(card -> (Map<?, ?>) card).toList();
+        return new ShownCards(read.stream().flatMap(card -> linkOn(card).stream()).toList(),
+                read.stream().flatMap(card -> soldListingOn(card).stream()).toList());
     }
 
+    /** Anything else is left out: the count against the total then tells something is wrong. */
     private Optional<ListingLink> linkOn(Map<?, ?> card) {
         Matcher address = listingAddress.matcher(String.valueOf(card.get("href")));
-        List<String> texts = ((List<?>) card.get("texts")).stream().map(String::valueOf).toList();
+        List<String> texts = textsOf(card);
         if (!address.matches() || isSold(texts)) {
             return Optional.empty();
         }
@@ -103,8 +106,23 @@ final class WardrobePage {
         return Optional.of(ListingStatistics.shownBy(texts).map(link::showing).orElse(link));
     }
 
-    /** Sold listings stay in the grid under a "Vendu" banner, but the header does not count them: never read. */
+    private Optional<VintedListingId> soldListingOn(Map<?, ?> card) {
+        Matcher address = listingAddress.matcher(String.valueOf(card.get("href")));
+        if (!address.matches() || !isSold(textsOf(card))) {
+            return Optional.empty();
+        }
+        return Optional.of(new VintedListingId(Long.parseLong(address.group(2))));
+    }
+
+    private static List<String> textsOf(Map<?, ?> card) {
+        return ((List<?>) card.get("texts")).stream().map(String::valueOf).toList();
+    }
+
+    /** Sold listings stay in the grid under a "Vendu" banner, but the header does not count them: never opened. */
     private static boolean isSold(List<String> texts) {
         return texts.stream().map(String::strip).anyMatch(SOLD_BANNER::equals);
+    }
+
+    record ShownCards(List<ListingLink> links, List<VintedListingId> soldListings) {
     }
 }

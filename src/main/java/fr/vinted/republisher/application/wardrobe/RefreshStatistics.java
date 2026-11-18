@@ -1,6 +1,7 @@
 package fr.vinted.republisher.application.wardrobe;
 
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.session.BrowserAction;
@@ -38,18 +39,20 @@ public class RefreshStatistics {
     private final LastStatisticsRefreshProblem lastProblem;
     private final WardrobeReader reader;
     private final ListingStatisticsRepository statistics;
+    private final NoticeSales noticeSales;
     private final ScanPace pace;
     private final Clock clock;
     private final Executor background;
     private final JournalWriter journal;
 
     public RefreshStatistics(VintedSession session, LastStatisticsRefreshProblem lastProblem, WardrobeReader reader,
-                             ListingStatisticsRepository statistics, ScanPace pace, Clock clock, Executor background,
-                             JournalWriter journal) {
+                             ListingStatisticsRepository statistics, NoticeSales noticeSales, ScanPace pace,
+                             Clock clock, Executor background, JournalWriter journal) {
         this.session = session;
         this.lastProblem = lastProblem;
         this.reader = reader;
         this.statistics = statistics;
+        this.noticeSales = noticeSales;
         this.pace = pace;
         this.clock = clock;
         this.background = background;
@@ -107,6 +110,7 @@ public class RefreshStatistics {
         public List<ListingLink> listingsToOpen(WardrobeListing wardrobe) {
             wardrobe.requireComplete();
             statistics.addAll(wardrobe.shownStatisticsReadAt(clock.instant()));
+            noticeSales.notice(wardrobe);
             return List.of();
         }
 
