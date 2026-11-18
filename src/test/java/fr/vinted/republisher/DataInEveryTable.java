@@ -14,6 +14,8 @@ import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
+import fr.vinted.republisher.domain.tag.ListingTagRepository;
+import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
@@ -33,7 +35,7 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveLis
 
 /**
  * Two listings, the first one backed up, validated, deleted and republished as the second, with readings, journal
- * entries, a scan and a wardrobe backup: at least one row in every table of the changelog, through the application's
+ * entries, a tag, a scan and a wardrobe backup: at least one row in every table of the changelog, through the application's
  * own repositories.
  */
 public final class DataInEveryTable {
@@ -64,5 +66,7 @@ public final class DataInEveryTable {
                 new StatisticsReading(new VintedListingId(DELETED_LISTING), new ListingStatistics(42, 3), AT)));
         application.getBean(ActionJournal.class).write(new ActionRecord(AT, JournaledAction.SCAN,
                 ActionOutcome.STARTED, Optional.empty(), Optional.empty()));
+        application.getBean(ListingTagRepository.class)
+                .add(new Tag("hiver"), List.of(new VintedListingId(NEW_LISTING)));
     }
 }
