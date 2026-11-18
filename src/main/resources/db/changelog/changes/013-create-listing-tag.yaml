@@ -1,0 +1,31 @@
+# US-34 : tags posés par le membre sur ses annonces, gardés dans l'outil seulement ; un tag existe tant qu'une
+# annonce le porte. Le tag est déjà mis en forme par le domaine (minuscules, espaces réduits, 1 à 30 caractères).
+databaseChangeLog:
+  - changeSet:
+      id: 013-create-listing-tag
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_tag
+            columns:
+              - column: {name: listing_id, type: bigint, constraints: {nullable: false}}
+              - column: {name: tag, type: text, constraints: {nullable: false}}
+        - addPrimaryKey:
+            tableName: listing_tag
+            columnNames: listing_id, tag
+            constraintName: listing_tag_pk
+        # Un tag ne se pose que sur une annonce connue ; les annonces ne sont jamais supprimées de l'inventaire.
+        - addForeignKeyConstraint:
+            baseTableName: listing_tag
+            baseColumnNames: listing_id
+            constraintName: listing_tag_listing_fk
+            referencedTableName: listing
+            referencedColumnNames: vinted_id
+            onDelete: CASCADE
+        - sql:
+            sql: >
+              ALTER TABLE listing_tag ADD CONSTRAINT listing_tag_tag_check
+                CHECK (char_length(tag) BETWEEN 1 AND 30);
+      rollback:
+        - dropTable:
+            tableName: listing_tag

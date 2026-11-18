@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.inventory.ListingInventory;
 import fr.vinted.republisher.domain.inventory.RepublicationAdvice;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.tag.ListingTagRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 
@@ -27,11 +28,12 @@ public class ShowListingInventory {
     private final ListingRepublicationRepository republications;
     private final RepublicationDelay delay;
     private final Clock clock;
+    private final ListingTagRepository tags;
 
     public ShowListingInventory(ListingRepository listings, ListingStatisticsRepository statistics,
                                 ListingBackupRepository backups, BackupValidationRepository validations,
                                 ListingDeletionRepository deletions, ListingRepublicationRepository republications,
-                                RepublicationDelay delay, Clock clock) {
+                                RepublicationDelay delay, Clock clock, ListingTagRepository tags) {
         this.listings = listings;
         this.statistics = statistics;
         this.backups = backups;
@@ -40,6 +42,7 @@ public class ShowListingInventory {
         this.republications = republications;
         this.delay = delay;
         this.clock = clock;
+        this.tags = tags;
     }
 
     public List<InventoryEntry> show(InventoryCriteria criteria) {
@@ -47,6 +50,6 @@ public class ShowListingInventory {
         return ListingInventory.of(listings.findAll(), statistics.findLatest(),
                 statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAll(),
                 validations.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay, now)
-                .select(criteria);
+                .withTags(tags.findAll()).select(criteria);
     }
 }

@@ -32,6 +32,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 
@@ -76,7 +77,8 @@ class ScanWardrobeAcceptanceTest {
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics,
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
+                    new InMemoryListingTagRepository());
 
     @Test
     void scan_records_every_active_listing() {

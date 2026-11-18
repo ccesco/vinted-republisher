@@ -1,6 +1,9 @@
 package fr.vinted.republisher.domain.inventory;
 
+import fr.vinted.republisher.domain.tag.Tag;
 import org.junit.jupiter.api.Test;
+
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -31,5 +34,18 @@ class InventoryCriteriaTest {
 
         assertThatThrownBy(() -> new InventoryCriteria(PresenceFilter.PRESENT, BackupFilter.ALL, tooLong,
                 InventorySort.RECENCY, SortDirection.DESC)).isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void no_tag_filter_by_default() {
+        assertThat(InventoryCriteria.defaults().tag()).isEmpty();
+    }
+
+    @Test
+    void tag_filter_is_kept_as_a_formed_tag() {
+        InventoryCriteria criteria = new InventoryCriteria(PresenceFilter.ALL, BackupFilter.ALL, "",
+                InventorySort.RECENCY, SortDirection.DESC, Optional.of(new Tag("Été")));
+
+        assertThat(criteria.tag()).contains(new Tag("été"));
     }
 }

@@ -60,6 +60,18 @@
             <option value="ASC">Croissant</option>
         </select>
     </label>
+    <label>Tag
+        <select id="tag-filter">
+            <option value="" selected>Tous</option>
+        </select>
+    </label>
+</p>
+<p>
+    <span id="selection-count">0 annonce sélectionnée</span>
+    <label>Tag <input id="tag-name" type="text" maxlength="100"></label>
+    <button id="add-tag" type="button" disabled>Ajouter le tag</button>
+    <button id="remove-tag" type="button" disabled>Retirer le tag</button>
+    <span id="tag-edit-message" role="status"></span>
 </p>
 <p id="listing-count"></p>
 <p id="listings-problem" role="alert" hidden>Liste indisponible.</p>
@@ -76,6 +88,8 @@
         <th scope="col">Validation</th>
         <th scope="col">Étape</th>
         <th scope="col">Action</th>
+        <th scope="col">Tags</th>
+        <th scope="col"><input id="select-all" type="checkbox" aria-label="Sélectionner toutes les annonces affichées"></th>
     </tr>
     </thead>
     <tbody></tbody>
@@ -173,7 +187,8 @@
         backup: document.getElementById('backup-filter'),
         search: document.getElementById('search'),
         sort: document.getElementById('sort'),
-        direction: document.getElementById('direction')
+        direction: document.getElementById('direction'),
+        tag: document.getElementById('tag-filter')
     };
 
     // Application arrêtée ou en erreur : on réessaie jusqu'à ce qu'elle réponde.
@@ -287,7 +302,102 @@
     function showListings(listings) {
         listingsProblem.hidden = true;
         listingCount.textContent = `${listings.length} annonce${listings.length > 1 ? 's' : ''}`;
+        // La sélection ne garde que des lignes affichées (US-34).
+        const shown = new Set(listings.map(listing => listing.vintedId));
+        for (const id of [...selection]) {
+            if (!shown.has(id)) {
+                selection.delete(id);
+            }
+        }
+        displayedIds = listings.map(listing => listing.vintedId);
         rows.replaceChildren(...listings.map(listing => rowOf(listing)));
+        showSelection();
+    }
+
+    // Édition en masse des tags (US-34) : identifiants cochés, dans l'ordre d'affichage.
+    const selection = new Set();
+    let displayedIds = [];
+    const selectAll = document.getElementById('select-all');
+    const selectionCount = document.getElementById('selection-count');
+    const tagName = document.getElementById('tag-name');
+    const addTagButton = document.getElementById('add-tag');
+    const removeTagButton = document.getElementById('remove-tag');
+    const tagEditMessage = document.getElementById('tag-edit-message');
+    // Statuts de POST /api/listings/tag-edits -> message ; rien n'est modifié en cas de refus.
+    const TAG_EDIT_REFUSALS = {
+        400: 'Tag invalide (1 à 30 caractères) : aucun tag modifié',
+        404: "Une annonce sélectionnée n'est plus connue : aucun tag modifié"
+    };
+    const TAG_EDIT_FAILED_MESSAGE = 'Échec de la modification des tags : aucun tag modifié';
+
+    function showSelection() {
+        const count = selection.size;
+        selectionCount.textContent = `${count} annonce${count > 1 ? 's' : ''} sélectionnée${count > 1 ? 's' : ''}`;
+        selectAll.checked = displayedIds.length > 0 && displayedIds.every(id => selection.has(id));
+        const disabled = count === 0 || !tagName.value.trim();
+        addTagButton.disabled = disabled;
+        removeTagButton.disabled = disabled;
+        for (const box of rows.querySelectorAll('input[type=checkbox]')) {
+            box.checked = selection.has(Number(box.value));
+        }
+    }
+
+    function selectCell(listing) {
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.value = listing.vintedId;
+        box.checked = selection.has(listing.vintedId);
+        box.setAttribute('aria-label', 'Sélectionner ' + listing.title);
+        box.addEventListener('change', () => {
+            if (box.checked) {
+                selection.add(listing.vintedId);
+            } else {
+                selection.delete(listing.vintedId);
+            }
+            showSelection();
+        });
+        return cell(box);
+    }
+
+    async function editTags(operation) {
+        const tag = tagName.value.trim();
+        const listingIds = displayedIds.filter(id => selection.has(id));
+        addTagButton.disabled = true;
+        removeTagButton.disabled = true;
+        try {
+            const response = await fetch('/api/listings/tag-edits', {
+                method: 'POST', headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({listingIds, tag, operation})
+            });
+            if (response.ok) {
+                const done = operation === 'ADD' ? 'ajouté à' : 'retiré de';
+                tagEditMessage.textContent = `Tag « ${tag} » ${done} ${listingIds.length} annonce${listingIds.length > 1 ? 's' : ''}`;
+                selection.clear();
+                await loadTags();
+                loadListings();
+            } else {
+                tagEditMessage.textContent = TAG_EDIT_REFUSALS[response.status] ?? TAG_EDIT_FAILED_MESSAGE;
+            }
+        } catch (unreachable) {
+            tagEditMessage.textContent = TAG_EDIT_FAILED_MESSAGE;
+        }
+        showSelection();
+    }
+
+    // Tags proposés au filtre ; le tag choisi reste choisi s'il est toujours porté.
+    async function loadTags() {
+        try {
+            const response = await fetch('/api/listing-tags');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const chosen = CRITERIA.tag.value;
+            const options = (await response.json()).tags.map(tag => new Option(tag, tag));
+            CRITERIA.tag.replaceChildren(new Option('Tous', ''), ...options);
+            CRITERIA.tag.value = options.some(option => option.value === chosen) ? chosen : '';
+        } catch (unavailable) {
+            // Filtre réduit à « Tous » : la liste reste utilisable.
+        }
     }
 
     function cell(...content) {
@@ -430,7 +540,9 @@
             backupCell(listing),
             cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''),
             stageCell(listing),
-            actionCell(listing, message));
+            actionCell(listing, message),
+            cell((listing.tags ?? []).join(', ')),
+            selectCell(listing));
         return row;
     }
 
@@ -558,7 +670,21 @@
         clearTimeout(searchTimer);
         searchTimer = setTimeout(loadListings, SEARCH_DELAY_MS);
     });
-    for (const control of [CRITERIA.presence, CRITERIA.backup, CRITERIA.sort, CRITERIA.direction]) {
+    selectAll.addEventListener('change', () => {
+        for (const id of displayedIds) {
+            if (selectAll.checked) {
+                selection.add(id);
+            } else {
+                selection.delete(id);
+            }
+        }
+        showSelection();
+    });
+    tagName.addEventListener('input', showSelection);
+    addTagButton.addEventListener('click', () => editTags('ADD'));
+    removeTagButton.addEventListener('click', () => editTags('REMOVE'));
+    loadTags();
+    for (const control of [CRITERIA.presence, CRITERIA.backup, CRITERIA.sort, CRITERIA.direction, CRITERIA.tag]) {
         control.addEventListener('change', () => {
             clearTimeout(searchTimer);
             loadListings();

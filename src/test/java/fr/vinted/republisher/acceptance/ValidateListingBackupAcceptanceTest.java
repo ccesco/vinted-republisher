@@ -33,6 +33,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 
@@ -73,7 +74,8 @@ class ValidateListingBackupAcceptanceTest {
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), listingBackups, validations,
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
+                    new InMemoryListingTagRepository());
 
     @Test
     void preview_shows_a_verified_backup() {

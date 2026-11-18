@@ -4,6 +4,8 @@ import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.tag.ListingTag;
+import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
@@ -170,6 +172,30 @@ class ListingInventoryTest {
 
         assertThat(inventory.entries()).extracting(InventoryEntry::advice)
                 .containsExactly(Optional.of(new RepublicationAdvice(6, eightDaysAgo)), Optional.empty());
+    }
+
+    @Test
+    void each_listing_bears_its_tags_in_alphabetical_order() {
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1"), present(2, "b", "1")), List.of(),
+                List.of(), List.of()).withTags(List.of(tag(1, "lot"), tag(1, "été")));
+
+        assertThat(inventory.select(InventoryCriteria.defaults())).extracting(InventoryEntry::tags)
+                .containsExactly(List.of(), List.of(new Tag("été"), new Tag("lot")));
+    }
+
+    @Test
+    void tag_filter_keeps_only_listings_bearing_the_tag() {
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1"), present(2, "b", "1"),
+                present(3, "c", "1")), List.of(), List.of(), List.of())
+                .withTags(List.of(tag(1, "lot"), tag(2, "été"), tag(3, "lot")));
+        InventoryCriteria lot = new InventoryCriteria(PresenceFilter.PRESENT, BackupFilter.ALL, "",
+                InventorySort.RECENCY, SortDirection.DESC, Optional.of(new Tag("LOT")));
+
+        assertThat(ids(inventory, lot)).containsExactly(3L, 1L);
+    }
+
+    private static ListingTag tag(long id, String tag) {
+        return new ListingTag(new VintedListingId(id), new Tag(tag));
     }
 
     private static Listing present(long id, String title, String price) {

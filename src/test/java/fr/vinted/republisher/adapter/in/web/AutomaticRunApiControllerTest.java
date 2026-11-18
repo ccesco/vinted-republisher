@@ -34,6 +34,7 @@ import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -188,8 +189,9 @@ class AutomaticRunApiControllerTest {
                     new VerifyListingRepublication(session, backups, republications, listings, search,
                             new FakeListingContentReader(), noBackupPause(), clock, show));
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
-                    deletions, republications, delay, clock), relaunch, (until, interrupted) -> {
-            }, clock, launched::add);
+                    deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch,
+                    (until, interrupted) -> {
+                    }, clock, launched::add);
         }
     }
 }

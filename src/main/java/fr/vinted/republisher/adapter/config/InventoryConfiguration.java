@@ -8,6 +8,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.tag.ListingTagRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 import org.springframework.context.annotation.Bean;
@@ -24,9 +25,10 @@ class InventoryConfiguration {
                                               BackupValidationRepository validations,
                                               ListingDeletionRepository deletions,
                                               ListingRepublicationRepository republications,
-                                              RepublicationDelay republicationDelay, Clock clock) {
+                                              RepublicationDelay republicationDelay, Clock clock,
+                                              ListingTagRepository tags) {
         return new ShowListingInventory(listings, statistics, backups, validations, deletions, republications,
-                republicationDelay, clock);
+                republicationDelay, clock, tags);
     }
 
     @Bean
