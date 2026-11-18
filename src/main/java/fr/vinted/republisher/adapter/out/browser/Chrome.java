@@ -32,8 +32,8 @@ public class Chrome {
         this.debugPort = debugPort;
     }
 
-    /** Returns the endpoint Playwright attaches to. */
-    URI ensureRunning() {
+    /** Returns the endpoint Playwright attaches to. Several tabs may ask at once (US-15): Chrome starts once. */
+    synchronized URI ensureRunning() {
         if (!responds()) {
             start();
             awaitStartup();

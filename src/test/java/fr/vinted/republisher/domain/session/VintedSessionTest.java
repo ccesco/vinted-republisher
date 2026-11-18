@@ -1,10 +1,14 @@
 package fr.vinted.republisher.domain.session;
 
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import static fr.vinted.republisher.domain.session.BrowserAction.CHECKING;
+import static fr.vinted.republisher.domain.session.BrowserAction.DELETING;
 import static fr.vinted.republisher.domain.session.BrowserAction.LOGGING_IN;
+import static fr.vinted.republisher.domain.session.BrowserAction.REPUBLISHING;
+import static fr.vinted.republisher.domain.session.BrowserAction.SCANNING;
 import static fr.vinted.republisher.domain.session.SessionProblem.BROWSER_UNAVAILABLE;
 import static fr.vinted.republisher.domain.session.SessionProblem.MANUAL_LOGIN_NOT_COMPLETED;
 import static fr.vinted.republisher.domain.session.SessionStatus.CONNECTED;
@@ -65,6 +69,79 @@ class VintedSessionTest {
             session.start(CHECKING);
 
             assertThat(session.overview().problem()).isEmpty();
+        }
+    }
+
+    /** US-15: up to N listing actions at once, never two on the same listing; other actions stay alone. */
+    @Nested
+    class Parallelism {
+
+        private static final VintedListingId ROBE = new VintedListingId(1);
+        private static final VintedListingId PULL = new VintedListingId(2);
+        private static final VintedListingId JUPE = new VintedListingId(3);
+
+        private final VintedSession twoAtOnce = new VintedSession(2);
+
+        @Test
+        void admits_up_to_the_parallelism() {
+            assertThat(twoAtOnce.start(DELETING, ROBE)).isTrue();
+            assertThat(twoAtOnce.start(REPUBLISHING, PULL)).isTrue();
+
+            assertThat(twoAtOnce.start(DELETING, JUPE)).isFalse();
+
+            twoAtOnce.finish(ROBE);
+            assertThat(twoAtOnce.start(DELETING, JUPE)).isTrue();
+            assertThat(twoAtOnce.overview().currentAction()).contains(REPUBLISHING);
+        }
+
+        @Test
+        void never_two_actions_on_the_same_listing() {
+            twoAtOnce.start(DELETING, ROBE);
+
+            assertThat(twoAtOnce.start(REPUBLISHING, ROBE)).isFalse();
+        }
+
+        @Test
+        void other_actions_stay_alone() {
+            twoAtOnce.start(DELETING, ROBE);
+            assertThat(twoAtOnce.start(SCANNING)).isFalse();
+            twoAtOnce.finish(ROBE);
+
+            twoAtOnce.start(SCANNING);
+            assertThat(twoAtOnce.start(DELETING, ROBE)).isFalse();
+            twoAtOnce.finish();
+            assertThat(twoAtOnce.overview().currentAction()).isEmpty();
+        }
+
+        @Test
+        void one_by_default() {
+            session.start(DELETING, ROBE);
+
+            assertThat(session.start(DELETING, PULL)).isFalse();
+        }
+
+        @Test
+        void at_least_one() {
+            assertThat(catchThrowable(() -> new VintedSession(0))).isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        void an_action_on_a_listing_never_ends_as_an_action_alone() {
+            twoAtOnce.start(DELETING, ROBE);
+
+            assertThat(catchThrowable(twoAtOnce::finish)).isInstanceOf(NoBrowserActionInProgress.class);
+            assertThat(twoAtOnce.overview().currentAction()).contains(DELETING);
+        }
+
+        @Test
+        void only_an_action_on_a_listing_shares_the_browser() {
+            assertThat(catchThrowable(() -> twoAtOnce.start(SCANNING, ROBE)))
+                    .isInstanceOf(IllegalArgumentException.class);
+        }
+
+        @Test
+        void cannot_finish_a_listing_without_action() {
+            assertThat(catchThrowable(() -> twoAtOnce.finish(ROBE))).isInstanceOf(NoBrowserActionInProgress.class);
         }
     }
 

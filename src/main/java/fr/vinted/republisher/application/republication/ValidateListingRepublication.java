@@ -73,7 +73,7 @@ public class ValidateListingRepublication {
         NewListingLink newListing = NewListingLink.parse(link, vintedSite);
         // Checked before Chrome is opened, then again under the lock: another validation may have settled it since.
         requireAnotherListing(id, newListing);
-        List<ListingFieldDifference> comparison = underLock(() -> {
+        List<ListingFieldDifference> comparison = underLock(id, () -> {
             ListingRepublication failed = latestInError(id);
             requireAnotherListing(id, newListing);
             ListingReading read = readPage(newListing.id());
@@ -95,7 +95,7 @@ public class ValidateListingRepublication {
         listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestInError(id);
         // The lock keeps a verification running meanwhile from settling it the other way.
-        underLock(() -> {
+        underLock(id, () -> {
             ListingRepublication notPublished = latestInError(id).notPublished(clock.instant());
             republications.save(notPublished);
             return notPublished;
@@ -126,14 +126,14 @@ public class ValidateListingRepublication {
         return read.getFirst();
     }
 
-    private <T> T underLock(Supplier<T> action) {
-        if (!session.start(BrowserAction.REPUBLISHING)) {
+    private <T> T underLock(VintedListingId id, Supplier<T> action) {
+        if (!session.start(BrowserAction.REPUBLISHING, id)) {
             throw new BrowserBusy();
         }
         try {
             return action.get();
         } finally {
-            session.finish();
+            session.finish(id);
         }
     }
 }

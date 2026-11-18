@@ -1414,7 +1414,7 @@ components:
         STOPPED_BY_MEMBER]
     AutomaticRunOverview:
       type: object
-      required: [status, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
+      required: [status, currentListingIds, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
       properties:
         status:
           $ref: '#/components/schemas/RunStatus'
@@ -1429,10 +1429,14 @@ components:
           type: string
           format: date-time
           description: Date jusqu'à laquelle la série attend ; présente pour WAITING.
-        currentListingId:
-          type: integer
-          format: int64
-          description: Identifiant Vinted de l'annonce relancée en dernier, tant que la série tourne.
+        currentListingIds:
+          type: array
+          description: >
+            Identifiants Vinted des annonces de la dernière tournée, relancées ensemble (US-15), dans l'ordre de la
+            série, tant que la série tourne ; une seule avec le parallélisme par défaut, vide hors série.
+          items:
+            type: integer
+            format: int64
         relaunchCount:
           type: integer
           format: int32
@@ -1456,7 +1460,7 @@ components:
         status: WAITING
         startedAt: '2026-11-17T10:00:00Z'
         waitingUntil: '2026-11-17T10:05:00Z'
-        currentListingId: 10208799832
+        currentListingIds: [10208799832]
         relaunchCount: 3
         skippedListingIds: []
         pauseRequested: false

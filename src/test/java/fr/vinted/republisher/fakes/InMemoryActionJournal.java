@@ -21,7 +21,7 @@ public class InMemoryActionJournal implements ActionJournal {
     }
 
     /** What was written, oldest first. */
-    public List<ActionRecord> records() {
+    public synchronized List<ActionRecord> records() {
         return entries.stream().map(JournalEntry::record).toList();
     }
 

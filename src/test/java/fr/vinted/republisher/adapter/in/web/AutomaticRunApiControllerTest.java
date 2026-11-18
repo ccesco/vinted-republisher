@@ -70,8 +70,8 @@ class AutomaticRunApiControllerTest {
         assertThat(mvc.get().uri("/api/automatic-run"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
-                        {"status": "IDLE", "relaunchCount": 0, "skippedListingIds": [], "pauseRequested": false,
-                         "stopRequested": false}""");
+                        {"status": "IDLE", "currentListingIds": [], "relaunchCount": 0, "skippedListingIds": [],
+                         "pauseRequested": false, "stopRequested": false}""");
     }
 
     @Test
@@ -79,8 +79,9 @@ class AutomaticRunApiControllerTest {
         assertThat(mvc.post().uri("/api/automatic-run"))
                 .hasStatus(202)
                 .bodyJson().isStrictlyEqualTo("""
-                        {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "relaunchCount": 0,
-                         "skippedListingIds": [], "pauseRequested": false, "stopRequested": false}""");
+                        {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [],
+                         "relaunchCount": 0, "skippedListingIds": [], "pauseRequested": false,
+                         "stopRequested": false}""");
         assertThat(launched).hasSize(1);
     }
 
@@ -119,14 +120,15 @@ class AutomaticRunApiControllerTest {
     }
 
     @Test
-    void a_waiting_run_shows_its_date_and_listing() {
-        AutomaticRun waiting = AutomaticRun.startedAt(NOW).relaunching(new VintedListingId(7)).relaunched()
+    void a_waiting_run_shows_its_date_and_the_listings_of_its_round() {
+        AutomaticRun waiting = AutomaticRun.startedAt(NOW)
+                .relaunching(List.of(new VintedListingId(7), new VintedListingId(8))).relaunched()
                 .skipping(new VintedListingId(3)).waitingUntil(NOW.plusSeconds(300));
 
         assertThat(AutomaticRunApiController.toDto(waiting)).satisfies(dto -> {
             assertThat(dto.getStatus().name()).isEqualTo("WAITING");
             assertThat(dto.getWaitingUntil()).hasToString("2026-11-17T10:05Z");
-            assertThat(dto.getCurrentListingId()).isEqualTo(7L);
+            assertThat(dto.getCurrentListingIds()).containsExactly(7L, 8L);
             assertThat(dto.getRelaunchCount()).isEqualTo(1);
             assertThat(dto.getSkippedListingIds()).containsExactly(3L);
         });
@@ -141,7 +143,7 @@ class AutomaticRunApiControllerTest {
             assertThat(dto.getStatus().name()).isEqualTo("STOPPED");
             assertThat(dto.getStopReason().name()).isEqualTo("SESSION_DISCONNECTED");
             assertThat(dto.getEndedAt()).hasToString("2026-11-17T10:01Z");
-            assertThat(dto.getCurrentListingId()).isNull();
+            assertThat(dto.getCurrentListingIds()).isEmpty();
         });
     }
 
@@ -191,7 +193,7 @@ class AutomaticRunApiControllerTest {
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
                     deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch,
                     (until, interrupted) -> {
-                    }, clock, launched::add);
+                    }, clock, launched::add, 1, Runnable::run);
         }
     }
 }

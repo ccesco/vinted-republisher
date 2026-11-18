@@ -1,6 +1,7 @@
 package fr.vinted.republisher.application.republication;
 
 import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.application.cadence.WriteReservation;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.RepublicationChecks.RepublishableBackup;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -85,13 +86,14 @@ public class RepublishListing {
 
     private RepublicationReport republishNow(VintedListingId id, Instant seen) {
         RepublishableBackup republishable = checks.check(id, seen);
-        if (!session.start(BrowserAction.REPUBLISHING)) {
+        if (!session.start(BrowserAction.REPUBLISHING, id)) {
             throw new BrowserBusy();
         }
         Attempt attempt = new Attempt(republishable.backup());
+        Optional<WriteReservation> reservation = Optional.empty();
         try {
             if (mode == RepublicationMode.REAL) {
-                cadence.check(VintedWrite.REPUBLICATION);
+                reservation = Optional.of(cadence.reserve(VintedWrite.REPUBLICATION));
             }
             publisher.publish(republishable.backup().content(), republishable.photos(), attempt);
             attempt.started().ifPresent(republication -> prove(republication, republishable.backup()));
@@ -101,7 +103,8 @@ public class RepublishListing {
             }
             LOG.warn("Republication of listing {} failed after Publish was clicked", id.value(), failure);
         } finally {
-            session.finish();
+            reservation.ifPresent(cadence::release);
+            session.finish(id);
         }
         return showListingRepublication.report(id, attempt.dryRunPassed);
     }

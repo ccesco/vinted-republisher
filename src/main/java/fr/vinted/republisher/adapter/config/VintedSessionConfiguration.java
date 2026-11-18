@@ -26,8 +26,8 @@ import java.util.concurrent.Executor;
 public class VintedSessionConfiguration {
 
     @Bean
-    VintedSession vintedSession() {
-        return new VintedSession();
+    VintedSession vintedSession(ParallelismConfiguration.ParallelListingActions parallelism) {
+        return new VintedSession(parallelism.count());
     }
 
     @Bean
