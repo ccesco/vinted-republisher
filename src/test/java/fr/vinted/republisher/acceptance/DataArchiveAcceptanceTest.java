@@ -131,7 +131,7 @@ class DataArchiveAcceptanceTest extends ApplicationWithDatabaseTest {
     void archive_changes_nothing_and_keeps_no_copy() throws IOException {
         // Étant donné une base et un dossier de photos
         jdbc.update("INSERT INTO listing VALUES (1, 'https://www.vinted.fr/items/1', 'Bonnet', 12.50, 'EUR', true, "
-                + "'2026-11-17T10:00:00Z')");
+                + "'2026-11-17T10:00:00Z', '2026-11-17T10:00:00Z')");
         write(PHOTOS.resolve("1/0.webp"), COVER);
         List<Map<String, Object>> listingsBefore = jdbc.queryForList("SELECT * FROM listing");
         Set<Path> dataBefore = filesUnder(DATA);

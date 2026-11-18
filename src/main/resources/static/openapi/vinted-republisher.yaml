@@ -987,14 +987,27 @@ components:
     ListingDetail:
       type: object
       description: Fiche d'une annonce.
-      required: [listing, lastSeenAt, statisticsHistory, journal, priceHistory]
+      required: [listing, firstSeenAt, lastSeenAt, statisticsHistory, journal, priceHistory, lifecycle]
       properties:
         listing:
           $ref: '#/components/schemas/Listing'
+        firstSeenAt:
+          type: string
+          format: date-time
+          description: >
+            Première fois que l'outil a vu l'annonce (scan, ou republication qui l'a trouvée), jamais modifiée ;
+            approximative pour une annonce connue avant le suivi de cette date.
         lastSeenAt:
           type: string
           format: date-time
           description: Dernière fois que le scan a vu l'annonce dans le dressing.
+        lifecycle:
+          type: array
+          description: >
+            Cycle de vie de l'article : événements établis de toutes les annonces reliées par des republications
+            publiées, la plus ancienne d'abord ; jamais vide (au moins la première détection de l'annonce).
+          items:
+            $ref: '#/components/schemas/LifecycleEvent'
         statisticsHistory:
           type: array
           description: Tous les relevés de vues et favoris de l'annonce, du plus récent au plus ancien ; vide si jamais relevée.
@@ -1027,6 +1040,7 @@ components:
             viewCount: 12
             favouriteCount: 3
             readAt: '2026-11-07T10:05:00Z'
+        firstSeenAt: '2026-11-06T10:05:00Z'
         lastSeenAt: '2026-11-07T10:05:00Z'
         statisticsHistory:
           - viewCount: 12
@@ -1040,6 +1054,10 @@ components:
             changedAt: '2026-11-07T10:05:00Z'
           - price: {amount: 2, currency: EUR}
             changedAt: '2026-11-06T10:05:00Z'
+        lifecycle:
+          - type: FIRST_SEEN
+            listingId: 90000000001
+            at: '2026-11-06T10:05:00Z'
     PriceChange:
       type: object
       description: Un prix de l'annonce et la date où l'outil l'a vu pour la première fois.
@@ -1051,6 +1069,38 @@ components:
           type: string
           format: date-time
           description: Date de l'enregistrement de l'annonce (scan, republication) qui a vu ce prix pour la première fois.
+    LifecycleEvent:
+      type: object
+      description: Un fait établi de la vie d'une annonce de l'article.
+      required: [type, listingId, at]
+      properties:
+        type:
+          $ref: '#/components/schemas/LifecycleEventType'
+        listingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'annonce concernée.
+        at:
+          type: string
+          format: date-time
+          description: >
+            Première détection, clic de suppression, preuve de la republication, ou dernière vue pour une sortie du
+            dressing.
+        newListingId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de la nouvelle annonce ; seulement pour une republication.
+      example:
+        type: REPUBLISHED
+        listingId: 90000000001
+        at: '2026-11-10T09:00:00Z'
+        newListingId: 90000000002
+    LifecycleEventType:
+      type: string
+      description: >
+        Vue pour la première fois, supprimée par l'outil (suppression confirmée), republiée (republication publiée),
+        sortie du dressing (absente sans suppression confirmée : vendue ou retirée hors de l'outil).
+      enum: [FIRST_SEEN, DELETED, REPUBLISHED, LEFT_WARDROBE]
     StatisticsComparison:
       type: object
       description: >

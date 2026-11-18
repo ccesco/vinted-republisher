@@ -1,0 +1,23 @@
+# US-32 : date de première détection d'une annonce, jamais modifiée. Les annonces déjà connues la reprennent de leur
+# plus ancien relevé de statistiques ou, à défaut ou s'il est plus tardif, de leur dernière vue (approximation).
+databaseChangeLog:
+  - changeSet:
+      id: 014-listing-first-seen-at
+      author: vinted-republisher
+      changes:
+        - addColumn:
+            tableName: listing
+            columns:
+              - column: {name: first_seen_at, type: timestamptz}
+        - sql:
+            sql: >
+              UPDATE listing SET first_seen_at = LEAST(last_seen_at,
+                (SELECT MIN(read_at) FROM listing_statistics_reading WHERE listing_id = listing.vinted_id));
+        - addNotNullConstraint:
+            tableName: listing
+            columnName: first_seen_at
+            columnDataType: timestamptz
+      rollback:
+        - dropColumn:
+            tableName: listing
+            columnName: first_seen_at

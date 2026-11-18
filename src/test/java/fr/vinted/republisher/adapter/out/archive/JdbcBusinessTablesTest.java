@@ -141,7 +141,7 @@ class JdbcBusinessTablesTest extends ApplicationWithDatabaseTest {
 
     private void insertListing(long id) {
         jdbc.update("INSERT INTO listing VALUES (?, 'https://www.vinted.fr/items/' || ?, 'Bonnet', 12.50, 'EUR', "
-                + "true, '2026-11-17T10:00:00Z')", id, id);
+                + "true, '2026-11-17T10:00:00Z', '2026-11-17T10:00:00Z')", id, id);
     }
 
     private JsonNode export() {

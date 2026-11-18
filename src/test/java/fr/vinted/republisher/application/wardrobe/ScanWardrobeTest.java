@@ -31,6 +31,7 @@ import java.util.List;
 import java.util.concurrent.Executor;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.seenSince;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anInactiveListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -192,7 +193,7 @@ class ScanWardrobeTest {
 
         scan();
 
-        assertThat(listings.findAll()).containsExactly(Listing.seen(anActiveListing(1), NOW));
+        assertThat(listings.findAll()).containsExactly(seenSince(anActiveListing(1), EARLIER, NOW));
     }
 
     @Test

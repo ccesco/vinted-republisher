@@ -1,6 +1,9 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.deletion.DeletionOutcome;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.deletion.ListingDeletionId;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -58,6 +61,9 @@ class ListingDetailApiControllerTest {
     @Autowired
     private InMemoryListingRepublicationRepository republications;
 
+    @Autowired
+    private InMemoryListingDeletionRepository deletions;
+
     @Test
     void shows_the_listing_its_stage_and_its_statistics_history() {
         listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND).absent()));
@@ -72,13 +78,39 @@ class ListingDetailApiControllerTest {
                                      "stage": "GONE",
                                      "statistics": {"viewCount": 12, "favouriteCount": 3,
                                                     "readAt": "2026-11-02T09:00:00Z"}},
+                         "firstSeenAt": "2026-11-02T09:00:00Z",
                          "lastSeenAt": "2026-11-02T09:00:00Z",
                          "statisticsHistory": [
                            {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
                            {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}],
                          "journal": [],
+                         "lifecycle": [
+                           {"type": "FIRST_SEEN", "listingId": 101, "at": "2026-11-02T09:00:00Z"},
+                           {"type": "LEFT_WARDROBE", "listingId": 101, "at": "2026-11-02T09:00:00Z"}],
                          "priceHistory": [
                            {"price": {"amount": 12.50, "currency": "EUR"}, "changedAt": "2026-11-02T09:00:00Z"}]}""");
+    }
+
+    @Test
+    void detail_shows_the_first_sighting_and_the_lifecycle() {
+        listings.saveAll(List.of(Listing.seen(aListing(100, "Pull rayé", "12.5", ACTIVE), FIRST).absent(),
+                Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND)));
+        deletions.save(new ListingDeletion(new ListingDeletionId(UUID.randomUUID()), new VintedListingId(100), FIRST,
+                FIRST, DeletionOutcome.CONFIRMED, Optional.of(FIRST)));
+        republications.save(new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
+                new VintedListingId(100), FIRST, SECOND, RepublicationOutcome.PUBLISHED, Optional.of(SECOND),
+                Optional.of(new VintedListingId(101)), Optional.empty()));
+
+        assertThat(mvc.get().uri("/api/listings/100"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"firstSeenAt": "2026-11-01T09:00:00Z",
+                         "lifecycle": [
+                           {"type": "FIRST_SEEN", "listingId": 100, "at": "2026-11-01T09:00:00Z"},
+                           {"type": "DELETED", "listingId": 100, "at": "2026-11-01T09:00:00Z"},
+                           {"type": "REPUBLISHED", "listingId": 100, "at": "2026-11-02T09:00:00Z",
+                            "newListingId": 101},
+                           {"type": "FIRST_SEEN", "listingId": 101, "at": "2026-11-02T09:00:00Z"}]}""");
     }
 
     @Test
@@ -163,12 +195,18 @@ class ListingDetailApiControllerTest {
         }
 
         @Bean
+        InMemoryListingDeletionRepository deletions() {
+            return new InMemoryListingDeletionRepository();
+        }
+
+        @Bean
         ShowListingDetail showListingDetail(InMemoryListingRepository listings,
                                             InMemoryListingStatisticsRepository statistics,
-                                            InMemoryListingRepublicationRepository republications) {
+                                            InMemoryListingRepublicationRepository republications,
+                                            InMemoryListingDeletionRepository deletions) {
             return new ShowListingDetail(listings, statistics, new InMemoryListingBackupRepository(),
                     new InMemoryBackupValidationRepository(),
-                    new InMemoryListingDeletionRepository(), republications,
+                    deletions, republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
                     new InMemoryActionJournal());
         }

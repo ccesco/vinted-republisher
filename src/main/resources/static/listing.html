@@ -28,6 +28,7 @@
     </table>
     <p><a id="vinted-link" rel="noopener noreferrer">Voir sur Vinted</a></p>
     <p id="presence"></p>
+    <p id="first-seen"></p>
     <h2>Vues et favoris</h2>
     <p id="republication-advice" hidden></p>
     <p id="no-reading" hidden>Aucun relevé</p>
@@ -55,6 +56,9 @@
             <tbody></tbody>
         </table>
     </section>
+    <h2>Cycle de vie</h2>
+    <p id="tracked-since"></p>
+    <ol id="lifecycle"></ol>
     <h2>Journal</h2>
     <p id="no-journal" hidden>Aucune action</p>
     <table id="listing-journal" hidden>
@@ -117,6 +121,12 @@
     <div id="photos"></div>
 </section>
 <script>
+    // Codes du contrat OpenAPI (LifecycleEventType, hors REPUBLISHED) -> libellés affichés.
+    const LIFECYCLE_LABELS = {
+        FIRST_SEEN: 'vue pour la première fois',
+        DELETED: "supprimée par l'outil",
+        LEFT_WARDROBE: "sortie du dressing (vendue ou retirée hors de l'outil, vue pour la dernière fois à cette date)"
+    };
     // Codes du contrat OpenAPI (ListingStage) -> libellés affichés.
     const STAGE_LABELS = {
         TO_BACK_UP: 'À sauvegarder', TO_VALIDATE: 'À valider', TO_DELETE: 'Prête à supprimer',
@@ -204,6 +214,9 @@
     const listingPrice = document.getElementById('listing-price');
     const vintedLink = document.getElementById('vinted-link');
     const presence = document.getElementById('presence');
+    const firstSeen = document.getElementById('first-seen');
+    const trackedSince = document.getElementById('tracked-since');
+    const lifecycle = document.getElementById('lifecycle');
     const stage = document.getElementById('stage');
     const noPrice = document.getElementById('no-price');
     const priceHistory = document.getElementById('price-history');
@@ -556,8 +569,36 @@
             return row;
         }));
         showStatisticsComparison(detail.statisticsComparison);
+        firstSeen.textContent = 'Vue pour la première fois le ' + dateOf(detail.firstSeenAt) + '.';
+        showLifecycle(detail.lifecycle, listing.vintedId);
         showRepublicationAdvice(listing.republicationAdvice);
         listingSection.hidden = false;
+    }
+
+    // US-32 : les faits établis de toutes les annonces de l'article, la plus ancienne d'abord.
+    function showLifecycle(events, shownId) {
+        trackedSince.textContent = 'Article suivi depuis le ' + dateOf(events[0].at) + '.';
+        lifecycle.replaceChildren(...events.map(event => {
+            const item = document.createElement('li');
+            item.append(dateOf(event.at) + ' – ', listingNameOf(event.listingId, shownId, true), ' ');
+            if (event.type === 'REPUBLISHED') {
+                item.append('republiée sous ', listingNameOf(event.newListingId, shownId, false));
+            } else {
+                item.append(LIFECYCLE_LABELS[event.type] ?? '');
+            }
+            return item;
+        }));
+    }
+
+    // Lien vers la fiche d'une autre annonce de la chaîne, texte simple pour celle affichée.
+    function listingNameOf(id, shownId, startsSentence) {
+        if (id === shownId) {
+            return startsSentence ? 'Cette annonce' : 'cette annonce';
+        }
+        const link = document.createElement('a');
+        link.href = 'listing.html?id=' + encodeURIComponent(id);
+        link.textContent = (startsSentence ? 'Annonce ' : "l'annonce ") + id;
+        return link;
     }
 
     // US-35 : l'outil conseille, il n'agit pas.

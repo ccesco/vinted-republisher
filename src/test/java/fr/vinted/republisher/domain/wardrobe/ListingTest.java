@@ -20,10 +20,18 @@ class ListingTest {
     }
 
     @Test
+    void listing_seen_is_first_seen_at_that_reading() {
+        Listing listing = Listing.seen(anActiveListing(1), SCANNED_AT);
+
+        assertThat(listing.firstSeenAt()).isEqualTo(SCANNED_AT);
+    }
+
+    @Test
     void absent_listing_keeps_the_date_it_was_last_seen() {
         Listing absent = Listing.seen(anActiveListing(1), SCANNED_AT).absent();
 
         assertThat(absent.present()).isFalse();
         assertThat(absent.lastSeenAt()).isEqualTo(SCANNED_AT);
+        assertThat(absent.firstSeenAt()).isEqualTo(SCANNED_AT);
     }
 }

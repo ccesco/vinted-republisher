@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
+import fr.vinted.republisher.domain.inventory.ListingLifecycle;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
 import fr.vinted.republisher.domain.inventory.RepublicationAdvice;
 import fr.vinted.republisher.domain.inventory.StatisticsComparison;
@@ -12,6 +13,7 @@ import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
@@ -27,8 +29,9 @@ import java.util.Optional;
 import java.util.Set;
 
 /**
- * Reads what the tool keeps about one listing, never Vinted, with, for a listing put on sale by a republication, its
- * statistics next to those of the listing it replaces.
+ * Reads what the tool keeps about one listing, never Vinted, with the life of the article across the chain of
+ * published republications it belongs to and, for a listing put on sale by a republication, its statistics next to
+ * those of the listing it replaces.
  */
 public class ShowListingDetail {
 
@@ -66,25 +69,64 @@ public class ShowListingDetail {
                 history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
                 backups.find(id).stream().toList(), validations.find(id).stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
-                now);
+                clock.instant());
+        Set<VintedListingId> seen = new HashSet<>(Set.of(id));
+        List<VintedListingId> previous = previousListings(id, seen);
+        List<VintedListingId> next = nextListings(id, seen);
         return new ListingDetail(inventory.entries().getFirst(), history, journal.of(id),
-                comparison(id, history.stream().findFirst()), listings.priceHistoryOf(id));
+                comparison(id, previous, history.stream().findFirst()), listings.priceHistoryOf(id),
+                lifecycle(previous, id, next));
     }
 
-    /** Walks back the chain of republications that led to this listing, stopping on a listing already seen. */
-    private Optional<StatisticsComparison> comparison(VintedListingId id, Optional<StatisticsReading> latest) {
-        Optional<ListingRepublication> republication = republications.findPublishedAs(id);
-        if (republication.isEmpty()) {
+    /** Walks back the published republications that led to this listing, the one replaced directly first. */
+    private List<VintedListingId> previousListings(VintedListingId id, Set<VintedListingId> seen) {
+        List<VintedListingId> previous = new ArrayList<>();
+        Optional<ListingRepublication> step = republications.findPublishedAs(id);
+        while (step.isPresent() && seen.add(step.get().listingId())) {
+            previous.add(step.get().listingId());
+            step = republications.findPublishedAs(step.get().listingId());
+        }
+        return previous;
+    }
+
+    /** Walks forward the published republications of this listing, the one replacing it directly first. */
+    private List<VintedListingId> nextListings(VintedListingId id, Set<VintedListingId> seen) {
+        List<VintedListingId> next = new ArrayList<>();
+        Optional<VintedListingId> step = newListingOf(id);
+        while (step.isPresent() && seen.add(step.get())) {
+            next.add(step.get());
+            step = newListingOf(step.get());
+        }
+        return next;
+    }
+
+    private Optional<VintedListingId> newListingOf(VintedListingId id) {
+        return republications.findLatest(id)
+                .filter(republication -> republication.outcome() == RepublicationOutcome.PUBLISHED)
+                .flatMap(ListingRepublication::newListingId);
+    }
+
+    private Optional<StatisticsComparison> comparison(VintedListingId id, List<VintedListingId> previous,
+                                                      Optional<StatisticsReading> latest) {
+        if (previous.isEmpty()) {
             return Optional.empty();
         }
-        List<Optional<StatisticsReading>> previousLatest = new ArrayList<>();
-        Set<VintedListingId> seen = new HashSet<>(Set.of(id));
-        Optional<ListingRepublication> step = republication;
-        while (step.isPresent() && seen.add(step.get().listingId())) {
-            VintedListingId previous = step.get().listingId();
-            previousLatest.add(statistics.historyOf(previous).stream().findFirst());
-            step = republications.findPublishedAs(previous);
-        }
-        return Optional.of(StatisticsComparison.of(republication.get(), previousLatest, latest));
+        List<Optional<StatisticsReading>> previousLatest = previous.stream()
+                .map(listing -> statistics.historyOf(listing).stream().findFirst()).toList();
+        return Optional.of(StatisticsComparison.of(republications.findPublishedAs(id).orElseThrow(), previousLatest,
+                latest));
+    }
+
+    /** A listing of the chain unknown to the tool (never expected) is skipped. */
+    private ListingLifecycle lifecycle(List<VintedListingId> previous, VintedListingId id,
+                                       List<VintedListingId> next) {
+        List<VintedListingId> chain = new ArrayList<>(previous.reversed());
+        chain.add(id);
+        chain.addAll(next);
+        return new ListingLifecycle(chain.stream()
+                .flatMap(listing -> listings.find(listing).stream())
+                .flatMap(listing -> ListingLifecycle.eventsOf(listing, deletions.findLatest(listing.id()),
+                        republications.findLatest(listing.id())).stream())
+                .toList());
     }
 }

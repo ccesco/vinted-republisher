@@ -7,6 +7,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -39,12 +40,17 @@ class JpaListingRepository implements ListingRepository {
     /**
      * One transaction for the listings and their price changes: all or nothing. The listings are written first, for
      * the foreign key of their price changes; each listing is compared with the latest price, this batch included.
+     * A listing already known, this batch included, keeps its first-seen date, read back here.
      */
     @Override
     @Transactional
     public void saveAll(List<Listing> listings) {
         Map<VintedListingId, PriceChange> latestPrices = new HashMap<>(latestPricesOf(listings));
-        repository.saveAllAndFlush(listings.stream().map(ListingJpaEntity::new).toList());
+        Map<Long, Instant> firstSeen = new HashMap<>(firstSeenOf(listings));
+        repository.saveAllAndFlush(listings.stream()
+                .map(listing -> new ListingJpaEntity(listing,
+                        firstSeen.computeIfAbsent(listing.id().value(), id -> listing.firstSeenAt())))
+                .toList());
         List<ListingPriceChangeJpaEntity> changes = new ArrayList<>();
         for (Listing listing : listings) {
             PriceChange.of(Optional.ofNullable(latestPrices.get(listing.id())), listing).ifPresent(change -> {
@@ -53,6 +59,11 @@ class JpaListingRepository implements ListingRepository {
             });
         }
         priceChanges.saveAll(changes);
+    }
+
+    private Map<Long, Instant> firstSeenOf(List<Listing> listings) {
+        return repository.findAllById(listings.stream().map(listing -> listing.id().value()).toList()).stream()
+                .collect(Collectors.toMap(ListingJpaEntity::vintedId, ListingJpaEntity::firstSeenAt));
     }
 
     private Map<VintedListingId, PriceChange> latestPricesOf(List<Listing> listings) {

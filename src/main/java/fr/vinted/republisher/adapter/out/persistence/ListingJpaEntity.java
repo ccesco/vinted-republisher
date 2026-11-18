@@ -38,24 +38,37 @@ class ListingJpaEntity {
     @Column(nullable = false)
     private boolean present;
 
+    @Column(name = "first_seen_at", nullable = false)
+    private Instant firstSeenAt;
+
     @Column(name = "last_seen_at", nullable = false)
     private Instant lastSeenAt;
 
     protected ListingJpaEntity() {
     }
 
-    ListingJpaEntity(Listing listing) {
+    /** {@code firstSeenAt}: the one already kept for a known listing, never the one read again. */
+    ListingJpaEntity(Listing listing, Instant firstSeenAt) {
         vintedId = listing.id().value();
         url = listing.url().toString();
         title = listing.title();
         priceAmount = listing.price().amount();
         priceCurrency = listing.price().currency();
         present = listing.present();
+        this.firstSeenAt = firstSeenAt;
         lastSeenAt = listing.lastSeenAt();
+    }
+
+    Long vintedId() {
+        return vintedId;
+    }
+
+    Instant firstSeenAt() {
+        return firstSeenAt;
     }
 
     Listing toListing() {
         return new Listing(new VintedListingId(vintedId), URI.create(url), title,
-                new Price(priceAmount, priceCurrency), present, lastSeenAt);
+                new Price(priceAmount, priceCurrency), present, firstSeenAt, lastSeenAt);
     }
 }

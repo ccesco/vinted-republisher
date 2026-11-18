@@ -72,6 +72,7 @@ Fiche et validation : sur la page du dressing, le titre d'une annonce ouvre sa f
 Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui liste les actions de l'outil (scans, sauvegardes du dressing, validations, suppressions, revérifications, republications) avec leur issue, refus, dry-runs et erreurs compris, 50 par page ; la fiche d'une annonce montre les siennes. Les lignes ne sont jamais supprimées.
 
 Tags : dans la liste de la page du dressing, cochez des annonces (la case de l'en-tête coche toutes les lignes affichées), saisissez un tag puis « Ajouter le tag » ou « Retirer le tag » ; le filtre « Tag » n'affiche que les annonces qui le portent. Les tags restent dans l'outil, rien n'est envoyé à Vinted ; une annonce republiée ne reprend pas les tags de l'ancienne.
+Cycle de vie : la fiche d'une annonce indique depuis quand l'outil la connaît (« Vue pour la première fois le … ») et, sous « Cycle de vie », les faits établis de l'article à travers toutes ses annonces successives : première détection de chacune, suppression confirmée, republication (avec un lien vers la nouvelle annonce) et sortie du dressing (annonce absente sans suppression par l'outil : vendue ou retirée, datée de sa dernière vue). Pour les annonces connues avant cette fonctionnalité, la première détection est reprise de leur plus ancien relevé de vues et favoris, ou à défaut de leur dernière vue (approximation).
 
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
@@ -147,7 +148,7 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 - US-27 `MVP` Limites de cadence
 
 ### Epic 9 – Gestion d'annonces `V2`
-- US-32 Cycle de vie des annonces
+- [x] US-32 Cycle de vie des annonces
 - [x] US-33 Historique de prix
 - [x] US-34 Édition en masse et tags
 - US-35 Règles d'aide à la décision (implémentée)
