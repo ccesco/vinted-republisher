@@ -18,7 +18,7 @@ import fr.vinted.republisher.domain.run.RunStatus;
 import fr.vinted.republisher.domain.run.RunStopReason;
 import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.backup.BackupProblem;
-import fr.vinted.republisher.domain.republication.ListingFormField;
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionProblem;

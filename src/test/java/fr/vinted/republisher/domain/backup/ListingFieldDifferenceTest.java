@@ -1,10 +1,5 @@
-package fr.vinted.republisher.domain.republication;
+package fr.vinted.republisher.domain.backup;
 
-import fr.vinted.republisher.domain.backup.CategoryDetails;
-import fr.vinted.republisher.domain.backup.FormOption;
-import fr.vinted.republisher.domain.backup.FormOptions;
-import fr.vinted.republisher.domain.backup.ListingContent;
-import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Test;

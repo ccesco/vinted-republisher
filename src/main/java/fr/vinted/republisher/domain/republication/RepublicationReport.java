@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.republication;
 
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 

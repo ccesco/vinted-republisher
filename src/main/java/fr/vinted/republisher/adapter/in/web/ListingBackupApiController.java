@@ -30,7 +30,7 @@ import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
-import fr.vinted.republisher.domain.republication.ListingFieldDifference;
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationReport;

@@ -26,7 +26,7 @@ import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
-import fr.vinted.republisher.domain.republication.ListingFormField;
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
