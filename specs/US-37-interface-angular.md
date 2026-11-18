@@ -1,5 +1,5 @@
 # US-37 – Interface Angular
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-03, US-18, US-18b, US-19, US-20, US-21, US-23, US-26, US-34, US-36 (pages existantes à reprendre)
 
@@ -18,20 +18,20 @@ En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afi
    - **Ventes** (`#/sales`) : reprend `sales.html`.
    - **Session Vinted** (`#/vinted-session`) : reprend `vinted-session.html`.
 3. En haut de chaque écran, une puce donne l'état de la session Vinted.
-4. Le Dressing affiche en tête des chiffres clés **calculés à partir des données déjà renvoyées par l'API** : nombre d'annonces présentes, nombre de sauvegardes validées sur le total, total des vues, total des favoris. Pas de tendance ni de courbe (aucune donnée d'historique agrégée dans l'API).
+4. Le Dressing affiche en tête des chiffres clés **calculés à partir des données déjà renvoyées par l'API**, sur les annonces affichées (ils suivent donc les filtres et la recherche) : nombre d'annonces présentes, nombre de sauvegardes validées sur le total, total des vues, total des favoris. Pas de tendance ni de courbe (aucune donnée d'historique agrégée dans l'API).
 5. Les actions irréversibles sur Vinted (suppression, republication) gardent leur confirmation explicite, sous forme de boîte de dialogue.
 6. Le thème suit le réglage clair ou sombre du système ; un bouton permet de basculer, le choix est retenu dans le navigateur.
 7. Les textes de l'interface sont en français.
 
 ## Critères d'acceptation
-- [ ] Chaque scénario couvert aujourd'hui par les tests de pages (`WardrobePageTest`, `ListingDetailPageTest`, `ListingTagsPageTest`, `ActionJournalPageTest`, `SalesPageTest`, `VintedSessionPageTest`) passe sur l'interface Angular.
-- [ ] Les anciennes pages HTML et leur JS sont supprimés ; il ne reste qu'une interface.
-- [ ] L'interface n'appelle que l'API du contrat et ne charge aucune ressource hors de l'application (polices et icônes embarquées).
-- [ ] Les appels à l'API passent par le client généré depuis le contrat OpenAPI : un écart au contrat ne compile pas.
-- [ ] Les chiffres clés du Dressing correspondent aux annonces renvoyées par l'API.
-- [ ] Le thème suit le système et peut être basculé.
-- [ ] Aucun défilement horizontal de la page à 375 px de large.
-- [ ] `mvn test` construit l'interface sans Node ni Chrome installés sur le poste (Node est téléchargé par Maven).
+- [x] Chaque scénario couvert aujourd'hui par les tests de pages (`WardrobePageTest`, `ListingDetailPageTest`, `ListingTagsPageTest`, `ActionJournalPageTest`, `SalesPageTest`, `VintedSessionPageTest`) passe sur l'interface Angular.
+- [x] Les anciennes pages HTML et leur JS sont supprimés ; il ne reste qu'une interface.
+- [x] L'interface n'appelle que l'API du contrat et ne charge aucune ressource hors de l'application (polices et icônes embarquées).
+- [x] Les appels à l'API passent par le client généré depuis le contrat OpenAPI : un écart au contrat ne compile pas.
+- [x] Les chiffres clés du Dressing correspondent aux annonces renvoyées par l'API.
+- [x] Le thème suit le système et peut être basculé.
+- [x] Aucun défilement horizontal de la page à 375 px de large.
+- [x] `mvn test` construit l'interface sans Node ni Chrome installés sur le poste (Node est téléchargé par Maven).
 
 ## Tests d'acceptation
 Les tests de pages Playwright existants sont les tests d'acceptation de la refonte : ils restent boîte noire (Chrome installé, API simulée qui répond selon le contrat) et visent désormais l'interface Angular construite. Leurs scénarios ne changent pas ; seuls les sélecteurs et l'URL d'entrée sont adaptés. S'y ajoutent :
@@ -90,7 +90,7 @@ Test : `WardrobePageTest.showsAnErrorWhenListingsCannotBeLoaded()`
 
 ## Cas limites et erreurs
 - API injoignable ou en erreur : l'écran affiche l'erreur renvoyée sans perdre ce qui était affiché.
-- Lien direct vers une fiche (`#/listings/{listingId}`) d'une annonce inconnue : message « annonce introuvable » et lien vers le Dressing.
+- Lien direct vers une fiche (`#/listings/{listingId}`) d'une annonce inconnue, sans identifiant ou à l'identifiant invalide : message « Annonce inconnue. » (celui de l'ancienne fiche) et lien « Retour à la liste ».
 - Anciennes adresses (`wardrobe.html`…) : plus servies (outil local, un seul utilisateur).
 
 ## Hors périmètre
@@ -107,7 +107,7 @@ Prises par délégation de l'utilisateur (« fais comme tu veux »), confirmées
 - **Routage par fragment** (`withHashLocation`). Raison : aucune redirection à ajouter côté Spring pour les liens directs.
 - **Tests** : les tests de pages Playwright actuels restent les tests d'acceptation (boîte noire, inchangés sur le fond) ; la logique propre aux composants (calcul des chiffres clés, filtres) a des tests unitaires Angular avec **Vitest** (outil par défaut d'Angular), lancés par Maven pendant `mvn test`.
 - **Polices et icônes embarquées** via npm (`@fontsource/roboto` 5.3.0, `material-symbols` 0.49.0). Raison : aucun appel hors de l'application, fonctionne hors ligne.
-- **Nouvelles dépendances** (accord requis par `CLAUDE.md`, donné en validant cette spec) : Maven `com.github.eirslett:frontend-maven-plugin` ; npm `@angular/*`, `@angular/material`, `@angular/cdk`, `@fontsource/roboto`, `material-symbols`, et en développement `@angular/cli`, `@angular/build`, `typescript`, `vitest`.
+- **Nouvelles dépendances** (accord requis par `CLAUDE.md`, donné en validant cette spec) : Maven `com.github.eirslett:frontend-maven-plugin` ; npm `@angular/*` (`core`, `common`, `compiler`, `platform-browser`, `router`), `@angular/material`, `@angular/cdk`, `rxjs` et `tslib` (requis par Angular), `@fontsource/roboto`, `material-symbols`, et en développement `@angular/cli`, `@angular/build`, `@angular/compiler-cli`, `typescript`, `vitest`.
 
 ## Questions ouvertes
 - Aucune.

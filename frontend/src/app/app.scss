@@ -1,0 +1,100 @@
+.app {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.rail {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 4px;
+  background: var(--mat-sys-surface-container);
+
+  a {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-align: center;
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+    text-decoration: none;
+  }
+
+  .pill {
+    width: 56px;
+    height: 32px;
+    border-radius: 16px;
+    display: grid;
+    place-items: center;
+  }
+
+  a:hover .pill { background: var(--mat-sys-surface-container-highest); }
+  a.active { color: var(--mat-sys-on-surface); }
+  a.active .pill { background: var(--mat-sys-secondary-container); color: var(--mat-sys-on-secondary-container); }
+}
+
+.logo {
+  width: 48px;
+  height: 48px;
+  margin-bottom: 16px;
+  border-radius: 16px;
+  display: grid;
+  place-items: center;
+  background: var(--mat-sys-primary);
+  color: var(--mat-sys-on-primary);
+}
+
+.content {
+  min-width: 0;
+  padding: 0 24px 48px;
+}
+
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  height: 64px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--mat-sys-outline-variant);
+  font: var(--mat-sys-label-large);
+
+  &.connected {
+    background: var(--success-container);
+    color: var(--on-success-container);
+    border-color: transparent;
+  }
+}
+
+// Téléphone : la barre de navigation passe en bas de l'écran.
+@media (max-width: 640px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+
+  .rail {
+    position: fixed;
+    inset: auto 0 0;
+    z-index: 10;
+    width: 100%;
+    height: 72px;
+    flex-direction: row;
+    justify-content: space-around;
+    padding: 8px 0;
+  }
+
+  .logo { display: none; }
+  .content { padding: 0 16px 96px; }
+}

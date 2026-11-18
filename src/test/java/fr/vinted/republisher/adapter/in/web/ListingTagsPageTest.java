@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -71,11 +70,7 @@ class ListingTagsPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/wardrobe.html", exchange -> {
-            try (InputStream html = getClass().getResourceAsStream("/static/wardrobe.html")) {
-                respond(exchange, 200, "text/html; charset=utf-8", html.readAllBytes());
-            }
-        });
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/wardrobe", exchange -> respond(exchange, 200, IDLE));
         fakeApi.createContext("/api/automatic-run", exchange -> respond(exchange, 200, IDLE_RUN));
         fakeApi.createContext("/api/listings", exchange -> {
@@ -107,7 +102,7 @@ class ListingTagsPageTest {
     void selects_listings_edits_their_tags_and_filters_on_a_tag() {
         // Étant donné une API qui renvoie deux annonces, dont une portant le tag "<b>lot</b>",
         //   et les tags proposés « <b>lot</b> »
-        // Quand le membre ouvre wardrobe.html
+        // Quand le membre ouvre le Dressing
         open();
 
         // Alors la colonne Tags montre "<b>lot</b>" tel quel et le filtre Tag propose « Tous » et "<b>lot</b>"
@@ -171,7 +166,7 @@ class ListingTagsPageTest {
     }
 
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/wardrobe.html");
+        BuiltFrontend.open(page, fakeApi, "");
     }
 
     private Locator rows() {

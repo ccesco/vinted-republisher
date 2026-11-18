@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/@angular/cli/lib/config/schema.json",
+  "version": 1,
+  "cli": { "analytics": false, "packageManager": "npm" },
+  "newProjectRoot": "projects",
+  "projects": {
+    "vinted-republisher": {
+      "projectType": "application",
+      "root": "",
+      "sourceRoot": "src",
+      "prefix": "app",
+      "architect": {
+        "build": {
+          "builder": "@angular/build:application",
+          "options": {
+            "outputPath": "dist",
+            "browser": "src/main.ts",
+            "tsConfig": "tsconfig.app.json",
+            "inlineStyleLanguage": "scss",
+            "styles": [
+              "node_modules/@fontsource/roboto/400.css",
+              "node_modules/@fontsource/roboto/500.css",
+              "node_modules/material-symbols/rounded.css",
+              "src/styles.scss"
+            ],
+            "budgets": [
+              { "type": "initial", "maximumWarning": "1MB", "maximumError": "2MB" },
+              { "type": "anyComponentStyle", "maximumWarning": "8kB", "maximumError": "16kB" }
+            ],
+            "outputHashing": "all"
+          }
+        }
+      }
+    }
+  }
+}

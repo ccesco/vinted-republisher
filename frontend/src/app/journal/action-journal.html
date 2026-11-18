@@ -1,0 +1,42 @@
+<div class="page-header">
+  <h1>Journal des actions</h1>
+</div>
+<p id="journal-problem" role="alert" [hidden]="!unavailable()">Journal indisponible.</p>
+<section class="card table-wrap">
+  <table id="journal" class="data">
+    <thead>
+    <tr>
+      <th scope="col">Date</th>
+      <th scope="col">Action</th>
+      <th scope="col">Issue</th>
+      <th scope="col">Raison</th>
+      <th scope="col">Annonce</th>
+    </tr>
+    </thead>
+    <tbody>
+      @for (line of lines(); track $index) {
+        <tr>
+          <td>{{ line.date }}</td>
+          <td>{{ line.action }}</td>
+          <td>
+            @if (line.highlighted) {
+              <strong>{{ line.outcome }}</strong>
+            } @else {
+              {{ line.outcome }}
+            }
+          </td>
+          <td>{{ line.reason }}</td>
+          <td>
+            @if (line.listingId) {
+              <a [href]="listingLink(line.listingId)">{{ line.listingName }}</a>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+  <div class="actions">
+    <button id="older" matButton="tonal" type="button" [hidden]="!hasMore()" [disabled]="loading()"
+            (click)="loadPage()">Plus ancien</button>
+  </div>
+</section>

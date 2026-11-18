@@ -9,7 +9,7 @@ Cocher chaque case ; noter tout écart dans la section « Écarts » en bas, ave
 
 ## 0. Préparation
 - [ ] `docker compose up -d`, puis `mvn spring-boot:run` (profil local).
-- [ ] `http://localhost:8080/vinted-session.html` : « Se connecter », se connecter soi-même dans le Chrome piloté, la page indique « connecté ».
+- [ ] `http://localhost:8080/#/vinted-session` : « Se connecter », se connecter soi-même dans le Chrome piloté, la page indique « connecté ».
 - [ ] Choisir et noter 5 annonces témoins, ouvertes dans un autre navigateur (pas le Chrome piloté) :
   - A : plusieurs photos (au moins 3) ;
   - B : description longue (plusieurs paragraphes) ;
@@ -28,7 +28,7 @@ Cocher chaque case ; noter tout écart dans la section « Écarts » en bas, ave
 Relever vues et favoris sur la page de **son dressing** (connecté), juste avant le scan.
 
 ## 1. Scan avec reprise (US-04, US-07)
-`http://localhost:8080/wardrobe.html`. Laisser l'onglet du scan visible pendant le relevé.
+`http://localhost:8080/`. Laisser l'onglet du scan visible pendant le relevé.
 - [ ] « Scanner », puis arrêter l'application (Ctrl+C) après 3 ou 4 annonces lues.
 - [ ] Relancer `mvn spring-boot:run`, « Scanner » : le scan reprend sans relire les annonces déjà lues, et se termine sans problème affiché.
 - [ ] Le nombre d'annonces affiché est celui de l'en-tête du dressing sur Vinted (annonces masquées comprises ou non : noter ce qui est vu).

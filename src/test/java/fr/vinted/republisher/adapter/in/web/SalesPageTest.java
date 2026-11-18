@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
@@ -61,11 +60,7 @@ class SalesPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/sales.html", exchange -> {
-            try (InputStream content = getClass().getResourceAsStream("/static/sales.html")) {
-                respond(exchange, 200, "text/html; charset=utf-8", content.readAllBytes());
-            }
-        });
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/sales", exchange -> {
             String body = answer.get();
             if (body == null) {
@@ -93,7 +88,7 @@ class SalesPageTest {
         assertThat(rows().nth(0)).containsText("17/11/2026 11:00:00");
         assertThat(rows().nth(0)).containsText("25,50 €");
         assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasText("Jean <b>bleu</b>");
-        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=2");
+        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/2");
         assertThat(rows().nth(1)).containsText("Pull rayé");
         assertThat(page.getByRole(AriaRole.ALERT)).isHidden();
     }
@@ -118,7 +113,7 @@ class SalesPageTest {
     }
 
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/sales.html",
+        BuiltFrontend.open(page, fakeApi, "sales",
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
     }
 

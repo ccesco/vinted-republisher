@@ -23,6 +23,8 @@
         <playwright.version>1.63.0</playwright.version>
         <openapi-generator.version>7.25.0</openapi-generator.version>
         <springdoc.version>3.1.1</springdoc.version>
+        <frontend-maven-plugin.version>2.0.2</frontend-maven-plugin.version>
+        <node.version>v24.20.0</node.version>
         <!-- Tests qui démarrent le vrai Chrome : exclus par défaut, inclus avec -Pbrowser -->
         <excluded.browser.tests>browser</excluded.browser.tests>
         <excluded.docker.tests>docker</excluded.docker.tests>
@@ -99,6 +101,16 @@
     </dependencies>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Interface Angular construite (US-37), servie par Spring Boot à côté du contrat OpenAPI -->
+            <resource>
+                <directory>frontend/dist/browser</directory>
+                <targetPath>static</targetPath>
+            </resource>
+        </resources>
         <plugins>
             <!-- Contract first : interfaces et DTO de l'API générés depuis le contrat OpenAPI -->
             <plugin>
@@ -128,6 +140,72 @@
                                 <annotationLibrary>none</annotationLibrary>
                                 <documentationProvider>none</documentationProvider>
                             </configOptions>
+                        </configuration>
+                    </execution>
+                    <!-- Client de l'interface Angular (US-37) : un écart au contrat ne compile pas côté navigateur non plus -->
+                    <execution>
+                        <id>frontend-api-client</id>
+                        <goals>
+                            <goal>generate</goal>
+                        </goals>
+                        <configuration>
+                            <inputSpec>${project.basedir}/src/main/resources/static/openapi/vinted-republisher.yaml</inputSpec>
+                            <generatorName>typescript-angular</generatorName>
+                            <output>${project.basedir}/frontend/src/generated/api</output>
+                            <configOptions>
+                                <ngVersion>22.0.0</ngVersion>
+                                <fileNaming>kebab-case</fileNaming>
+                                <stringEnums>false</stringEnums>
+                            </configOptions>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <!-- Interface Angular (US-37) : Node et npm téléchargés dans target, rien à installer sur le poste -->
+            <plugin>
+                <groupId>com.github.eirslett</groupId>
+                <artifactId>frontend-maven-plugin</artifactId>
+                <version>${frontend-maven-plugin.version}</version>
+                <configuration>
+                    <workingDirectory>frontend</workingDirectory>
+                    <installDirectory>${project.build.directory}</installDirectory>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>install-node-and-npm</id>
+                        <goals>
+                            <goal>install-node-and-npm</goal>
+                        </goals>
+                        <configuration>
+                            <nodeVersion>${node.version}</nodeVersion>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-ci</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>ci --no-audit --no-fund</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-build</id>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>run build</arguments>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>npm-test</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>npm</goal>
+                        </goals>
+                        <configuration>
+                            <arguments>test</arguments>
                         </configuration>
                     </execution>
                 </executions>

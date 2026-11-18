@@ -1,0 +1,191 @@
+<div class="page-header">
+  <h1>Dressing</h1>
+  <span class="spacer"></span>
+  <button id="data-archive" matButton="outlined" type="button" [disabled]="archiving()" (click)="downloadArchive()">Télécharger une archive</button>
+  <button id="scan" matButton="filled" type="button" [hidden]="!launchesShown()" (click)="scan()">Scanner</button>
+</div>
+<p id="archive-problem" role="alert" [hidden]="!archiveProblem()">{{ archiveProblem() }}</p>
+
+<section class="key-figures" aria-label="Chiffres clés">
+  <div class="card key-figure">
+    <p class="label"><span class="icon" aria-hidden="true">storefront</span>En ligne</p>
+    <p id="key-online" class="value">{{ keyFigures().online }}</p>
+  </div>
+  <div class="card key-figure">
+    <p class="label"><span class="icon" aria-hidden="true">verified</span>Sauvegardes validées</p>
+    <p id="key-validated" class="value">{{ keyFigures().validated }} / {{ keyFigures().online }}</p>
+  </div>
+  <div class="card key-figure">
+    <p class="label"><span class="icon" aria-hidden="true">visibility</span>Vues</p>
+    <p id="key-views" class="value">{{ keyFigures().views }}</p>
+  </div>
+  <div class="card key-figure">
+    <p class="label"><span class="icon" aria-hidden="true">favorite</span>Favoris</p>
+    <p id="key-favourites" class="value">{{ keyFigures().favourites }}</p>
+  </div>
+</section>
+
+<section class="card run">
+  <h2>Série automatique</h2>
+  <p id="run-summary">{{ runSummary() }}</p>
+  <div class="actions">
+    <button id="automatic-run" matButton="filled" type="button" [hidden]="!runButtonShown()" (click)="launchRun()">Tout lancer</button>
+    <button id="pause-run" matButton="tonal" type="button" [hidden]="!pauseShown()" (click)="controlRun('pause')">Pause</button>
+    <button id="resume-run" matButton="tonal" type="button" [hidden]="!resumeShown()" (click)="controlRun('resume')">Reprendre</button>
+    <button id="stop-run" matButton="outlined" type="button" [hidden]="!stopShown()" (click)="controlRun('stop')">Arrêter</button>
+  </div>
+</section>
+
+<section class="card activities">
+  <div>
+    <h3>Scan</h3>
+    <p id="wardrobe-summary">{{ scanSummary() }}</p>
+    <p id="scan-progress" [hidden]="!overview()?.scanInProgress">Scan en cours…</p>
+    <p id="wardrobe-problem" role="alert" [hidden]="!wardrobeProblem()">{{ wardrobeProblem() }}</p>
+  </div>
+  <div>
+    <h3>Sauvegarde</h3>
+    <p id="backup-summary">{{ backupSummary() }}</p>
+    <p id="backup-progress" [hidden]="!overview()?.backupInProgress">Sauvegarde en cours…</p>
+    <p id="backup-problem" role="alert" [hidden]="!backupProblem()">{{ backupProblem() }}</p>
+    <button id="backup" matButton="tonal" type="button" [hidden]="!launchesShown()" (click)="backUp()">Sauvegarder</button>
+  </div>
+  <div>
+    <h3>Vues et favoris</h3>
+    <p id="statistics-summary">{{ statisticsSummary() }}</p>
+    <p id="statistics-progress" [hidden]="!overview()?.statisticsRefreshInProgress">Rafraîchissement des vues et favoris en cours…</p>
+    <p id="statistics-problem" role="alert" [hidden]="!statisticsProblem()">{{ statisticsProblem() }}</p>
+    <button id="statistics-refresh" matButton="tonal" type="button" [hidden]="!launchesShown()" (click)="refreshStatistics()">Rafraîchir les vues et favoris</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Annonces</h2>
+  <div class="filters">
+    <mat-form-field appearance="outline">
+      <mat-label>Présence</mat-label>
+      <select matNativeControl id="presence" (change)="choose('presence', $any($event.target).value)">
+        <option value="PRESENT" selected>Présentes</option>
+        <option value="ABSENT">Absentes</option>
+        <option value="ALL">Toutes</option>
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Sauvegarde</mat-label>
+      <select matNativeControl id="backup-filter" (change)="choose('backup', $any($event.target).value)">
+        <option value="ALL" selected>Toutes</option>
+        <option value="NOT_BACKED_UP">Non sauvegardées</option>
+        <option value="NOT_VALIDATED">Sauvegardées non validées</option>
+        <option value="VALIDATED">Validées</option>
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Recherche</mat-label>
+      <input matInput id="search" type="search" maxlength="100" (input)="type($any($event.target).value)">
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Tri</mat-label>
+      <select matNativeControl id="sort" (change)="choose('sort', $any($event.target).value)">
+        <option value="RECENCY" selected>Mise en ligne</option>
+        <option value="TITLE">Titre</option>
+        <option value="PRICE">Prix</option>
+        <option value="VIEWS">Vues</option>
+        <option value="FAVOURITES">Favoris</option>
+        <option value="SAVED_AT">Date de sauvegarde</option>
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Sens</mat-label>
+      <select matNativeControl id="direction" (change)="choose('direction', $any($event.target).value)">
+        <option value="DESC" selected>Décroissant</option>
+        <option value="ASC">Croissant</option>
+      </select>
+    </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Tag</mat-label>
+      <select matNativeControl id="tag-filter" (change)="choose('tag', $any($event.target).value)">
+        <option value="" [selected]="tag() === ''">Tous</option>
+        @for (each of tags(); track each) {
+          <option [value]="each" [selected]="tag() === each">{{ each }}</option>
+        }
+      </select>
+    </mat-form-field>
+  </div>
+
+  <div class="tag-edit" [class.active]="selection().size > 0">
+    <span id="selection-count">{{ selectionCount() }}</span>
+    <mat-form-field appearance="outline" subscriptSizing="dynamic">
+      <mat-label>Tag</mat-label>
+      <input matInput id="tag-name" type="text" maxlength="100" (input)="tagName.set($any($event.target).value)">
+    </mat-form-field>
+    <button id="add-tag" matButton type="button" [disabled]="tagEditDisabled()" (click)="editTags('ADD')">Ajouter le tag</button>
+    <button id="remove-tag" matButton type="button" [disabled]="tagEditDisabled()" (click)="editTags('REMOVE')">Retirer le tag</button>
+    <span id="tag-edit-message" role="status">{{ tagEditMessage() }}</span>
+  </div>
+
+  <p id="listing-count" class="muted">{{ listingCount() }}</p>
+  <p id="listings-problem" role="alert" [hidden]="!listingsProblem()">Liste indisponible.</p>
+  <!-- Liste jamais chargée : le message la remplace ; déjà affichée, elle reste sous le message. -->
+  <div class="table-wrap" [hidden]="listingsProblem() && rows() === null">
+    <table id="listings" class="data">
+      <thead>
+      <tr>
+        <th scope="col">Titre</th>
+        <th scope="col">Prix</th>
+        <th scope="col">Vues</th>
+        <th scope="col">Favoris</th>
+        <th scope="col">Conseil</th>
+        <th scope="col">Présence</th>
+        <th scope="col">Sauvegarde</th>
+        <th scope="col">Validation</th>
+        <th scope="col">Étape</th>
+        <th scope="col">Action</th>
+        <th scope="col">Tags</th>
+        <th scope="col"><input id="select-all" type="checkbox" aria-label="Sélectionner toutes les annonces affichées"
+                               [checked]="allSelected()" (change)="toggleAll($any($event.target).checked)"></th>
+      </tr>
+      </thead>
+      <tbody>
+        @for (row of rows() ?? []; track row.listing.vintedId) {
+          <tr>
+            <td><a [href]="listingLink(row.listing.vintedId)">{{ row.listing.title }}</a></td>
+            <td class="number">{{ priceOf(row.listing.price) }}</td>
+            <td class="number" [attr.title]="statisticsTitle(row.listing)">{{ row.listing.statistics?.viewCount ?? '' }}</td>
+            <td class="number" [attr.title]="statisticsTitle(row.listing)">{{ row.listing.statistics?.favouriteCount ?? '' }}</td>
+            <td [attr.title]="adviceTitle(row.listing)">{{ row.listing.republicationAdvice ? 'À republier' : '' }}</td>
+            <td>{{ row.listing.present ? '' : 'absente' }}</td>
+            <td>{{ backupText(row.listing) }}</td>
+            <td>{{ row.listing.validatedAt ? 'validée le ' + dateOf(row.listing.validatedAt) : '' }}</td>
+            <td>
+              @if (stagesToCheck.includes(row.listing.stage)) {
+                <strong>{{ stageLabels[row.listing.stage] }}</strong>
+              } @else {
+                {{ stageLabels[row.listing.stage] ?? '' }}
+              }
+            </td>
+            <td>
+              @if (relaunchableStages.includes(row.listing.stage)) {
+                <button matButton="outlined" type="button" [disabled]="row.relaunching" (click)="relaunch(row)">Relancer</button>
+              }
+              @if (row.message) {
+                <span class="relaunch-message">
+                  @for (part of row.message; track $index) {
+                    @if (part.listingId) {
+                      <a [href]="listingLink(part.listingId)">{{ part.text }}</a>
+                    } @else {
+                      {{ part.text }}
+                    }
+                  }
+                </span>
+              }
+            </td>
+            <td>{{ (row.listing.tags ?? []).join(', ') }}</td>
+            <td><input type="checkbox" [value]="row.listing.vintedId" [attr.aria-label]="'Sélectionner ' + row.listing.title"
+                       [checked]="selection().has(row.listing.vintedId)"
+                       (change)="toggle(row.listing.vintedId, $any($event.target).checked)"></td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

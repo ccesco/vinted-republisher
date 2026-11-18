@@ -17,3 +17,9 @@ auth/
 
 # tokenade — legacy per-project embedding model cache (now global)
 .fastembed_cache/
+
+# Interface Angular (US-37) : dépendances, construction et client généré
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/
+frontend/src/generated/

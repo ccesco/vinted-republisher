@@ -1,0 +1,248 @@
+<ng-template #sentence let-parts>
+  @for (part of parts; track $index) {
+    @if (part.href) {
+      <a [href]="part.href">{{ part.text }}</a>
+    } @else {
+      {{ part.text }}
+    }
+  }
+</ng-template>
+
+<p class="back"><a href="#/"><span class="icon" aria-hidden="true">arrow_back</span>Retour à la liste</a></p>
+<div class="page-header">
+  <h1 id="listing-title">{{ detail()?.listing?.title ?? 'Annonce' }}</h1>
+</div>
+<p id="problem" role="alert" [hidden]="!problem()">{{ problem() }}</p>
+
+@if (detail(); as detail) {
+  <section id="listing" class="layout">
+    <div class="card summary">
+      <p id="stage" class="stage">{{ stageText() }}</p>
+      <p id="listing-price" class="price">{{ priceOf(detail.listing.price) }}</p>
+      <p><a id="vinted-link" [href]="detail.listing.url" rel="noopener noreferrer">Voir sur Vinted</a></p>
+      <p id="presence">{{ presenceText(detail) }}</p>
+      <p id="first-seen">Vue pour la première fois le {{ dateOf(detail.firstSeenAt) }}.</p>
+    </div>
+
+    <div class="card">
+      <h2>Historique des prix</h2>
+      <p id="no-price" [hidden]="detail.priceHistory.length > 0">Aucun prix relevé</p>
+      <table id="price-history" class="data" [hidden]="detail.priceHistory.length === 0">
+        <thead>
+        <tr>
+          <th scope="col">Depuis le</th>
+          <th scope="col">Prix</th>
+        </tr>
+        </thead>
+        <tbody>
+          @for (change of detail.priceHistory; track $index) {
+            <tr>
+              <td>{{ dateOf(change.changedAt) }}</td>
+              <td>{{ priceOf(change.price) }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>Vues et favoris</h2>
+      <p id="republication-advice" [hidden]="!detail.listing.republicationAdvice">{{ adviceText(detail.listing.republicationAdvice) }}</p>
+      <p id="no-reading" [hidden]="detail.statisticsHistory.length > 0">Aucun relevé</p>
+      <table id="history" class="data" [hidden]="detail.statisticsHistory.length === 0">
+        <thead>
+        <tr>
+          <th scope="col">Date</th>
+          <th scope="col">Vues</th>
+          <th scope="col">Favoris</th>
+        </tr>
+        </thead>
+        <tbody>
+          @for (reading of detail.statisticsHistory; track $index) {
+            <tr>
+              <td>{{ dateOf(reading.readAt) }}</td>
+              <td>{{ reading.viewCount }}</td>
+              <td>{{ reading.favouriteCount }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+      <section id="statistics-comparison" [hidden]="!detail.statisticsComparison">
+        @if (detail.statisticsComparison; as compared) {
+          <h3>Avant / après republication</h3>
+          <p id="statistics-comparison-origin"><ng-container *ngTemplateOutlet="sentence; context: { $implicit: comparisonOrigin(compared) }" /></p>
+          <table id="statistics-comparison-table" class="data">
+            <thead>
+            <tr>
+              <th scope="col">Annonce</th>
+              <th scope="col">Vues</th>
+              <th scope="col">Favoris</th>
+            </tr>
+            </thead>
+            <tbody>
+              @for (row of comparisonRows(compared); track $index) {
+                <tr>
+                  <td>{{ row.label }}</td>
+                  @if (row.views === undefined) {
+                    <td colspan="2">jamais relevée</td>
+                  } @else {
+                    <td>{{ row.views }}</td>
+                    <td>{{ row.favourites }}</td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        }
+      </section>
+    </div>
+
+    <div class="card">
+      <h2>Cycle de vie</h2>
+      <p id="tracked-since">Article suivi depuis le {{ dateOf(detail.lifecycle[0].at) }}.</p>
+      <ol id="lifecycle">
+        @for (event of detail.lifecycle; track $index) {
+          <li><ng-container *ngTemplateOutlet="sentence; context: { $implicit: lifecycleOf(event, detail.listing.vintedId) }" /></li>
+        }
+      </ol>
+    </div>
+
+    <div class="card wide">
+      <h2>Journal</h2>
+      <p id="no-journal" [hidden]="journal().length > 0">Aucune action</p>
+      <div class="table-wrap">
+        <table id="listing-journal" class="data" [hidden]="journal().length === 0">
+          <thead>
+          <tr>
+            <th scope="col">Date</th>
+            <th scope="col">Action</th>
+            <th scope="col">Issue</th>
+            <th scope="col">Raison</th>
+          </tr>
+          </thead>
+          <tbody>
+            @for (line of journal(); track $index) {
+              <tr>
+                <td>{{ line.date }}</td>
+                <td>{{ line.action }}</td>
+                <td>
+                  @if (line.highlighted) {
+                    <strong>{{ line.outcome }}</strong>
+                  } @else {
+                    {{ line.outcome }}
+                  }
+                </td>
+                <td>{{ line.reason }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card wide">
+      <h2>Sauvegarde</h2>
+      <p id="not-backed-up" [hidden]="!notBackedUp()">Non sauvegardée</p>
+    </div>
+  </section>
+}
+
+@if (view(); as view) {
+  <section id="backup" class="card">
+    <div id="verification">
+      @if (verification(); as verification) {
+        @if (verification.passed) {
+          <p>Vérification réussie.</p>
+        } @else {
+          <p>Vérification échouée, la sauvegarde ne peut pas être validée :</p>
+          <ul>
+            @for (failure of verification.failures; track $index) {
+              <li>{{ failureOf(failure) }}</li>
+            }
+          </ul>
+        }
+      }
+    </div>
+    <p id="saved-at">Sauvegardée le {{ dateOf(view.savedAt) }}.</p>
+    <p id="validated-at">{{ view.validatedAt ? 'Validée le ' + dateOf(view.validatedAt) + '.' : '' }}</p>
+    <p class="actions">
+      <button id="validate" matButton="filled" type="button" [hidden]="!!view.validatedAt" [disabled]="validateDisabled()"
+              (click)="validate()">Valider</button>
+    </p>
+
+    <section id="deletion" class="step">
+      <h3>Suppression</h3>
+      <p id="deletion-mode" class="muted">{{ deletionMode(view) }}</p>
+      <p id="deletion-state">{{ deletionState(view) }}</p>
+      <p id="republication-state">{{ republicationState() }}</p>
+      <p class="actions">
+        <button id="delete" matButton="outlined" class="danger" type="button" [hidden]="view.deletion?.outcome === 'CONFIRMED'"
+                [disabled]="deleteDisabled(view)" (click)="deletionAsked.set(true)">Supprimer de Vinted</button>
+        <button id="recheck" matButton="outlined" type="button" [hidden]="view.deletion?.outcome !== 'UNCONFIRMED'"
+                [disabled]="sending()" (click)="recheck()">Revérifier sur Vinted</button>
+      </p>
+      <div id="deletion-confirmation" class="confirmation" role="dialog" aria-modal="true"
+           aria-labelledby="deletion-confirmation-title" [hidden]="!deletionAsked()">
+        <div>
+          <h2 id="deletion-confirmation-title">Supprimer de Vinted ?</h2>
+          <p id="deletion-summary">{{ deletionAsked() ? deletionSummary(view) : '' }}</p>
+          <p>La suppression sur Vinted est irréversible.</p>
+          <p class="actions">
+            <button id="confirm-deletion" matButton="filled" class="danger" type="button" (click)="confirmDeletion()">Supprimer définitivement</button>
+            <button id="cancel-deletion" matButton type="button" (click)="deletionAsked.set(false)">Annuler</button>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <section id="republication" class="step">
+      <h3>Republication</h3>
+      <p id="republication-mode" class="muted">{{ republicationMode(view) }}</p>
+      <p id="republication-outcome"><ng-container *ngTemplateOutlet="sentence; context: { $implicit: republicationOutcome(view) }" /></p>
+      <p id="republication-comparison">{{ comparisonText(view.republicationComparison) }}</p>
+      <p class="actions">
+        <button id="republish" matButton="filled" type="button"
+                [hidden]="!view.deletion?.republishableAt || !republishable(view)"
+                [disabled]="sending() || republicationWaiting()" (click)="republicationAsked.set(true)">Republier sur Vinted</button>
+        <button id="verify-republication" matButton="outlined" type="button" [hidden]="republishable(view)"
+                [disabled]="sending()" (click)="verifyRepublication()">Vérifier sur Vinted</button>
+      </p>
+      <div id="republication-validation" [hidden]="view.republication?.outcome !== 'FAILED'">
+        <p>Vous avez regardé sur Vinted ? Dites ce que vous y voyez.</p>
+        <mat-form-field appearance="outline" class="url">
+          <mat-label>Lien de la nouvelle annonce</mat-label>
+          <input matInput id="new-listing-url" type="url" maxlength="2048" placeholder="https://www.vinted.fr/items/…"
+                 (input)="newListingUrl.set($any($event.target).value)">
+        </mat-form-field>
+        <p class="actions">
+          <button id="validate-published" matButton="tonal" type="button" [disabled]="sending()" (click)="validatePublished()">Publiée</button>
+          <button id="validate-not-published" matButton="outlined" type="button" [disabled]="sending()" (click)="validateNotPublished()">Non publiée</button>
+        </p>
+      </div>
+      <div id="republication-confirmation" class="confirmation" role="dialog" aria-modal="true"
+           aria-labelledby="republication-confirmation-title" [hidden]="!republicationAsked()">
+        <div>
+          <h2 id="republication-confirmation-title">Republier sur Vinted ?</h2>
+          <p id="republication-summary">{{ republicationAsked() ? republicationSummary(view) : '' }}</p>
+          <p class="actions">
+            <button id="confirm-republication" matButton="filled" type="button" (click)="confirmRepublication()">Republier maintenant</button>
+            <button id="cancel-republication" matButton type="button" (click)="republicationAsked.set(false)">Annuler</button>
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <h3>Contenu sauvegardé</h3>
+    <dl id="content">
+      @for (field of contentOf(view.content); track field[0]) {
+        <dt>{{ field[0] }}</dt>
+        <dd>{{ field[1] }}</dd>
+      }
+    </dl>
+    <div id="photos">
+      @for (photo of view.photos; track photo.rank) {
+        <img [src]="photo.url" [alt]="photoAlt(photo.rank)">
+      }
+    </div>
+  </section>
+}

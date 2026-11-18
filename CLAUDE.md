@@ -20,10 +20,10 @@ Software Craftsmanship, TDD et DDD s'appliquent à **tout** code de production.
 - `verification-before-completion` : aucune affirmation « fini / vert / corrigé » sans la sortie fraîche de la commande qui le prouve.
 - `peer-review` : revue indépendante par un sous-agent en fin d'US (sécurité comprise) ; retours vérifiés techniquement, pas appliqués à l'aveugle.
 - Skills de stack, à charger selon la couche touchée : `java-spring` (Java 25, Spring Boot 4.1, câblage, contrôleurs, JPA), `api-design` (contrat OpenAPI), `postgres-liquibase` (schéma, changesets, requêtes), `playwright-cdp` (adaptateur navigateur, tests `@Tag("browser")`).
-- **Contract first (OpenAPI)** : toute l'IHM passe par une API REST JSON. Le contrat `src/main/resources/static/openapi/vinted-republisher.yaml` s'écrit (et se valide dans la spec de l'US) **avant** le code ; `openapi-generator-maven-plugin` en génère les interfaces Spring et les DTO, que les contrôleurs de `adapter/in/web` implémentent (un écart au contrat ne compile pas). Les pages sont du HTML statique + JS qui n'appellent que l'API. Swagger UI (springdoc) sert ce contrat sur `/swagger-ui.html`.
+- **Contract first (OpenAPI)** : toute l'IHM passe par une API REST JSON. Le contrat `src/main/resources/static/openapi/vinted-republisher.yaml` s'écrit (et se valide dans la spec de l'US) **avant** le code ; `openapi-generator-maven-plugin` en génère les interfaces Spring et les DTO, que les contrôleurs de `adapter/in/web` implémentent (un écart au contrat ne compile pas). L'interface est une application Angular (`frontend/`, US-37) qui n'appelle l'API que par un client TypeScript généré depuis le même contrat ; Maven la construit (Node téléchargé dans `target`) et Spring Boot la sert. Ses tests de pages Playwright (`*PageTest`) visent l'interface construite contre une API simulée ; sa logique pure a des tests Vitest (`npm test`, lancé par `mvn test`). Swagger UI (springdoc) sert ce contrat sur `/swagger-ui.html`.
 
 ## Stack décidée
-Java 25, Spring Boot 4.1 (Maven), PostgreSQL 17 dans Docker, Liquibase, architecture hexagonale vérifiée par ArchUnit, API REST contract first (OpenAPI 3.0, openapi-generator, springdoc), Playwright (Chrome normal piloté par CDP).
+Java 25, Spring Boot 4.1 (Maven), PostgreSQL 17 dans Docker, Liquibase, architecture hexagonale vérifiée par ArchUnit, API REST contract first (OpenAPI 3.0, openapi-generator, springdoc), interface Angular 22 + Angular Material, Playwright (Chrome normal piloté par CDP).
 
 ## Règles
 - Ne jamais committer `.env`, `data/` ni de secrets.

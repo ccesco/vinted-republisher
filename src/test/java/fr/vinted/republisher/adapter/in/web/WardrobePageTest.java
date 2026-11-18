@@ -60,6 +60,7 @@ class WardrobePageTest {
     private HttpServer fakeApi;
     private final AtomicReference<String> overview = new AtomicReference<>(IDLE);
     private final AtomicReference<String> inventory = new AtomicReference<>(NO_LISTING);
+    private final AtomicReference<Integer> inventoryStatus = new AtomicReference<>(200);
     private final AtomicReference<String> launchAnswer = new AtomicReference<>(IDLE);
     private final AtomicBoolean applicationDown = new AtomicBoolean();
     private final List<String> launchedScans = new CopyOnWriteArrayList<>();
@@ -91,15 +92,16 @@ class WardrobePageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/wardrobe.html", exchange -> {
-            try (InputStream html = getClass().getResourceAsStream("/static/wardrobe.html")) {
-                respond(exchange, 200, "text/html; charset=utf-8", html.readAllBytes());
-            }
-        });
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/wardrobe", exchange -> answer(exchange, overview.get()));
         fakeApi.createContext("/api/listings", exchange -> {
             listingQueries.add(exchange.getRequestURI().getRawQuery());
-            answer(exchange, inventory.get());
+            if (inventoryStatus.get() == 200) {
+                answer(exchange, inventory.get());
+            } else {
+                exchange.sendResponseHeaders(inventoryStatus.get(), -1);
+                exchange.close();
+            }
         });
         fakeApi.createContext("/api/wardrobe/scan", exchange -> {
             launchedScans.add(exchange.getRequestMethod());
@@ -167,7 +169,7 @@ class WardrobePageTest {
         overview.set(SCANNED);
         inventory.set(TWO_LISTINGS);
 
-        // Quand le membre ouvre wardrobe.html
+        // Quand le membre ouvre le Dressing
         open();
 
         // Alors il voit un tableau de deux lignes avec titre, prix, vues, favoris, présence, sauvegarde et validation
@@ -182,7 +184,7 @@ class WardrobePageTest {
         assertThat(cell(1, PRESENCE)).hasText("absente");
         assertThat(cell(0, PRESENCE)).hasText("");
         Locator link = page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Bonnet"));
-        assertThat(link).hasAttribute("href", "listing.html?id=1");
+        assertThat(link).hasAttribute("href", "#/listings/1");
         assertThat(listingQueries).contains("presence=PRESENT&backup=ALL&sort=RECENCY&direction=DESC");
 
         // Quand il choisit « toutes », « validées », tape "pull" et trie par vues croissantes
@@ -216,6 +218,48 @@ class WardrobePageTest {
         page.locator("#presence").selectOption("ALL");
 
         assertThat(page.locator("#listings-problem")).hasText("Liste indisponible.");
+        assertThat(page.locator("#listings")).isVisible();
+    }
+
+    @Test
+    void showsKeyFiguresComputedFromListings() {
+        // AT-37-01. Étant donné que l'API renvoie 3 annonces présentes, dont 2 avec une sauvegarde validée,
+        //   totalisant 120 vues et 9 favoris
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-10T10:00:00Z",
+                   "statistics": {"viewCount": 100, "favouriteCount": 5, "readAt": "2026-11-17T10:00:00Z"}},
+                  {"vintedId": 2, "title": "Bonnet", "price": {"amount": 5, "currency": "EUR"}, "url": "https://vinted.test/items/2",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-11T10:00:00Z",
+                   "statistics": {"viewCount": 20, "favouriteCount": 4, "readAt": "2026-11-17T10:00:00Z"}},
+                  {"vintedId": 3, "title": "Écharpe", "price": {"amount": 8, "currency": "EUR"}, "url": "https://vinted.test/items/3",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+
+        // Quand j'ouvre le Dressing
+        open();
+
+        // Alors je vois « 3 » annonces en ligne, « 2 / 3 » sauvegardes validées, « 120 » vues et « 9 » favoris
+        assertThat(page.locator("#key-online")).hasText("3");
+        assertThat(page.locator("#key-validated")).hasText("2 / 3");
+        assertThat(page.locator("#key-views")).hasText("120");
+        assertThat(page.locator("#key-favourites")).hasText("9");
+    }
+
+    @Test
+    void showsAnErrorWhenListingsCannotBeLoaded() {
+        // AT-37-06. Étant donné que l'API répond en erreur à la liste des annonces
+        inventoryStatus.set(500);
+
+        // Quand j'ouvre le Dressing
+        open();
+
+        // Alors un message d'erreur s'affiche à la place de la liste
+        assertThat(page.locator("#listings-problem")).hasText("Liste indisponible.");
+        assertThat(page.locator("#listings")).isHidden();
+        // Et la barre de navigation reste utilisable
+        page.getByRole(AriaRole.NAVIGATION).getByRole(AriaRole.LINK, new Locator.GetByRoleOptions().setName("Journal")).click();
+        assertThat(page).hasURL(Pattern.compile("#/journal$"));
     }
 
     @Test
@@ -511,7 +555,7 @@ class WardrobePageTest {
         cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
         // Alors la ligne affiche « refusée : voir la fiche », avec le lien de la fiche
         assertThat(cell(0, ACTION)).containsText("Relance refusée : voir la fiche");
-        assertThat(cell(0, ACTION).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=3");
+        assertThat(cell(0, ACTION).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/3");
     }
 
     @Test
@@ -665,11 +709,11 @@ class WardrobePageTest {
                     "url": "https://vinted.test/items/1", "present": false}]}""");
         // Quand le membre regarde le tableau
         open();
-        // Alors le titre de chacune mène à listing.html?id=<son identifiant>
+        // Alors le titre de chacune mène à sa fiche
         //   et aucune ligne n'a de lien « Voir la sauvegarde »
-        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=3");
+        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/3");
         assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasText("Pull");
-        assertThat(rows().nth(1).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=1");
+        assertThat(rows().nth(1).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/1");
         assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Voir la sauvegarde")))
                 .hasCount(0);
     }
@@ -856,7 +900,7 @@ class WardrobePageTest {
     }
 
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/wardrobe.html");
+        BuiltFrontend.open(page, fakeApi, "");
     }
 
     private Locator summary() {
