@@ -28,6 +28,15 @@ public class InMemoryListingStatisticsRepository implements ListingStatisticsRep
 
     @Override
     public List<StatisticsReading> findLatest() {
+        return latestOf(readings);
+    }
+
+    @Override
+    public List<StatisticsReading> findLatestAsOf(Instant at) {
+        return latestOf(readings.stream().filter(reading -> !reading.readAt().isAfter(at)).toList());
+    }
+
+    private static List<StatisticsReading> latestOf(List<StatisticsReading> readings) {
         Map<VintedListingId, StatisticsReading> latest = new LinkedHashMap<>();
         readings.forEach(reading -> latest.merge(reading.listingId(), reading,
                 (kept, other) -> other.readAt().isAfter(kept.readAt()) ? other : kept));

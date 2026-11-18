@@ -10,10 +10,10 @@ import java.util.Optional;
 
 /**
  * A listing with its latest statistics reading, its current backup and the date of the validation that holds for
- * that backup, and where it stands.
+ * that backup, where it stands, and whether the tool advises republishing it.
  */
 public record InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<ListingBackup> backup,
-                             Optional<Instant> validatedAt, ListingStage stage) {
+                             Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice) {
 
     public InventoryEntry {
         Objects.requireNonNull(listing);
@@ -21,5 +21,6 @@ public record InventoryEntry(Listing listing, Optional<StatisticsReading> statis
         Objects.requireNonNull(backup);
         Objects.requireNonNull(validatedAt);
         Objects.requireNonNull(stage);
+        Objects.requireNonNull(advice);
     }
 }

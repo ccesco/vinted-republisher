@@ -170,7 +170,7 @@ class ShowListingInventoryAcceptanceTest {
         //   3 photos et la date de validation
         assertThat(showListingInventory.show(InventoryCriteria.defaults())).containsExactly(
                 new InventoryEntry(listing, Optional.of(reading), Optional.of(backup), Optional.of(validatedAt),
-                        ListingStage.TO_DELETE));
+                        ListingStage.TO_DELETE, Optional.empty()));
         assertThat(backup.photos()).hasSize(3);
     }
 
