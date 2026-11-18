@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -61,11 +60,7 @@ class VintedSessionPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/vinted-session.html", exchange -> {
-            try (InputStream html = getClass().getResourceAsStream("/static/vinted-session.html")) {
-                respond(exchange, "text/html; charset=utf-8", html.readAllBytes());
-            }
-        });
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/vinted-session", exchange -> {
             if (applicationDown.get()) {
                 exchange.sendResponseHeaders(500, -1);
@@ -254,7 +249,7 @@ class VintedSessionPageTest {
     }
 
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/vinted-session.html");
+        BuiltFrontend.open(page, fakeApi, "vinted-session");
     }
 
     private void assertStatus(String label) {

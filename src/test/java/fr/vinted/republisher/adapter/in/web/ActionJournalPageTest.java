@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -69,14 +68,7 @@ class ActionJournalPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        for (String file : List.of("journal.html", "journal.js")) {
-            fakeApi.createContext("/" + file, exchange -> {
-                try (InputStream content = getClass().getResourceAsStream("/static/" + file)) {
-                    respond(exchange, 200, file.endsWith(".js") ? "text/javascript; charset=utf-8"
-                            : "text/html; charset=utf-8", content.readAllBytes());
-                }
-            });
-        }
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/journal", exchange -> {
             String query = exchange.getRequestURI().getRawQuery();
             queries.add(query == null ? "" : query);
@@ -100,7 +92,7 @@ class ActionJournalPageTest {
     @Test
     void shows_entries_and_loads_older_ones() {
         // US-23 AT-23-13. Étant donné un scan terminé et une suppression refusée de « Pull rayé »
-        // Quand le membre ouvre journal.html
+        // Quand le membre ouvre le Journal
         open();
         // Alors il voit la suppression refusée en premier, mise en évidence, avec la raison en clair
         //   et le lien vers la fiche de « Pull rayé »
@@ -110,7 +102,7 @@ class ActionJournalPageTest {
         assertThat(rows().nth(0).locator("strong")).hasText("refusée");
         assertThat(rows().nth(0)).containsText("sauvegarde non validée");
         assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasText("Pull <b>rayé</b>");
-        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "listing.html?id=3");
+        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/3");
         // Et le scan terminé, sans annonce, sans mise en évidence
         assertThat(rows().nth(1)).containsText("Scan du dressing");
         assertThat(rows().nth(1)).containsText("réussie");
@@ -132,7 +124,7 @@ class ActionJournalPageTest {
     }
 
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/journal.html",
+        BuiltFrontend.open(page, fakeApi, "journal",
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
     }
 

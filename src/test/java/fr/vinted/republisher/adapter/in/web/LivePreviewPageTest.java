@@ -17,7 +17,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicReference;
@@ -62,11 +61,7 @@ class LivePreviewPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/live-preview.html", exchange -> {
-            try (InputStream content = getClass().getResourceAsStream("/static/live-preview.html")) {
-                respond(exchange, 200, "text/html; charset=utf-8", content.readAllBytes());
-            }
-        });
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/live-previews", exchange -> {
             String body = answer.get();
             if (body == null) {
@@ -137,7 +132,7 @@ class LivePreviewPageTest {
     }
 
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/live-preview.html",
+        BuiltFrontend.open(page, fakeApi, "live-preview",
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
     }
 

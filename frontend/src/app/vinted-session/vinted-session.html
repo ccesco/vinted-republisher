@@ -1,0 +1,11 @@
+<div class="page-header">
+  <h1>Session Vinted</h1>
+</div>
+<section class="card">
+  <p>État : <strong id="session-status">{{ status() }}</strong></p>
+  <p id="session-problem" role="alert" [hidden]="!problem()">{{ problem() }}</p>
+  <p id="session-actions" class="actions" [hidden]="!actionsShown()">
+    <button id="log-in" matButton="filled" type="button" [hidden]="!logInShown()" (click)="logIn()">Se connecter</button>
+    <button id="check" matButton="outlined" type="button" (click)="check()">Vérifier</button>
+  </p>
+</section>

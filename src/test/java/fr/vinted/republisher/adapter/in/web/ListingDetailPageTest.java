@@ -19,7 +19,6 @@ import org.junit.jupiter.api.Tag;
 import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -124,16 +123,7 @@ class ListingDetailPageTest {
     @BeforeEach
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        fakeApi.createContext("/listing.html", exchange -> {
-            try (InputStream html = getClass().getResourceAsStream("/static/listing.html")) {
-                respond(exchange, 200, "text/html; charset=utf-8", html.readAllBytes());
-            }
-        });
-        fakeApi.createContext("/journal.js", exchange -> {
-            try (InputStream script = getClass().getResourceAsStream("/static/journal.js")) {
-                respond(exchange, 200, "text/javascript; charset=utf-8", script.readAllBytes());
-            }
-        });
+        BuiltFrontend.serveFrom(fakeApi);
         fakeApi.createContext("/api/listings/abc", exchange -> respond(exchange, 400, "text/plain", new byte[0]));
         fakeApi.createContext("/api/listings/999", exchange -> respond(exchange, 404, "text/plain", new byte[0]));
         fakeApi.createContext("/api/listings/3", exchange ->
@@ -303,7 +293,7 @@ class ListingDetailPageTest {
         assertThat(page.locator("#not-backed-up")).hasText("Non sauvegardée");
         assertThat(page.locator("#backup")).isHidden();
         assertThat(problem()).isHidden();
-        assertThat(page.getByRole(AriaRole.BUTTON)).hasCount(0);
+        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasCount(0);
     }
 
     @Test
@@ -346,7 +336,7 @@ class ListingDetailPageTest {
         // Alors il voit l'annonce remplacée, avant, après et le total
         assertThat(page.locator("#statistics-comparison-origin")).containsText("Republiée le 10/11/2026");
         assertThat(page.locator("#statistics-comparison-origin a")).hasText("l'annonce 1");
-        assertThat(page.locator("#statistics-comparison-origin a")).hasAttribute("href", "listing.html?id=1");
+        assertThat(page.locator("#statistics-comparison-origin a")).hasAttribute("href", "#/listings/1");
         assertThat(page.locator("#statistics-comparison-table tbody tr")).hasCount(3);
         assertThat(page.locator("#statistics-comparison-table tbody tr").nth(0))
                 .containsText("Avant (annonce remplacée, au 09/11/2026");
@@ -376,7 +366,7 @@ class ListingDetailPageTest {
         assertThat(page.locator("#lifecycle li")).hasCount(4);
         assertThat(page.locator("#lifecycle li").nth(0)).containsText("01/11/2026");
         assertThat(page.locator("#lifecycle li").nth(0)).containsText("Annonce 1 vue pour la première fois");
-        assertThat(page.locator("#lifecycle li").nth(0).locator("a")).hasAttribute("href", "listing.html?id=1");
+        assertThat(page.locator("#lifecycle li").nth(0).locator("a")).hasAttribute("href", "#/listings/1");
         assertThat(page.locator("#lifecycle li").nth(1)).containsText("Annonce 1 supprimée par l'outil");
         assertThat(page.locator("#lifecycle li").nth(2)).containsText("Annonce 1 republiée sous cette annonce");
         assertThat(page.locator("#lifecycle li").nth(3)).containsText("Cette annonce vue pour la première fois");
@@ -444,16 +434,16 @@ class ListingDetailPageTest {
 
     @Test
     void unknown_listing() {
-        // Quand le membre ouvre listing.html?id=999, ou listing.html sans identifiant, ou avec un identifiant invalide
+        // Quand le membre ouvre la fiche de l'annonce 999, une fiche sans identifiant, ou avec un identifiant invalide
         // Alors il voit « Annonce inconnue. » et le lien de retour à la liste
-        for (String query : List.of("?id=999", "", "?id=abc")) {
-            page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/listing.html" + query);
+        for (String route : List.of("listings/999", "listings", "listings/abc")) {
+            BuiltFrontend.open(page, fakeApi, route);
 
             assertThat(problem()).hasText("Annonce inconnue.");
             assertThat(page.locator("#listing")).isHidden();
             assertThat(page.locator("#backup")).isHidden();
             assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour à la liste")))
-                    .hasAttribute("href", "wardrobe.html");
+                    .hasAttribute("href", "#/");
         }
     }
 
@@ -485,7 +475,7 @@ class ListingDetailPageTest {
         open();
 
         assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour à la liste")))
-                .hasAttribute("href", "wardrobe.html");
+                .hasAttribute("href", "#/");
     }
 
     @Nested
@@ -1032,7 +1022,7 @@ class ListingDetailPageTest {
 
     /** The page reads the listing, then its backup: both are read once it returns. */
     private void open() {
-        page.navigate("http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/listing.html?id=3",
+        BuiltFrontend.open(page, fakeApi, "listings/3",
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
     }
 

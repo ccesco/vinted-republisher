@@ -1,0 +1,35 @@
+<div class="app">
+  <nav class="rail" aria-label="Écrans">
+    <span class="logo icon" aria-hidden="true">autorenew</span>
+    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }">
+      <span class="pill icon" aria-hidden="true">checkroom</span>Dressing
+    </a>
+    <a routerLink="/journal" routerLinkActive="active">
+      <span class="pill icon" aria-hidden="true">history</span>Journal
+    </a>
+    <a routerLink="/sales" routerLinkActive="active">
+      <span class="pill icon" aria-hidden="true">sell</span>Ventes
+    </a>
+    <a routerLink="/live-preview" routerLinkActive="active">
+      <span class="pill icon" aria-hidden="true">screenshot_monitor</span>Aperçu live
+    </a>
+    <a routerLink="/vinted-session" routerLinkActive="active">
+      <span class="pill icon" aria-hidden="true">key</span>Session Vinted
+    </a>
+  </nav>
+  <div class="content">
+    <header class="topbar">
+      <span id="session-chip" class="chip" [class.connected]="connected()">
+        <span class="icon" aria-hidden="true">{{ connected() ? 'verified_user' : 'gpp_maybe' }}</span>
+        {{ sessionLabel() }}
+      </span>
+      <button id="theme-toggle" matIconButton type="button" (click)="theme.toggle()"
+              [attr.aria-label]="theme.theme() === 'dark' ? 'Passer en thème clair' : 'Passer en thème sombre'">
+        <span class="icon" aria-hidden="true">{{ theme.theme() === 'dark' ? 'light_mode' : 'dark_mode' }}</span>
+      </button>
+    </header>
+    <main>
+      <router-outlet />
+    </main>
+  </div>
+</div>

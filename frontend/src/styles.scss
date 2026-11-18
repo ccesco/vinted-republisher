@@ -1,0 +1,130 @@
+@use '@angular/material' as mat;
+
+html {
+  color-scheme: light dark;
+  @include mat.theme((
+    color: (primary: mat.$cyan-palette, tertiary: mat.$orange-palette),
+    typography: Roboto,
+    density: 0
+  ));
+  // Couleurs propres à l'outil, en clair et en sombre.
+  --success-container: light-dark(#c8f0c4, #1f4d20);
+  --on-success-container: light-dark(#062107, #c8f0c4);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--mat-sys-surface);
+  color: var(--mat-sys-on-surface);
+  font: var(--mat-sys-body-medium);
+}
+
+// L'attribut hidden l'emporte toujours, même sur un composant Material qui fixe son display.
+[hidden] { display: none !important; }
+
+a { color: var(--mat-sys-primary); }
+
+h1 { font: var(--mat-sys-headline-small); margin: 0; }
+h2 { font: var(--mat-sys-title-large); margin: 0 0 12px; }
+h3 { font: var(--mat-sys-title-medium); margin: 16px 0 8px; }
+
+.icon {
+  font-family: 'Material Symbols Rounded';
+  font-size: 20px;
+  font-weight: normal;
+  line-height: 1;
+  vertical-align: middle;
+  user-select: none;
+}
+
+.page-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 8px 0 16px;
+}
+
+.card {
+  background: var(--mat-sys-surface-container-low);
+  border-radius: var(--mat-sys-corner-large);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
+}
+
+.muted { color: var(--mat-sys-on-surface-variant); }
+
+[role="alert"]:not(:empty) {
+  background: var(--mat-sys-error-container);
+  color: var(--mat-sys-on-error-container);
+  border-radius: var(--mat-sys-corner-medium);
+  padding: 10px 14px;
+}
+
+.table-wrap { overflow-x: auto; }
+
+table.data {
+  width: 100%;
+  border-collapse: collapse;
+
+  th {
+    text-align: left;
+    font: var(--mat-sys-label-medium);
+    color: var(--mat-sys-on-surface-variant);
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--mat-sys-outline-variant);
+    vertical-align: middle;
+  }
+
+  tbody tr:hover { background: var(--mat-sys-surface-container-high); }
+  strong { color: var(--mat-sys-error); }
+}
+
+input[type="checkbox"] {
+  accent-color: var(--mat-sys-primary);
+  width: 18px;
+  height: 18px;
+}
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 12px;
+
+  mat-form-field { width: 180px; }
+}
+
+// Confirmation d'une action irréversible : boîte de dialogue au-dessus d'un voile.
+.confirmation {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgb(0 0 0 / 32%);
+
+  > div {
+    max-width: 520px;
+    background: var(--mat-sys-surface-container-high);
+    border-radius: var(--mat-sys-corner-extra-large);
+    padding: 24px;
+    box-shadow: var(--mat-sys-level3);
+  }
+}

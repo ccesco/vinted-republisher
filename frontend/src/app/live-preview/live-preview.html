@@ -1,0 +1,20 @@
+<div class="page-header">
+  <h1>Aperçu live</h1>
+</div>
+<p class="muted">Ce que montre chaque navigateur piloté dans l'onglet où il travaille, capturé toutes les 2 secondes tant
+  que cette page est ouverte. Lecture seule : l'aperçu n'agit pas sur la page.</p>
+<p id="live-preview-problem" role="alert" [hidden]="!unavailable()">Aperçus indisponibles.</p>
+<p id="live-preview-summary">{{ previews()?.length === 0 ? 'Aucun navigateur au travail.' : '' }}</p>
+<div id="live-previews">
+  @for (preview of previews() ?? []; track preview.browser) {
+    <article class="card">
+      <h2>{{ preview.browser }}</h2>
+      @if (preview.image) {
+        <p class="muted">{{ capturedAt(preview) }}</p>
+        <img [src]="'data:image/jpeg;base64,' + preview.image" [alt]="'Page de ' + preview.browser">
+      } @else {
+        <p>Aperçu indisponible.</p>
+      }
+    </article>
+  }
+</div>
