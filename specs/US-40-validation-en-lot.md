@@ -1,6 +1,6 @@
 # US-40 – Vérifier et valider les sauvegardes en lot
 
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-05 (lecture du formulaire), US-08 (vérification, validation), US-14 (étapes), US-18 (liste des annonces), US-19 (série « Tout lancer »), US-23 (journal)
 
@@ -21,22 +21,24 @@ En tant que membre, je veux faire relire sur Vinted toutes mes sauvegardes à va
    - réussie : la sauvegarde actuelle est validée. Si elle l'était déjà, la première date de validation est gardée (US-08). L'annonce passe ou reste à « prête à supprimer » ;
    - échouée : l'échec est gardé avec ses motifs et la date. Une validation existante est annulée. L'annonce passe à « vérification en erreur » et la série l'ignore.
 6. **Ligne d'état** : « Vérification en cours : n / N », puis « Vérification terminée : <v> validées, <e> en erreur » ou « Vérification arrêtée : <raison> ». La page relit la liste à la fin.
-7. **Étape « vérification en erreur »** : elle est déduite du dernier résultat de vérification de la version actuelle de la sauvegarde. Une nouvelle sauvegarde ramène l'annonce à « à valider ». Elle apparaît dans la colonne Étape et dans le filtre d'étape de la liste. La fiche de l'annonce (US-18b) affiche la date et les motifs du dernier échec.
+7. **Étape « vérification en erreur »** : elle est déduite du dernier résultat de vérification de la version actuelle de la sauvegarde. Une nouvelle sauvegarde ramène l'annonce à « à valider ». Elle apparaît dans la colonne Étape et dans le filtre Sauvegarde de la liste (« En erreur de vérification »). La fiche de l'annonce (US-18b) affiche la date et les motifs du dernier échec.
 8. **Journal** (US-23) : chaque vérification d'annonce est une action journalisée, avec son issue (réussie ou motifs).
 
 ## Critères d'acceptation
-- [ ] « Vérifier et valider » relit sur Vinted toutes les annonces présentes à valider, en erreur de vérification ou prêtes à supprimer, une à une, avec une pause de 5 à 10 s.
-- [ ] La relecture ne clique, ne saisit et ne soumet rien sur Vinted.
-- [ ] Une sauvegarde identique au formulaire relu (identifiants et textes), aux photos intactes, est validée sans aperçu.
-- [ ] Un écart sur n'importe quel champ comparé, une photo manquante ou modifiée, ou une annonce absente fait échouer la vérification, avec ses motifs.
-- [ ] Une annonce validée dont la vérification échoue perd sa validation et passe à « vérification en erreur » ; la série ne la prend pas.
-- [ ] Une nouvelle sauvegarde ramène une annonce en erreur à « à valider ».
-- [ ] Une session expirée, une réponse HTTP ≥ 400 autre que 404 ou un formulaire illisible arrêtent la vérification ; les résultats déjà obtenus restent.
-- [ ] Le bouton est exclusif du scan, de la sauvegarde et de la série.
-- [ ] Les résultats de vérification restent en base après un redémarrage.
-- [ ] Chaque vérification est inscrite au journal des actions.
-- [ ] Un autre site ne peut pas lancer la vérification (403).
-- [ ] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] « Vérifier et valider » relit sur Vinted toutes les annonces présentes à valider, en erreur de vérification ou prêtes à supprimer, une à une, avec une pause de 5 à 10 s.
+- [x] La relecture ne clique, ne saisit et ne soumet rien sur Vinted.
+- [x] Une sauvegarde identique au formulaire relu (identifiants et textes), aux photos intactes, est validée sans aperçu.
+- [x] Un écart sur n'importe quel champ comparé, une photo manquante ou modifiée, ou une annonce absente fait échouer la vérification, avec ses motifs.
+- [x] Une annonce validée dont la vérification échoue perd sa validation et passe à « vérification en erreur » ; la série ne la prend pas.
+- [x] Une nouvelle sauvegarde ramène une annonce en erreur à « à valider ».
+- [x] Une session expirée, une réponse HTTP ≥ 400 autre que 404 ou un formulaire illisible arrêtent la vérification ; les résultats déjà obtenus restent.
+- [x] Le bouton est exclusif du scan, de la sauvegarde et de la série.
+- [x] Les résultats de vérification restent en base après un redémarrage.
+- [x] Chaque vérification est inscrite au journal des actions.
+- [x] Un autre site ne peut pas lancer la vérification (403).
+- [x] Aucun test automatisé ne contacte le vrai site Vinted.
+
+AT-40-14 (relecture réelle, manuel) reste à faire par l'utilisateur sur son vrai compte.
 
 ## Tests d'acceptation
 
@@ -123,7 +125,7 @@ Quand je lance « Vérifier et valider »
 Alors chaque formulaire est ouvert une fois, avec une pause de 5 à 10 s entre deux
 Et aucun clic, aucune saisie, aucune soumission n'a lieu
 ```
-Test : `VintedListingEditFormTest` (page locale, `@Tag("browser")`) et `VerifyAndValidateBackupsAcceptanceTest.pauses_between_two_listings()`
+Test : `PlaywrightListingContentReaderTest.Forms_read_again` (page locale, `@Tag("browser")`) et `VerifyAndValidateBackupsAcceptanceTest.pauses_between_two_listings()`
 
 ### AT-40-10 – Exclusivité
 ```gherkin
@@ -132,7 +134,7 @@ Quand j'ouvre la page du dressing
 Alors le bouton « Vérifier et valider » est masqué
 Et une demande directe à l'API est refusée (409)
 ```
-Test : `BackupVerificationApiControllerTest.refused_while_another_action_runs()` et `WardrobePageTest.hides_verify_and_validate_while_a_run_is_in_progress()`
+Test : `BackupVerificationApiControllerTest.refused_while_another_action_runs()`, `VerifyAndValidateBackupsAcceptanceTest.refused_while_another_browser_action_or_a_run_is_in_progress()` et `WardrobePageTest.hides_verify_and_validate_while_a_run_is_in_progress()`
 
 ### AT-40-11 – Conservation et journal
 ```gherkin
@@ -141,7 +143,7 @@ Quand l'application redémarre
 Alors 101 est toujours en « vérification en erreur » avec ses motifs
 Et le journal des actions montre la vérification de chaque annonce et son issue
 ```
-Test : `JpaBackupVerificationRepositoryTest` (Testcontainers) et `JpaActionJournalTest`
+Test : `JpaBackupVerificationRepositoryTest.failures_survive_a_restart_as_they_were_saved()` (Testcontainers), `JpaActionJournalTest.every_journaled_action_can_be_written()` et `VerifyAndValidateBackupsAcceptanceTest.each_verification_is_journaled_with_its_outcome()`
 
 ### AT-40-12 – Pages
 ```gherkin
@@ -150,7 +152,7 @@ Quand j'ouvre la liste puis la fiche de l'annonce en erreur
 Alors la liste montre les étapes « prête à supprimer » et « vérification en erreur », filtrables
 Et la fiche affiche la date et les motifs de l'échec
 ```
-Test : `WardrobePageTest.shows_the_verification_progress_and_outcome()`, `ListingDetailPageTest.shows_the_verification_failure()`
+Test : `WardrobePageTest.shows_the_verification_progress_and_outcome()`, `ListingDetailPageTest.shows_the_verification_failure()`, `ListingDetailApiControllerTest.shows_the_last_verification_failure_of_the_current_backup()` et `VerifyAndValidateBackupsAcceptanceTest.listings_in_error_of_verification_can_be_filtered()`
 
 ### AT-40-13 – Demande venue d'un autre site
 ```gherkin
@@ -200,6 +202,9 @@ Test : manuel (vrai compte, lecture seule ; lancé par l'utilisateur).
   - Journal : nouvelle action `BACKUP_VERIFICATION` (« vérification de la sauvegarde »).
   - API : `POST /api/backup-verifications` (202 lancée ; 409 si un scan, une sauvegarde, une série ou une vérification est en cours ; 403 autre origine) et `GET /api/backup-verifications/current` (état, n / N, validées, en erreur, raison d'arrêt). `ListingDetail` gagne `lastVerification` (`verifiedAt`, `failures`). `ListingStage` gagne `VERIFICATION_FAILED`. `VerificationFailure` gagne `FIELD_CHANGED` (champ, valeur sauvegardée, valeur lue).
   - US-08 et US-14 sont mises à jour dans le même commit que le code.
+- Filtre, décidé par l'utilisateur (2026-11-18) pendant l'implémentation : la liste n'ayant pas de filtre d'étape, les annonces en erreur se filtrent par une nouvelle valeur du filtre Sauvegarde, « En erreur de vérification » (`BackupFilter.VERIFICATION_FAILED`).
+- Journal : la raison d'une vérification échouée réunit ses codes, séparés par des virgules, un champ changé suivi de son nom (`FIELD_CHANGED:SIZE, PHOTO_MISSING`).
+- Ligne d'état d'un arrêt : « session Vinted expirée (connectez-vous, puis relancez) », « navigateur indisponible », « Vinted est inaccessible », « formulaire illisible » ou « échec inattendu ».
 
 ## Questions ouvertes
 - Aucune.
@@ -209,12 +214,14 @@ Test : manuel (vrai compte, lecture seule ; lancé par l'utilisateur).
 - `VerificationResult` (résultat de vérification, nouveau) : identifiant Vinted, version de la sauvegarde comparée, date, échecs ; vaut seulement pour cette version.
 - `ListingStage` gagne `VERIFICATION_FAILED` (vérification en erreur), déduit après `TO_DELETE` et avant `TO_VALIDATE`.
 - Cas d'usage : `VerifyAndValidateBackups` (vérifier et valider), exclusif des autres actions navigateur.
-- Ports : `BackupVerificationRepository` (résultats) ; `ListingContentReader` existant (lecture US-05) réutilisé ; `BackupValidationRepository` gagne l'annulation.
+- Ports : `BackupVerificationRepository` (résultats ; enregistrer un échec annule la validation dans la même transaction, d'où pas de méthode d'annulation sur `BackupValidationRepository`) ; `ListingContentReader` gagne `readForms` (lecture du formulaire selon US-05, sans les photos, 404 rendu comme annonce absente) ; `ListingFormReading` (formulaire relu ou absent).
+- `ListingFieldDifference` et `ListingFormField` passent de `domain.republication` à `domain.backup` : la comparaison du contenu à la sauvegarde sert à US-13 et à US-40, sans cycle entre paquets.
+- Avancement : `BackupVerificationProgress` (`BackupVerificationStatus`, `BackupVerificationStopReason`), gardé en mémoire ; `BrowserAction.VERIFYING_BACKUPS`.
 - Glossaire : ajouter `VerifyAndValidateBackups`, `VerificationResult`, `BackupVerificationRepository`, `FIELD_CHANGED`, `VERIFICATION_FAILED`, `BACKUP_VERIFICATION` ; mettre à jour `BackupVerification`, `BackupValidation`, `ListingStage`.
 
 ## Tests unitaires et d'intégration attendus
 - `domain` : `BackupVerificationTest` (chaque champ comparé, libellés ignorés, cumul), `ListingStageTest` (`VERIFICATION_FAILED`, nouvelle version), `VerificationResultTest`.
 - `application` : `VerifyAndValidateBackupsAcceptanceTest` ; faux `InMemoryBackupVerificationRepository`.
-- `adapter/out/persistence` : `JpaBackupVerificationRepositoryTest`, `JpaBackupValidationRepositoryTest` (annulation), changeset Liquibase.
+- `adapter/out/persistence` : `JpaBackupVerificationRepositoryTest` (annulation de la validation comprise), changeset Liquibase `016` (qui ajoute aussi `BACKUP_VERIFICATION` et `STATISTICS_REFRESH`, oublié jusqu'ici, à la contrainte du journal).
 - `adapter/out/browser` : réutilisation de la lecture du formulaire (`@Tag("browser")`, page locale).
 - `adapter/in/web` : `BackupVerificationApiControllerTest`, `WardrobePageTest`, `ListingDetailPageTest`, `ListingInventoryApiControllerTest` (filtre d'étape).

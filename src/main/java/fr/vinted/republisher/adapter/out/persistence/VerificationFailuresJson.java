@@ -2,7 +2,6 @@ package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingFormField;
-import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
 import fr.vinted.republisher.domain.backup.VerificationFailure.NoPhoto;
@@ -10,6 +9,7 @@ import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoAltered;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PriceChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.TitleChanged;
+import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import tools.jackson.core.type.TypeReference;
 import tools.jackson.databind.json.JsonMapper;

@@ -1,7 +1,6 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
@@ -15,13 +14,14 @@ import fr.vinted.republisher.domain.backup.FormOption;
 import fr.vinted.republisher.domain.backup.FormOptions;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
-import fr.vinted.republisher.domain.backup.ListingFieldDifference;
-import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;

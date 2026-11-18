@@ -161,6 +161,11 @@ export class ListingDetail {
     return failureOf(failure);
   }
 
+  // Vérification sur Vinted (US-40) : une annonce absente l'est de Vinted, son formulaire répondant 404.
+  protected onlineFailureOf(failure: VerificationFailure): string {
+    return failure.kind === 'LISTING_ABSENT' ? 'annonce absente de Vinted' : failureOf(failure);
+  }
+
   protected contentOf(content: ListingBackupContent): [string, string][] {
     const fields = content as unknown as Record<string, unknown>;
     return CONTENT_LABELS.filter(([key]) => fields[key] !== undefined && fields[key] !== '')
@@ -446,6 +451,11 @@ function failureOf(failure: VerificationFailure): string {
       return `titre « ${failure.savedTitle} » sauvegardé, « ${failure.scannedTitle} » au dernier scan`;
     case 'PRICE_CHANGED':
       return `prix ${priceOrEmpty(failure.savedPrice)} sauvegardé, ${priceOrEmpty(failure.scannedPrice)} au dernier scan`;
+    case 'FIELD_CHANGED': {
+      const difference = failure.difference;
+      return `${(FORM_FIELDS[difference?.field ?? ''] ?? difference?.field ?? '').toLowerCase()} « ${difference?.saved ?? ''} »`
+        + ` sauvegardé, « ${difference?.read ?? ''} » sur Vinted`;
+    }
     default: return failure.kind;
   }
 }

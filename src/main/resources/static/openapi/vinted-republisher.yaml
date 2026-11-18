@@ -1318,8 +1318,8 @@ components:
       type: string
       description: >
         État de la sauvegarde : toutes (défaut), jamais sauvegardées, sauvegardées dont la sauvegarde actuelle n'est
-        pas validée, sauvegarde actuelle validée.
-      enum: [ALL, NOT_BACKED_UP, NOT_VALIDATED, VALIDATED]
+        pas validée, sauvegarde actuelle validée, vérification sur Vinted de la sauvegarde actuelle en erreur (US-40).
+      enum: [ALL, NOT_BACKED_UP, NOT_VALIDATED, VALIDATED, VERIFICATION_FAILED]
       default: ALL
     InventorySort:
       type: string

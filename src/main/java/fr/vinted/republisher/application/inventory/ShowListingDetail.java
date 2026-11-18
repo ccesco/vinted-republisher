@@ -2,10 +2,10 @@ package fr.vinted.republisher.application.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
-import fr.vinted.republisher.domain.backup.VerificationResult;
-import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
 import fr.vinted.republisher.domain.inventory.ListingLifecycle;

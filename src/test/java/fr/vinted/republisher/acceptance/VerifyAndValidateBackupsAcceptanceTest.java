@@ -244,6 +244,22 @@ class VerifyAndValidateBackupsAcceptanceTest {
     }
 
     @Test
+    void listings_in_error_of_verification_can_be_filtered() {
+        // AT-40-12 : la liste montre les étapes « prête à supprimer » et « vérification en erreur », filtrables
+        aKeptBackupOf(101);
+        aKeptBackupOf(102);
+        reader.showing(aContent(102)).whereFormIsGone(101);
+        verifyAndValidate.launch();
+
+        assertThat(inventory.show(new InventoryCriteria(PresenceFilter.ALL, BackupFilter.VERIFICATION_FAILED, "",
+                InventorySort.RECENCY, SortDirection.DESC))).extracting(entry -> entry.listing().id().value())
+                .containsExactly(101L);
+        assertThat(inventory.show(new InventoryCriteria(PresenceFilter.ALL, BackupFilter.VALIDATED, "",
+                InventorySort.RECENCY, SortDirection.DESC))).extracting(entry -> entry.listing().id().value())
+                .containsExactly(102L);
+    }
+
+    @Test
     void new_backup_brings_the_listing_back_to_validation() {
         // Étant donné l'annonce 101 en « vérification en erreur »
         aKeptBackupOf(101);

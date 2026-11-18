@@ -5,7 +5,7 @@ import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Observable } from 'rxjs';
 import {
-  AutomaticRunOverview, AutomaticRunService, DataArchiveService, Listing, ListingInventoryService,
+  AutomaticRunOverview, AutomaticRunService, BackupVerificationProgress, BackupVerificationService, DataArchiveService, Listing, ListingInventoryService,
   ListingRelaunchService, ListingTagService, RelaunchRefusal, RelaunchReport, TagOperation, WardrobeOverview,
   WardrobeService
 } from '../../generated/api';
@@ -14,6 +14,7 @@ import { dateOf, dayOf, listingLink, plural, priceOf } from '../shared/format';
 import { inventoryCriteriaOf } from './inventory-criteria';
 import { keyFiguresOf } from './key-figures';
 import { runningSummaryOf } from './run-summary';
+import { verificationSummaryOf } from './verification-summary';
 import {
   APPLICATION_DOWN_MESSAGE, ARCHIVE_PROBLEM_MESSAGES, ARCHIVE_UNREACHABLE_MESSAGE, BACKUP_PROBLEM_MESSAGES,
   PROBLEM_MESSAGES, RELAUNCHABLE_STAGES, RELAUNCH_DONE_MESSAGES, RELAUNCH_DRY_RUN_MESSAGE, RELAUNCH_FAILED_MESSAGE,
@@ -66,6 +67,14 @@ export class Wardrobe {
   protected readonly resumeShown = signal(false);
   protected readonly stopShown = signal(false);
 
+  // Vérifier et valider (US-40) : exclusif du scan, de la sauvegarde, du rafraîchissement et de la série.
+  private readonly verification = signal<BackupVerificationProgress | null>(null);
+  protected readonly verificationSummary = computed(() => {
+    const verification = this.verification();
+    return verification ? verificationSummaryOf(verification) : '';
+  });
+  protected readonly verifyShown = signal(false);
+
   protected readonly presence = signal('PRESENT');
   protected readonly backup = signal('ALL');
   protected readonly search = signal('');
@@ -96,6 +105,7 @@ export class Wardrobe {
   private readonly relaunches = inject(ListingRelaunchService);
   private readonly runs = inject(AutomaticRunService);
   private readonly archives = inject(DataArchiveService);
+  private readonly verifications = inject(BackupVerificationService);
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private searchTimer?: ReturnType<typeof setTimeout>;
   // Seule la réponse à la dernière demande s'affiche : une réponse lente ne remplace pas une plus récente.
@@ -103,6 +113,7 @@ export class Wardrobe {
   private wardrobeBusy = false;
   private destroyed = false;
   private runInProgress = false;
+  private verificationInProgress = false;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
@@ -114,6 +125,7 @@ export class Wardrobe {
     this.loadTags();
     this.refresh();
     this.refreshRun();
+    this.refreshVerification();
   }
 
   protected selectionCount(): string {
@@ -252,6 +264,19 @@ export class Wardrobe {
     }
   }
 
+  // Un refus (autre action en cours) laisse la page suivre l'état réel.
+  protected async verifyAndValidate(): Promise<void> {
+    this.verifyShown.set(false);
+    this.launchesShown.set(false);
+    this.runButtonShown.set(false);
+    try {
+      this.followVerification(await answerOf(this.verifications.verifyAndValidateBackups()));
+    } catch {
+      await this.refreshVerification();
+      await this.refresh();
+    }
+  }
+
   // Une demande de pause ou d'arrêt attend la fin de l'action en cours (US-21).
   protected async controlRun(control: 'pause' | 'resume' | 'stop'): Promise<void> {
     const requests: Record<string, () => Observable<AutomaticRunOverview>> = {
@@ -369,10 +394,8 @@ export class Wardrobe {
     this.overview.set(overview);
     // Une seule action navigateur à la fois : aucune autre n'est proposée pendant un scan, une sauvegarde ou un
     // rafraîchissement des vues et favoris.
-    const busy = inProgress(overview);
-    this.launchesShown.set(!busy);
-    this.wardrobeBusy = busy;
-    this.showRunButton();
+    this.wardrobeBusy = inProgress(overview);
+    this.showLaunches();
     this.wardrobeProblem.set(PROBLEM_MESSAGES[overview.problem ?? ''] ?? '');
   }
 
@@ -435,15 +458,18 @@ export class Wardrobe {
     }
   }
 
-  // Série automatique (US-19) : proposée seulement sans scan, sauvegarde ni série en cours.
-  private showRunButton(): void {
-    this.runButtonShown.set(!this.wardrobeBusy && !this.runInProgress);
+  // Une seule action à la fois : la série (US-19) et la vérification (US-40) ne sont proposées que sans autre
+  // action en cours ; pendant une vérification, ni scan, ni sauvegarde, ni rafraîchissement.
+  private showLaunches(): void {
+    this.launchesShown.set(!this.wardrobeBusy && !this.verificationInProgress);
+    this.runButtonShown.set(!this.wardrobeBusy && !this.runInProgress && !this.verificationInProgress);
+    this.verifyShown.set(!this.wardrobeBusy && !this.runInProgress && !this.verificationInProgress);
   }
 
   private showRun(run: AutomaticRunOverview): void {
     this.runInProgress = run.status === 'RUNNING' || run.status === 'WAITING' || run.status === 'PAUSED';
     this.run.set(run);
-    this.showRunButton();
+    this.showLaunches();
     const active = run.status === 'RUNNING' || run.status === 'WAITING';
     this.pauseShown.set(active && !run.pauseRequested && !run.stopRequested);
     this.resumeShown.set((run.status === 'PAUSED' || Boolean(run.pauseRequested)) && !run.stopRequested);
@@ -467,6 +493,28 @@ export class Wardrobe {
       this.followRun(await answerOf(this.runs.showAutomaticRun()));
     } catch {
       this.later(() => this.refreshRun());
+    }
+  }
+
+  // La liste est relue à la fin de la vérification : étapes et validations ont changé.
+  private followVerification(verification: BackupVerificationProgress): void {
+    const wasInProgress = this.verificationInProgress;
+    this.verificationInProgress = verification.status === 'RUNNING';
+    this.verification.set(verification);
+    this.showLaunches();
+    if (wasInProgress && !this.verificationInProgress) {
+      this.loadListings();
+    }
+    if (this.verificationInProgress) {
+      this.later(() => this.refreshVerification());
+    }
+  }
+
+  private async refreshVerification(): Promise<void> {
+    try {
+      this.followVerification(await answerOf(this.verifications.showBackupVerification()));
+    } catch {
+      this.later(() => this.refreshVerification());
     }
   }
 

@@ -23,10 +23,11 @@ En tant que membre, je veux voir l'étape de traitement de chacune de mes annonc
 | 5 | dernière suppression confirmée, date de republication atteinte | `TO_REPUBLISH` | À republier |
 | 6 | annonce absente (sans suppression confirmée) | `GONE` | Absente de Vinted |
 | 7 | sauvegarde actuelle validée | `TO_DELETE` | Prête à supprimer |
-| 8 | sauvegarde actuelle non validée | `TO_VALIDATE` | À valider |
-| 9 | aucune sauvegarde | `TO_BACK_UP` | À sauvegarder |
+| 8 | dernière vérification sur Vinted de la sauvegarde actuelle échouée (US-40) | `VERIFICATION_FAILED` | Vérification en erreur |
+| 9 | sauvegarde actuelle non validée | `TO_VALIDATE` | À valider |
+| 10 | aucune sauvegarde | `TO_BACK_UP` | À sauvegarder |
 
-   Une suppression `NOT_DONE` (doute levé, annonce toujours là) ne compte pas : l'annonce retombe dans les règles 6 à 9.
+   Une suppression `NOT_DONE` (doute levé, annonce toujours là) ne compte pas : l'annonce retombe dans les règles 6 à 10.
 3. **Liste** (`wardrobe.html`) : nouvelle colonne « Étape » avec le libellé. Les étapes qui demandent une vérification sur Vinted (`DELETION_TO_CHECK`, `REPUBLICATION_TO_CHECK`) sont mises en évidence.
 4. **Fiche** (`listing.html`) : l'étape est affichée sous le titre.
 5. L'étape est calculée à l'heure du serveur au moment de la lecture : `WAITING` devient `TO_REPUBLISH` à la lecture suivante, sans compte à rebours dans la liste (celui de la fiche, US-11, reste).
@@ -34,7 +35,7 @@ En tant que membre, je veux voir l'étape de traitement de chacune de mes annonc
 
 ## Contrat d'API
 Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
-- Nouveau schéma `ListingStage` : énumération `TO_BACK_UP`, `TO_VALIDATE`, `TO_DELETE`, `DELETION_TO_CHECK`, `WAITING`, `TO_REPUBLISH`, `REPUBLICATION_TO_CHECK`, `REPUBLISHED`, `GONE`.
+- Nouveau schéma `ListingStage` : énumération `TO_BACK_UP`, `TO_VALIDATE`, `TO_DELETE`, `DELETION_TO_CHECK`, `WAITING`, `TO_REPUBLISH`, `REPUBLICATION_TO_CHECK`, `REPUBLISHED`, `GONE` ; US-40 y ajoute `VERIFICATION_FAILED`.
 - Le schéma `Listing` gagne `stage` (`ListingStage`, obligatoire). Il est donc présent dans `GET /api/listings` (US-18) et dans `listing` de `GET /api/listings/{listingId}` (US-18b).
 - Aucun nouveau chemin, aucun nouveau paramètre.
 
@@ -179,7 +180,7 @@ Test : `ListingDetailPageTest.shows_the_stage()`
 ## Décisions
 - Prises par Claude sur délégation de l'utilisateur (« fait comme tu le penses », 2026-11-15), validées par l'utilisateur avec la spec (2026-11-15) :
   - Étape déduite des faits en base, jamais stockée : une seule source de vérité, rien à resynchroniser, survit aux redémarrages (base de la reprise d'US-16). Les transitions sont déjà gardées par les refus d'US-08, US-09 et US-12 ; US-14 n'en ajoute pas.
-  - Neuf étapes et leur ordre de priorité (tableau ci-dessus) ; `GONE` pour une annonce disparue hors outil, sans traitement possible.
+  - Neuf étapes et leur ordre de priorité (tableau ci-dessus ; US-40 en ajoute une dixième, `VERIFICATION_FAILED`, 2026-11-18) ; `GONE` pour une annonce disparue hors outil, sans traitement possible.
   - Nouvelle annonce après republication : annonce ordinaire, donc « À sauvegarder » (décision d'US-12 : nouvelle sauvegarde avant toute future suppression).
   - Affichage : colonne « Étape » dans la liste et ligne dans la fiche ; mise en évidence des deux étapes « à vérifier » ; pas de filtre ni de compteur.
   - Code : `stage` dans le schéma `Listing`, nouveau schéma `ListingStage`.

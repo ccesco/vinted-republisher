@@ -4,7 +4,7 @@ export const STAGE_LABELS: Record<string, string> = {
   TO_BACK_UP: 'À sauvegarder', TO_VALIDATE: 'À valider', TO_DELETE: 'Prête à supprimer',
   DELETION_TO_CHECK: 'Suppression à vérifier', WAITING: 'En attente avant republication',
   TO_REPUBLISH: 'À republier', REPUBLICATION_TO_CHECK: 'Republication à vérifier', REPUBLISHED: 'Republiée',
-  GONE: 'Absente de Vinted'
+  GONE: 'Absente de Vinted', VERIFICATION_FAILED: 'Vérification en erreur'
 };
 // Étapes qui demandent de vérifier sur Vinted : mises en évidence.
 export const STAGES_TO_CHECK = ['DELETION_TO_CHECK', 'REPUBLICATION_TO_CHECK'];
