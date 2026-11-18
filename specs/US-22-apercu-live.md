@@ -1,5 +1,5 @@
 # US-22 – Aperçu live par navigateur
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-03 (Chrome piloté), US-19 (« Tout lancer »), US-21 (pause et stop)
 
@@ -10,10 +10,10 @@ Pendant un traitement automatique (US-19), l'outil travaille dans un onglet du C
 En tant que membre, je veux voir depuis le dashboard ce que montre chaque navigateur piloté pendant qu'il travaille, afin de suivre le traitement et de repérer un blocage sans aller chercher les fenêtres de Chrome.
 
 ## Comportement attendu
-1. **Onglet piloté** : quand l'outil ouvre un onglet de travail dans un Chrome piloté (`ChromeTabs`), il le note comme onglet à montrer ; il l'oublie quand il le ferme, que l'action réussisse ou échoue. Noter l'onglet coûte un seul échange avec Chrome à l'ouverture (son identifiant) : le travail n'est pas ralenti.
+1. **Onglet piloté** : quand l'outil ouvre un onglet de travail dans un Chrome piloté (`ChromeTabs`), il le note comme onglet à montrer ; il l'oublie quand il le ferme, que l'action réussisse ou échoue. Noter l'onglet coûte quelques millisecondes à l'ouverture (une session de débogage le temps de lire son identifiant) : le travail n'est pas ralenti.
 2. **Capture à la demande** : l'API capture l'écran de chaque onglet noté au moment où elle est appelée (capture JPEG de la partie visible de la page, qualité 60), par une connexion de débogage à part, ouverte puis fermée pour la capture, qui ne fait que la capture : elle ne navigue pas, ne clique pas, ne saisit rien, n'active aucun domaine de Chrome et ne passe pas par la connexion Playwright du travail. Personne ne regarde : aucune capture.
 3. **Un aperçu par onglet piloté**, donc par navigateur (chaque Chrome piloté ne travaille que dans un onglet à la fois) ; il porte le nom de son navigateur, « Chrome (port 9222) » (le port de débogage distingue les navigateurs, US-15 compris), et la date de sa capture. Les aperçus sont triés par nom de navigateur.
-4. **Capture impossible** (onglet fermé entre-temps, fenêtre réduite qui ne dessine plus, Chrome qui ne répond pas en 3 secondes) : l'aperçu est rendu sans image ; la cause va aux logs. Une capture ratée n'interrompt jamais le travail.
+4. **Capture impossible** (onglet fermé entre-temps, fenêtre réduite qui ne dessine plus, Chrome qui ne répond pas en 3 secondes) : l'aperçu est rendu sans image ; la cause va aux logs. Les onglets sont capturés en même temps, chacun dans ce délai de 3 secondes, connexion comprise : la réponse ne dépasse pas 3 secondes, quel que soit le nombre de navigateurs. Une capture ratée n'interrompt jamais le travail.
 5. **Page « Aperçu live »** (`live-preview.html`, lien « Aperçu live » depuis le dressing) : interroge l'API toutes les 2 secondes tant qu'elle est ouverte et montre, pour chaque navigateur au travail, son nom, l'image de sa page et l'heure de capture ; « Aperçu indisponible. » pour un navigateur sans image. Aucun navigateur au travail : « Aucun navigateur au travail. » API indisponible : « Aperçus indisponibles. », et la page continue d'interroger l'API.
 
 ## Contrat d'API
@@ -22,11 +22,11 @@ En tant que membre, je veux voir depuis le dashboard ce que montre chaque naviga
 - `LivePreview` : `browser` (texte, obligatoire) ; `image` (JPEG en base64, `format: byte`) et `capturedAt` (date-heure), présents ensemble, absents si la capture a échoué.
 
 ## Critères d'acceptation
-- [ ] Tant que l'outil travaille dans un onglet du Chrome piloté, l'aperçu de ce navigateur montre la page de cet onglet, telle qu'elle est au moment de la demande.
-- [ ] L'onglet fermé, son navigateur n'a plus d'aperçu.
-- [ ] La capture n'agit pas sur la page : ni navigation, ni clic, ni saisie, ni défilement, et le travail en cours se poursuit.
-- [ ] Une capture impossible donne un aperçu sans image, sans erreur pour le travail ni pour l'API.
-- [ ] L'API rend un aperçu par navigateur, trié par nom ; la page les montre et se rafraîchit seule.
+- [x] Tant que l'outil travaille dans un onglet du Chrome piloté, l'aperçu de ce navigateur montre la page de cet onglet, telle qu'elle est au moment de la demande.
+- [x] L'onglet fermé, son navigateur n'a plus d'aperçu.
+- [x] La capture n'agit pas sur la page : ni navigation, ni clic, ni saisie, ni défilement, et le travail en cours se poursuit.
+- [x] Une capture impossible donne un aperçu sans image, sans erreur pour le travail ni pour l'API.
+- [x] L'API rend un aperçu par navigateur, trié par nom ; la page les montre et se rafraîchit seule.
 
 ## Tests d'acceptation
 ### AT-22-01 – Aperçu de l'onglet au travail
