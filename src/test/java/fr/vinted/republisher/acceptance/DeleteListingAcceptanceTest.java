@@ -261,6 +261,20 @@ class DeleteListingAcceptanceTest {
     }
 
     @Test
+    void a_failed_deletion_gives_its_cadence_reservation_back() {
+        // Étant donné une suppression réelle qui échoue avant le clic (US-15 : sa réservation de cadence est rendue)
+        aValidatedListing();
+        vinted.showing(anActiveListing(1)).whereVintedRefuses();
+        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT)))
+                .isInstanceOf(VintedUnreachable.class);
+        // Quand je la redemande aussitôt, Vinted répondant de nouveau
+        vinted.showing(anActiveListing(1)).whereVintedAnswersAgain();
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        // Alors elle a lieu : aucune écriture n'a été tentée, rien ne retient la cadence
+        assertThat(report.lastDeletion()).map(ListingDeletion::attemptedAt).contains(NOW);
+    }
+
+    @Test
     void listing_still_shown_leaves_the_deletion_unconfirmed() {
         // Étant donné une annonce validée
         // Et Vinted la montre encore après le clic de confirmation
@@ -624,11 +638,15 @@ class DeleteListingAcceptanceTest {
     }
 
     private DeleteListing deleteListing(DeletionMode mode) {
+        if (cadence == null) {
+            cadence = new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 2, 2), clock);
+        }
         return new DeleteListing(session, listings, listingBackups, photos, validations, deletions, vinted, mode,
-                new RepublicationDelay(Duration.ofMinutes(5)),
-                new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 2, 2), clock),
-                clock, new JournalWriter(journal, clock));
+                new RepublicationDelay(Duration.ofMinutes(5)), cadence, clock, new JournalWriter(journal, clock));
     }
+
+    /** One for the whole test, as in the application: its reservations outlive a deletion. */
+    private CadenceCheck cadence;
 
     /** Present, scanned, backed up with its photo kept, and validated by the member. */
     private ListingBackup aValidatedListing() {

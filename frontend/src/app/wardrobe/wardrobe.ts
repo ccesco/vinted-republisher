@@ -481,10 +481,22 @@ function inProgress(overview: WardrobeOverview): boolean {
   return overview.scanInProgress || overview.backupInProgress || overview.statisticsRefreshInProgress;
 }
 
+// Annonces de la tournée en cours (US-15) : une seule par défaut.
+function runningSummaryOf(listingIds: number[]): string {
+  switch (listingIds.length) {
+    case 0:
+      return 'Traitement en cours.';
+    case 1:
+      return `Traitement en cours : annonce ${listingIds[0]}.`;
+    default:
+      return `Traitement en cours : annonces ${listingIds.join(', ')}.`;
+  }
+}
+
 function runSummaryOf(run: AutomaticRunOverview): string {
   switch (run.status) {
     case 'RUNNING':
-      return run.currentListingId ? `Traitement en cours : annonce ${run.currentListingId}.` : 'Traitement en cours.';
+      return runningSummaryOf(run.currentListingIds);
     case 'WAITING':
       return `En attente jusqu'au ${dateOf(run.waitingUntil ?? '')}.`;
     case 'FINISHED': {

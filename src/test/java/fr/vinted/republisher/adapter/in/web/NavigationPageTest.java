@@ -36,13 +36,13 @@ import static com.microsoft.playwright.assertions.PlaywrightAssertions.assertTha
 import static org.assertj.core.api.Assertions.assertThat;
 
 /**
- * What the five screens of the interface share (US-37): navigation, theme, phone layout and staying inside the
+ * What the six screens of the interface share (US-37): navigation, theme, phone layout and staying inside the
  * application, in the installed Chrome against a simulated API answering as the contract says.
  */
 @Tag("browser")
 class NavigationPageTest {
 
-    private static final List<String> SCREENS = List.of("", "listings/1", "journal", "sales", "vinted-session");
+    private static final List<String> SCREENS = List.of("", "listings/1", "journal", "sales", "live-preview", "vinted-session");
     private static final String IDLE_WARDROBE =
             "{\"scanInProgress\": false, \"backupInProgress\": false, \"statisticsRefreshInProgress\": false}";
     private static final String LISTING = """
@@ -90,6 +90,7 @@ class NavigationPageTest {
         answer("/api/listing-tags", "{\"tags\": []}");
         answer("/api/journal", "{\"entries\": [], \"hasMore\": false}");
         answer("/api/sales", "{\"sales\": [], \"totals\": []}");
+        answer("/api/live-previews", "{\"previews\": []}");
         answer("/api/vinted-session", "{\"status\": \"CONNECTED\"}");
         fakeApi.createContext("/api/listings", exchange -> {
             String path = exchange.getRequestURI().getPath();
@@ -126,11 +127,13 @@ class NavigationPageTest {
         assertThat(page.locator("#listing-title")).hasText("Pull rayé");
         assertThat(page.locator("#stage")).hasText("Étape : À sauvegarder");
 
-        // Et la barre de navigation me ramène au Dressing, au Journal, aux Ventes ou à la Session Vinted
+        // Et la barre de navigation me ramène au Dressing, au Journal, aux Ventes, à l'Aperçu live ou à la Session Vinted
         navigateTo("Journal");
         assertThat(page.locator("h1")).hasText("Journal des actions");
         navigateTo("Ventes");
         assertThat(page.locator("h1")).hasText("Ventes");
+        navigateTo("Aperçu live");
+        assertThat(page.locator("h1")).hasText("Aperçu live");
         navigateTo("Session Vinted");
         assertThat(page.locator("h1")).hasText("Session Vinted");
         navigateTo("Dressing");
@@ -140,7 +143,7 @@ class NavigationPageTest {
 
     @Test
     void loadsNothingOutsideTheApplication() {
-        // AT-37-03. Étant donné que j'ouvre chacun des cinq écrans
+        // AT-37-03. Étant donné que j'ouvre chacun des six écrans
         String application = "http://127.0.0.1:" + fakeApi.getAddress().getPort() + "/";
         List<String> requested = new CopyOnWriteArrayList<>();
         page.onRequest(request -> requested.add(request.url()));
@@ -182,7 +185,7 @@ class NavigationPageTest {
         // AT-37-05. Étant donné une fenêtre de 375 px de large
         page.setViewportSize(375, 812);
         for (String screen : SCREENS) {
-            // Quand j'ouvre chacun des cinq écrans
+            // Quand j'ouvre chacun des six écrans
             BuiltFrontend.open(page, fakeApi, screen, new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
 
             // Alors la page ne défile pas horizontalement

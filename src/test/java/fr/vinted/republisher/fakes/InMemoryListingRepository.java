@@ -23,17 +23,17 @@ public class InMemoryListingRepository implements ListingRepository {
     }
 
     @Override
-    public List<Listing> findAll() {
+    public synchronized List<Listing> findAll() {
         return List.copyOf(listings.values());
     }
 
     @Override
-    public Optional<Listing> find(VintedListingId listing) {
+    public synchronized Optional<Listing> find(VintedListingId listing) {
         return Optional.ofNullable(listings.get(listing));
     }
 
     @Override
-    public void saveAll(List<Listing> changed) {
+    public synchronized void saveAll(List<Listing> changed) {
         if (databaseDown) {
             throw new IllegalStateException("database down");
         }
@@ -46,7 +46,7 @@ public class InMemoryListingRepository implements ListingRepository {
     }
 
     @Override
-    public List<PriceChange> priceHistoryOf(VintedListingId listing) {
+    public synchronized List<PriceChange> priceHistoryOf(VintedListingId listing) {
         return priceChanges.stream().filter(change -> change.listingId().equals(listing)).toList();
     }
 }

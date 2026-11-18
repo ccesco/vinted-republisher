@@ -1,21 +1,22 @@
 # US-37 – Interface Angular
 **Statut** : implémentée
 **Priorité** : V2
-**Dépend de** : US-03, US-18, US-18b, US-19, US-20, US-21, US-23, US-26, US-34, US-36 (pages existantes à reprendre)
+**Dépend de** : US-03, US-18, US-18b, US-19, US-20, US-21, US-23, US-15, US-22, US-26, US-34, US-36 (pages existantes à reprendre)
 
 ## Contexte
-L'IHM actuelle est faite de cinq pages HTML statiques avec du JS écrit à la main (`wardrobe.html`, `listing.html`, `journal.html`, `sales.html`, `vinted-session.html`). Elles marchent mais sont austères, peu lisibles sur mobile et de plus en plus lourdes à faire évoluer (environ 1 700 lignes de HTML et JS non typé). La maquette retenue propose Angular avec Angular Material 3 : barre de navigation latérale, cartes de chiffres clés, carte de la série automatique, tableau avec filtres et sélection, fiche d'annonce, thèmes clair et sombre.
+L'IHM actuelle est faite de six pages HTML statiques avec du JS écrit à la main (`wardrobe.html`, `listing.html`, `journal.html`, `sales.html`, `live-preview.html`, `vinted-session.html`). Elles marchent mais sont austères, peu lisibles sur mobile et de plus en plus lourdes à faire évoluer (environ 1 700 lignes de HTML et JS non typé). La maquette retenue propose Angular avec Angular Material 3 : barre de navigation latérale, cartes de chiffres clés, carte de la série automatique, tableau avec filtres et sélection, fiche d'annonce, thèmes clair et sombre.
 
 ## Objectif
 En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afin de suivre et piloter mon dressing plus facilement, y compris depuis mon téléphone.
 
 ## Comportement attendu
 1. L'application se lance toujours avec `mvn spring-boot:run` ; `http://localhost:8080/` ouvre l'interface Angular.
-2. Une barre de navigation (à gauche sur ordinateur, en bas sur téléphone) mène à cinq écrans :
+2. Une barre de navigation (à gauche sur ordinateur, en bas sur téléphone) mène à six écrans :
    - **Dressing** (`#/`) : reprend `wardrobe.html` (scan, sauvegarde, rafraîchissement des vues et favoris, archive, série automatique avec pause / reprise / arrêt, liste filtrable et triable, sélection et tags).
    - **Annonce** (`#/listings/{listingId}`) : reprend `listing.html` (historique des prix, vues et favoris, journal, sauvegarde et photos, validation, suppression, revérification, republication, vérification, validation manuelle, relance). Ouverte depuis une ligne du Dressing.
    - **Journal** (`#/journal`) : reprend `journal.html`.
    - **Ventes** (`#/sales`) : reprend `sales.html`.
+   - **Aperçu live** (`#/live-preview`) : reprend `live-preview.html` (US-22, fusionnée pendant cette US).
    - **Session Vinted** (`#/vinted-session`) : reprend `vinted-session.html`.
 3. En haut de chaque écran, une puce donne l'état de la session Vinted.
 4. Le Dressing affiche en tête des chiffres clés **calculés à partir des données déjà renvoyées par l'API**, sur les annonces affichées (ils suivent donc les filtres et la recherche) : nombre d'annonces présentes, nombre de sauvegardes validées sur le total, total des vues, total des favoris. Pas de tendance ni de courbe (aucune donnée d'historique agrégée dans l'API).
@@ -24,7 +25,7 @@ En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afi
 7. Les textes de l'interface sont en français.
 
 ## Critères d'acceptation
-- [x] Chaque scénario couvert aujourd'hui par les tests de pages (`WardrobePageTest`, `ListingDetailPageTest`, `ListingTagsPageTest`, `ActionJournalPageTest`, `SalesPageTest`, `VintedSessionPageTest`) passe sur l'interface Angular.
+- [x] Chaque scénario couvert aujourd'hui par les tests de pages (`WardrobePageTest`, `ListingDetailPageTest`, `ListingTagsPageTest`, `ActionJournalPageTest`, `SalesPageTest`, `LivePreviewPageTest`, `VintedSessionPageTest`) passe sur l'interface Angular.
 - [x] Les anciennes pages HTML et leur JS sont supprimés ; il ne reste qu'une interface.
 - [x] L'interface n'appelle que l'API du contrat et ne charge aucune ressource hors de l'application (polices et icônes embarquées).
 - [x] Les appels à l'API passent par le client généré depuis le contrat OpenAPI : un écart au contrat ne compile pas.
@@ -49,13 +50,13 @@ Test : `WardrobePageTest.showsKeyFiguresComputedFromListings()`
 Étant donné que je suis sur le Dressing
 Quand je clique sur une annonce
 Alors la fiche de cette annonce s'ouvre
-Et la barre de navigation me ramène au Dressing, au Journal, aux Ventes ou à la Session Vinted
+Et la barre de navigation me ramène au Dressing, au Journal, aux Ventes, à l'Aperçu live ou à la Session Vinted
 ```
 Test : `NavigationPageTest.navigatesBetweenScreens()`
 
 ### AT-37-03 – Aucune ressource externe
 ```gherkin
-Étant donné que j'ouvre chacun des cinq écrans
+Étant donné que j'ouvre chacun des six écrans
 Quand la page a fini de charger
 Alors aucune requête n'est partie vers un autre hôte que l'application
 ```
@@ -73,7 +74,7 @@ Test : `NavigationPageTest.followsSystemThemeAndRemembersTheChoice()`
 ### AT-37-05 – Affichage sur téléphone
 ```gherkin
 Étant donné une fenêtre de 375 px de large
-Quand j'ouvre chacun des cinq écrans
+Quand j'ouvre chacun des six écrans
 Alors la page ne défile pas horizontalement
 Et la barre de navigation est en bas
 ```
@@ -101,7 +102,7 @@ Test : `WardrobePageTest.showsAnErrorWhenListingsCannotBeLoaded()`
 ## Décisions
 Prises par délégation de l'utilisateur (« fais comme tu veux »), confirmées à la validation le 18/11/2026.
 - **Angular 22** (dernière version stable sur npm au 18/11/2026 : `@angular/core` 22.2.6) et **Angular Material 22** (Material 3), composants autonomes et signaux. Raison : version courante, Material est la bibliothèque officielle, accessible et thémable.
-- **Migration en une fois** dans cette US, anciennes pages supprimées à la fin. Raison : cinq pages seulement ; deux interfaces en parallèle doubleraient le travail et les tests.
+- **Migration en une fois** dans cette US, anciennes pages supprimées à la fin. Raison : six pages seulement ; deux interfaces en parallèle doubleraient le travail et les tests.
 - **Code dans `frontend/`** à la racine du dépôt, construit par **`frontend-maven-plugin` 2.0.2** (télécharge Node et npm dans le projet) ; le résultat de `ng build` est copié dans `target/classes/static`, à côté du contrat OpenAPI. Raison : `mvn` reste la seule commande, aucun Node requis sur le poste.
 - **Client d'API généré** par `openapi-generator` (générateur `typescript-angular`, même version 7.25.0, nouvelle exécution du plugin existant) dans `frontend/src/generated` (ignoré par git). Raison : contract first jusqu'au navigateur.
 - **Routage par fragment** (`withHashLocation`). Raison : aucune redirection à ajouter côté Spring pour les liens directs.

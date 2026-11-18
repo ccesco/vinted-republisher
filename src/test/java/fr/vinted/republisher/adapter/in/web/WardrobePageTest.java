@@ -616,7 +616,7 @@ class WardrobePageTest {
         assertThat(runSummary()).hasText("");
         // Quand le membre clique sur « Tout lancer »
         runOverview.set("""
-                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingId": 3, "relaunchCount": 0,
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [3], "relaunchCount": 0,
                  "skippedListingIds": []}""");
         runButton().click();
         // Alors la série est lancée, le bouton est masqué et la page affiche l'état
@@ -629,6 +629,18 @@ class WardrobePageTest {
                  "relaunchCount": 2, "skippedListingIds": [5]}""");
         assertThat(runSummary()).hasText("Traitement terminé : 2 relances, 1 annonce écartée.");
         assertThat(runButton()).isVisible();
+    }
+
+    @Test
+    void shows_every_listing_of_the_round() {
+        // Étant donné une série en cours sur une tournée de deux annonces (US-15)
+        runOverview.set("""
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [1, 2],
+                 "relaunchCount": 0, "skippedListingIds": [], "pauseRequested": false, "stopRequested": false}""");
+        // Quand le membre ouvre la page du dressing
+        open();
+        // Alors elle affiche les deux annonces de la tournée
+        assertThat(runSummary()).hasText("Traitement en cours : annonces 1, 2.");
     }
 
     @Test
@@ -667,7 +679,7 @@ class WardrobePageTest {
     }
 
     private static String run(String status, boolean pauseRequested, boolean stopRequested, String more) {
-        return "{\"status\": \"" + status + "\", \"startedAt\": \"2026-11-17T10:00:00Z\", \"currentListingId\": 3,"
+        return "{\"status\": \"" + status + "\", \"startedAt\": \"2026-11-17T10:00:00Z\", \"currentListingIds\": [3],"
                 + " \"relaunchCount\": 1, \"skippedListingIds\": [], \"pauseRequested\": " + pauseRequested
                 + ", \"stopRequested\": " + stopRequested + more + "}";
     }

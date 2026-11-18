@@ -39,14 +39,26 @@ public class ChromeTabs {
 
     private final Chrome chrome;
     private final Duration loadTimeout;
+    private final ChromeLivePreviews livePreviews;
 
-    public ChromeTabs(Chrome chrome) {
+    public ChromeTabs(Chrome chrome, ChromeLivePreviews livePreviews) {
+        this(chrome, LOAD_TIMEOUT, livePreviews);
+    }
+
+    /** For tests only: its tabs go to a registry of its own, shown in no live preview. */
+    ChromeTabs(Chrome chrome) {
         this(chrome, LOAD_TIMEOUT);
     }
 
+    /** For tests only: its tabs go to a registry of its own, shown in no live preview. */
     ChromeTabs(Chrome chrome, Duration loadTimeout) {
+        this(chrome, loadTimeout, new ChromeLivePreviews(Clock.systemUTC()));
+    }
+
+    ChromeTabs(Chrome chrome, Duration loadTimeout, ChromeLivePreviews livePreviews) {
         this.chrome = chrome;
         this.loadTimeout = loadTimeout;
+        this.livePreviews = livePreviews;
     }
 
     /** The page only says the browser is unavailable: the reason goes to the logs. */
@@ -144,7 +156,7 @@ public class ChromeTabs {
             Browser browser = playwright.chromium().connectOverCDP(endpoint.toString());
             Page page = browser.contexts().getFirst().newPage();
             page.setDefaultNavigationTimeout(loadTimeout.toMillis());
-            try {
+            try (ChromeLivePreviews.Watch _ = livePreviews.watch(chrome, page)) {
                 return action.apply(page);
             } finally {
                 closeQuietly(page);

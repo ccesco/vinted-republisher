@@ -34,6 +34,8 @@ tags:
     description: Archive complète des données de l'outil, à télécharger (US-26)
   - name: sales
     description: Ventes constatées dans le dressing (US-36)
+  - name: live-preview
+    description: Aperçu live de la page de chaque navigateur piloté au travail (US-22)
 paths:
   /api/data-archive:
     get:
@@ -349,6 +351,22 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SalesOverview'
+  /api/live-previews:
+    get:
+      tags: [live-preview]
+      operationId: showLivePreviews
+      summary: Aperçus live des navigateurs au travail
+      description: >
+        Capture, au moment de l'appel, la partie visible de l'onglet où chaque Chrome piloté travaille : un aperçu par
+        navigateur, trié par navigateur. Lecture seule : la capture ne navigue pas, ne clique pas et ne saisit rien.
+        Ne contacte pas Vinted ; ne démarre pas Chrome.
+      responses:
+        '200':
+          description: Les aperçus, vides si aucun navigateur ne travaille.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LivePreviews'
   /api/listings/{listingId}/backup:
     get:
       tags: [listing-backup]
@@ -981,6 +999,38 @@ components:
           type: string
           format: date-time
           description: Date du premier relevé du dressing qui l'a montrée vendue, pas la date réelle de la vente.
+    LivePreviews:
+      type: object
+      description: Un aperçu par onglet de travail d'un Chrome piloté, trié par navigateur.
+      required: [previews]
+      properties:
+        previews:
+          type: array
+          items:
+            $ref: '#/components/schemas/LivePreview'
+      example:
+        previews:
+          - browser: Chrome (port 9222)
+            image: /9j/4AAQSkZJRg==
+            capturedAt: '2026-11-18T10:00:00Z'
+    LivePreview:
+      type: object
+      description: >
+        Ce que montre l'onglet de travail d'un navigateur piloté. image et capturedAt sont présents ensemble, absents
+        si la capture a échoué (onglet fermé entre-temps, fenêtre réduite, Chrome sans réponse en 3 secondes).
+      required: [browser]
+      properties:
+        browser:
+          type: string
+          description: Nom du navigateur, par son port de débogage.
+          example: Chrome (port 9222)
+        image:
+          type: string
+          format: byte
+          description: Capture JPEG de la partie visible de la page, en base64.
+        capturedAt:
+          type: string
+          format: date-time
     ActionJournal:
       type: object
       description: Une page du journal, des lignes les plus récentes aux plus anciennes.
@@ -1364,7 +1414,7 @@ components:
         STOPPED_BY_MEMBER]
     AutomaticRunOverview:
       type: object
-      required: [status, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
+      required: [status, currentListingIds, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
       properties:
         status:
           $ref: '#/components/schemas/RunStatus'
@@ -1379,10 +1429,14 @@ components:
           type: string
           format: date-time
           description: Date jusqu'à laquelle la série attend ; présente pour WAITING.
-        currentListingId:
-          type: integer
-          format: int64
-          description: Identifiant Vinted de l'annonce relancée en dernier, tant que la série tourne.
+        currentListingIds:
+          type: array
+          description: >
+            Identifiants Vinted des annonces de la dernière tournée, relancées ensemble (US-15), dans l'ordre de la
+            série, tant que la série tourne ; une seule avec le parallélisme par défaut, vide hors série.
+          items:
+            type: integer
+            format: int64
         relaunchCount:
           type: integer
           format: int32
@@ -1406,7 +1460,7 @@ components:
         status: WAITING
         startedAt: '2026-11-17T10:00:00Z'
         waitingUntil: '2026-11-17T10:05:00Z'
-        currentListingId: 10208799832
+        currentListingIds: [10208799832]
         relaunchCount: 3
         skippedListingIds: []
         pauseRequested: false

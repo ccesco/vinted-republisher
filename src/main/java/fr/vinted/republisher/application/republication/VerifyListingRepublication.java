@@ -67,7 +67,7 @@ public class VerifyListingRepublication {
     public RepublicationReport verify(VintedListingId id) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestToVerify(id);
-        if (!session.start(BrowserAction.REPUBLISHING)) {
+        if (!session.start(BrowserAction.REPUBLISHING, id)) {
             throw new BrowserBusy();
         }
         Optional<List<ListingFieldDifference>> comparison;
@@ -78,7 +78,7 @@ public class VerifyListingRepublication {
                     ? settle(republication, backup) : republication;
             comparison = settled.newListingId().map(newListing -> compare(backup, newListing));
         } finally {
-            session.finish();
+            session.finish(id);
         }
         return showListingRepublication.verified(id, comparison);
     }

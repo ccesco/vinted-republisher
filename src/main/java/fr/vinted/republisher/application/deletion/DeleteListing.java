@@ -1,6 +1,7 @@
 package fr.vinted.republisher.application.deletion;
 
 import fr.vinted.republisher.application.cadence.CadenceCheck;
+import fr.vinted.republisher.application.cadence.WriteReservation;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
@@ -112,13 +113,14 @@ public class DeleteListing {
             throw new BackupNotVerified(verification);
         }
         Listing listing = scanned.orElseThrow();
-        if (!session.start(BrowserAction.DELETING)) {
+        if (!session.start(BrowserAction.DELETING, id)) {
             throw new BrowserBusy();
         }
         Attempt attempt = new Attempt(backup);
+        Optional<WriteReservation> reservation = Optional.empty();
         try {
             if (mode == DeletionMode.REAL) {
-                cadence.check(VintedWrite.DELETION);
+                reservation = Optional.of(cadence.reserve(VintedWrite.DELETION));
             }
             Optional<ScannedListing> shownAfterwards =
                     deleter.delete(new ListingLink(listing.id(), listing.url()), attempt);
@@ -130,7 +132,8 @@ public class DeleteListing {
             // Past Vinted's confirmation, trying again blindly could delete twice: the deletion stays in doubt.
             LOG.warn("Deletion of listing {} failed after Vinted's confirmation", id.value(), failure);
         } finally {
-            session.finish();
+            reservation.ifPresent(cadence::release);
+            session.finish(id);
         }
         return showListingDeletion.report(id, attempt.dryRunPassed);
     }

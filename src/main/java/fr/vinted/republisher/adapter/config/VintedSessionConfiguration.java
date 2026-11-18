@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.config;
 
 import fr.vinted.republisher.adapter.out.browser.Chrome;
+import fr.vinted.republisher.adapter.out.browser.ChromeLivePreviews;
 import fr.vinted.republisher.adapter.out.browser.ChromeProperties;
 import fr.vinted.republisher.adapter.out.browser.ChromeTabs;
 import fr.vinted.republisher.adapter.out.browser.PlaywrightVintedAccount;
@@ -25,13 +26,15 @@ import java.util.concurrent.Executor;
 public class VintedSessionConfiguration {
 
     @Bean
-    VintedSession vintedSession() {
-        return new VintedSession();
+    VintedSession vintedSession(ParallelismConfiguration.ParallelListingActions parallelism) {
+        return new VintedSession(parallelism.count());
     }
 
     @Bean
-    ChromeTabs chromeTabs(ChromeProperties chrome, @Value("${app.data-dir}") Path dataDirectory) {
-        return new ChromeTabs(new Chrome(chrome.path(), dataDirectory.resolve("browser-profile"), chrome.debugPort()));
+    ChromeTabs chromeTabs(ChromeProperties chrome, @Value("${app.data-dir}") Path dataDirectory,
+                          ChromeLivePreviews livePreviews) {
+        return new ChromeTabs(new Chrome(chrome.path(), dataDirectory.resolve("browser-profile"), chrome.debugPort()),
+                livePreviews);
     }
 
     @Bean

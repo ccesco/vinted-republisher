@@ -1,0 +1,14 @@
+#live-previews {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(480px, 100%), 1fr));
+  gap: 16px;
+
+  .card { margin: 0; }
+
+  img {
+    display: block;
+    max-width: 100%;
+    border: 1px solid var(--mat-sys-outline-variant);
+    border-radius: var(--mat-sys-corner-small);
+  }
+}
