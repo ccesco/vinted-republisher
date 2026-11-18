@@ -20,7 +20,7 @@ Software Craftsmanship, TDD et DDD s'appliquent à **tout** code de production.
 - `verification-before-completion` : aucune affirmation « fini / vert / corrigé » sans la sortie fraîche de la commande qui le prouve.
 - `peer-review` : revue indépendante par un sous-agent en fin d'US (sécurité comprise) ; retours vérifiés techniquement, pas appliqués à l'aveugle.
 - Skills de stack, à charger selon la couche touchée : `java-spring` (Java 25, Spring Boot 4.1, câblage, contrôleurs, JPA), `api-design` (contrat OpenAPI), `postgres-liquibase` (schéma, changesets, requêtes), `playwright-cdp` (adaptateur navigateur, tests `@Tag("browser")`).
-- **Contract first (OpenAPI)** : toute l'IHM passe par une API REST JSON. Le contrat `src/main/resources/static/openapi/vinted-republisher.yaml` s'écrit (et se valide dans la spec de l'US) **avant** le code ; `openapi-generator-maven-plugin` en génère les interfaces Spring et les DTO, que les contrôleurs de `adapter/in/web` implémentent (un écart au contrat ne compile pas). L'interface est une application Angular (`frontend/`, US-37) qui n'appelle l'API que par un client TypeScript généré depuis le même contrat ; Maven la construit (Node téléchargé dans `target`) et Spring Boot la sert. Ses tests de pages Playwright (`*PageTest`) visent l'interface construite contre une API simulée ; sa logique pure a des tests Vitest (`npm test`, lancé par `mvn test`). Swagger UI (springdoc) sert ce contrat sur `/swagger-ui.html`.
+- **Contract first (OpenAPI)** : toute l'IHM passe par une API REST JSON. Le contrat `src/main/resources/static/openapi/vinted-republisher.yaml` s'écrit (et se valide dans la spec de l'US) **avant** le code ; `openapi-generator-maven-plugin` en génère les interfaces Spring et les DTO, que les contrôleurs de `adapter/in/web` implémentent (un écart au contrat ne compile pas). L'interface est une application Angular (`frontend/`, US-37) qui n'appelle l'API que par un client TypeScript généré depuis le même contrat  ; c'est une application à part (le back ne sert que l'API) : `npm start` la sert sur `http://localhost:4200` avec un proxy `/api` vers le back, après avoir régénéré le client par `mvn generate-sources`. Ses tests de pages Playwright (`*PageTest`) visent l'interface construite (`npm run build`, dans `frontend/dist/browser`) contre une API simulée ; sa logique pure a des tests Vitest (`npm test`). Swagger UI (springdoc) sert ce contrat sur `/swagger-ui.html`.
 
 ## Stack décidée
 Java 25, Spring Boot 4.1 (Maven), PostgreSQL 17 dans Docker, Liquibase, architecture hexagonale vérifiée par ArchUnit, API REST contract first (OpenAPI 3.0, openapi-generator, springdoc), interface Angular 22 + Angular Material, Playwright (Chrome normal piloté par CDP).
@@ -36,9 +36,11 @@ Java 25, Spring Boot 4.1 (Maven), PostgreSQL 17 dans Docker, Liquibase, architec
 docker compose up -d          # PostgreSQL
 mvn test                      # indépendant du système : ni Chrome (@Tag("browser")) ni Docker (@Tag("docker"))
 mvn test -Pdocker             # ajoute les tests sur PostgreSQL (Testcontainers)
-mvn test -Pbrowser            # ajoute les tests Chrome
+mvn test -Pbrowser            # ajoute les tests Chrome (pages : `npm run build` dans frontend/ avant)
 mvn test "-Pbrowser,docker"   # tous les tests (avant de rendre la main)
-mvn spring-boot:run           # profil local (lit .env) actif par défaut
+mvn spring-boot:run           # back (API seule), profil local (lit .env) actif par défaut
+cd frontend && npm start      # interface sur http://localhost:4200 (proxy /api vers le back)
+cd frontend && npm test       # tests Vitest de l'interface
 ```
 
 ## Configuration

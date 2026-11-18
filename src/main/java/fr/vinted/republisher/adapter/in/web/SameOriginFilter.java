@@ -4,12 +4,14 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.net.URI;
+import java.util.List;
 
 /**
  * The API has no login: without this filter, any site open in the member's browser could launch
@@ -21,6 +23,13 @@ public class SameOriginFilter extends OncePerRequestFilter {
     private static final int HTTP_DEFAULT_PORT = 80;
     private static final int HTTPS_DEFAULT_PORT = 443;
 
+    // L'interface Angular servie à part (US-37) parle à l'API sous sa propre origine, à déclarer explicitement.
+    private final List<String> trustedOrigins;
+
+    public SameOriginFilter(@Value("${web.trusted-origins:}") List<String> trustedOrigins) {
+        this.trustedOrigins = List.copyOf(trustedOrigins);
+    }
+
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         return HttpMethod.GET.matches(request.getMethod()) || HttpMethod.HEAD.matches(request.getMethod());
@@ -30,7 +39,7 @@ public class SameOriginFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain)
             throws ServletException, IOException {
         String origin = request.getHeader("Origin");
-        if (origin == null || isSameOrigin(origin, request)) {
+        if (origin == null || trustedOrigins.contains(origin) || isSameOrigin(origin, request)) {
             chain.doFilter(request, response);
         } else {
             response.sendError(HttpServletResponse.SC_FORBIDDEN);
