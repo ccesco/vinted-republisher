@@ -1,6 +1,7 @@
 package fr.vinted.republisher.application.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
+import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
@@ -29,11 +30,13 @@ public class ShowListingInventory {
     private final RepublicationDelay delay;
     private final Clock clock;
     private final ListingTagRepository tags;
+    private final BackupVerificationRepository verifications;
 
     public ShowListingInventory(ListingRepository listings, ListingStatisticsRepository statistics,
                                 ListingBackupRepository backups, BackupValidationRepository validations,
                                 ListingDeletionRepository deletions, ListingRepublicationRepository republications,
-                                RepublicationDelay delay, Clock clock, ListingTagRepository tags) {
+                                RepublicationDelay delay, Clock clock, ListingTagRepository tags,
+                                BackupVerificationRepository verifications) {
         this.listings = listings;
         this.statistics = statistics;
         this.backups = backups;
@@ -43,13 +46,14 @@ public class ShowListingInventory {
         this.delay = delay;
         this.clock = clock;
         this.tags = tags;
+        this.verifications = verifications;
     }
 
     public List<InventoryEntry> show(InventoryCriteria criteria) {
         Instant now = clock.instant();
         return ListingInventory.of(listings.findAll(), statistics.findLatest(),
                 statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAll(),
-                validations.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay, now)
+                validations.findAll(), verifications.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay, now)
                 .withTags(tags.findAll()).select(criteria);
     }
 }

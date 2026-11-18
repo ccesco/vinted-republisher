@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.backup;
 
+import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
 import fr.vinted.republisher.domain.backup.VerificationFailure.NoPhoto;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoAltered;
@@ -121,6 +122,57 @@ class BackupVerificationTest {
 
         assertThat(verification.failures()).containsExactly(
                 new PhotoMissing(0), new TitleChanged("Pull rayé 1", "Pull rayé 1 M"));
+    }
+
+    @Test
+    void backup_identical_to_the_form_read_again_on_vinted_passes() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"));
+
+        BackupVerification verification = BackupVerification.online(backup, Optional.of(aContent(1)), photos);
+
+        assertThat(verification.passed()).isTrue();
+    }
+
+    @Test
+    void labels_are_not_compared_online() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"));
+        ListingContent saved = aContent(1);
+        ListingContent relabelled = new ListingContent(saved.id(), saved.title(), saved.description(), saved.price(),
+                new FormOption(saved.category().id(), "Autre libellé"), saved.brand(), saved.condition(),
+                saved.size(), Optional.of(new FormOptions(List.of(12L), "")), saved.materials(),
+                saved.packageSize(), saved.details());
+
+        assertThat(BackupVerification.online(backup, Optional.of(relabelled), photos).passed()).isTrue();
+    }
+
+    @Test
+    void every_field_changed_online_fails_with_both_values() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"));
+        ListingContent read = aContent(1, "Pull rayé 1", "Porté une fois", "10.00");
+
+        BackupVerification verification = BackupVerification.online(backup, Optional.of(read), photos);
+
+        assertThat(verification.failures()).containsExactly(
+                new FieldChanged(new ListingFieldDifference(ListingFormField.DESCRIPTION, "Porté deux fois",
+                        "Porté une fois")),
+                new FieldChanged(new ListingFieldDifference(ListingFormField.PRICE, "12.50 EUR", "10.00 EUR")));
+    }
+
+    @Test
+    void listing_gone_from_vinted_fails_online() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"));
+
+        assertThat(BackupVerification.online(backup, Optional.empty(), photos).failures())
+                .containsExactly(new ListingAbsent());
+    }
+
+    @Test
+    void photos_are_checked_online_too() {
+        ListingBackup backup = aKeptBackup(aPhoto("front"), aPhoto("back"));
+        photos.lose(1, backup.photos().get(1));
+
+        assertThat(BackupVerification.online(backup, Optional.of(aContent(1)), photos).failures())
+                .containsExactly(new PhotoMissing(1));
     }
 
     private ListingBackup aKeptBackup(DownloadedPhoto... downloaded) {

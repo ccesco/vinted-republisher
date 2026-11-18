@@ -36,6 +36,8 @@ tags:
     description: Ventes constatées dans le dressing (US-36)
   - name: live-preview
     description: Aperçu live de la page de chaque navigateur piloté au travail (US-22)
+  - name: backup-verification
+    description: Vérification sur Vinted et validation en lot des sauvegardes (US-40)
 paths:
   /api/data-archive:
     get:
@@ -193,6 +195,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WardrobeOverview'
+  /api/backup-verifications:
+    post:
+      tags: [backup-verification]
+      operationId: verifyAndValidateBackups
+      summary: Vérifier et valider les sauvegardes
+      description: >
+        Lance en arrière-plan la relecture sur Vinted, une à une avec une pause aléatoire de 5 à 10 s, du formulaire
+        de modification des annonces présentes à valider (TO_VALIDATE), en erreur de vérification
+        (VERIFICATION_FAILED) ou prêtes à supprimer (TO_DELETE), par identifiant croissant, sans rien cliquer, saisir
+        ni soumettre. Chaque sauvegarde est comparée au contenu relu (identifiants et textes, sans les libellés) et
+        ses photos contrôlées par leur empreinte : réussie, elle est validée (une validation existante garde sa
+        date) ; échouée, l'échec est gardé, la validation éventuelle annulée et l'annonce passe à VERIFICATION_FAILED.
+        Une annonce absente (404) échoue et la vérification continue ; une session expirée, une autre réponse
+        HTTP ≥ 400 ou un formulaire illisible l'arrêtent, les résultats déjà obtenus restent.
+      responses:
+        '202':
+          description: Vérification lancée ; suivre la suite avec GET /api/backup-verifications/current.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupVerificationProgress'
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '409':
+          description: >
+            Un scan, une sauvegarde, une série « Tout lancer », une vérification ou une autre action navigateur est
+            en cours (BROWSER_BUSY) ; rien n'est lancé.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupVerificationRefusal'
+  /api/backup-verifications/current:
+    get:
+      tags: [backup-verification]
+      operationId: showBackupVerification
+      summary: Avancement de la vérification
+      description: >
+        Lit l'avancement gardé en mémoire de la dernière vérification depuis le démarrage, sans accéder à Vinted ;
+        IDLE si aucune.
+      responses:
+        '200':
+          description: Avancement de la vérification.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BackupVerificationProgress'
   /api/listings:
     get:
       tags: [listing-inventory]
@@ -1083,9 +1131,10 @@ components:
     JournaledAction:
       type: string
       description: >
-        Action journalisée : scan du dressing, sauvegarde du dressing, validation d'une sauvegarde, suppression,
+        Action journalisée : scan du dressing, sauvegarde du dressing, validation d'une sauvegarde, vérification
+        d'une sauvegarde sur Vinted (US-40), suppression,
         revérification d'une suppression, republication, rafraîchissement des vues et favoris.
-      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, DELETION, DELETION_RECHECK, REPUBLICATION, STATISTICS_REFRESH]
+      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, BACKUP_VERIFICATION, DELETION, DELETION_RECHECK, REPUBLICATION, STATISTICS_REFRESH]
     ActionOutcome:
       type: string
       description: >
@@ -1128,6 +1177,8 @@ components:
             $ref: '#/components/schemas/JournalEntry'
         statisticsComparison:
           $ref: '#/components/schemas/StatisticsComparison'
+        lastVerification:
+          $ref: '#/components/schemas/VerificationResult'
         priceHistory:
           type: array
           description: >
@@ -1397,9 +1448,10 @@ components:
         Étape de traitement de l'annonce, déduite à chaque lecture (la première règle qui s'applique) : republiée,
         republication à vérifier (en erreur), suppression à vérifier (non confirmée), en attente avant
         republication (suppression confirmée, délai minimal pas écoulé), à republier, absente de Vinted (sans
-        suppression confirmée), prête à supprimer (sauvegarde actuelle validée), à valider, à sauvegarder.
+        suppression confirmée), prête à supprimer (sauvegarde actuelle validée), vérification en erreur (dernière
+        vérification sur Vinted de la sauvegarde actuelle échouée, US-40), à valider, à sauvegarder.
       enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, GONE, TO_DELETE,
-        TO_VALIDATE, TO_BACK_UP]
+        VERIFICATION_FAILED, TO_VALIDATE, TO_BACK_UP]
     RunStatus:
       type: string
       description: >
@@ -1590,7 +1642,8 @@ components:
     BrowserAction:
       type: string
       description: Action navigateur en cours.
-      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, DELETING, REPUBLISHING, REFRESHING_STATISTICS, ARCHIVING]
+      enum: [CHECKING, LOGGING_IN, SCANNING, BACKING_UP, VERIFYING_BACKUPS, DELETING, REPUBLISHING,
+        REFRESHING_STATISTICS, ARCHIVING]
     SessionProblem:
       type: string
       description: Raison pour laquelle la dernière action navigateur n'a pas abouti.
@@ -1681,7 +1734,8 @@ components:
       type: object
       description: >
         Raison pour laquelle la sauvegarde ne permet pas de republier l'annonce : aucune photo, photo manquante,
-        photo modifiée, annonce absente du dressing, titre ou prix différent du dernier scan.
+        photo modifiée, annonce absente du dressing (ou de Vinted, pour une vérification sur Vinted), titre ou prix
+        différent du dernier scan, champ du formulaire relu sur Vinted différent de la sauvegarde (US-40).
       required: [kind]
       properties:
         kind:
@@ -1701,9 +1755,92 @@ components:
           $ref: '#/components/schemas/Price'
         scannedPrice:
           $ref: '#/components/schemas/Price'
+        difference:
+          $ref: '#/components/schemas/ListingFieldDifference'
     VerificationFailureKind:
       type: string
-      enum: [NO_PHOTO, PHOTO_MISSING, PHOTO_ALTERED, LISTING_ABSENT, TITLE_CHANGED, PRICE_CHANGED]
+      enum: [NO_PHOTO, PHOTO_MISSING, PHOTO_ALTERED, LISTING_ABSENT, TITLE_CHANGED, PRICE_CHANGED, FIELD_CHANGED]
+    VerificationResult:
+      type: object
+      description: >
+        Dernier résultat de la vérification sur Vinted de la sauvegarde actuelle (US-40) ; absent sans vérification
+        de cette version. Réussi si aucun échec.
+      required: [verifiedAt, passed, failures]
+      properties:
+        verifiedAt:
+          type: string
+          format: date-time
+        passed:
+          type: boolean
+        failures:
+          type: array
+          items:
+            $ref: '#/components/schemas/VerificationFailure'
+      example:
+        verifiedAt: '2026-11-18T10:00:00Z'
+        passed: false
+        failures:
+          - kind: FIELD_CHANGED
+            difference:
+              field: SIZE
+              saved: M (207)
+              read: L (208)
+    BackupVerificationStatus:
+      type: string
+      description: Aucune vérification depuis le démarrage, en cours, terminée, arrêtée.
+      enum: [IDLE, RUNNING, FINISHED, STOPPED]
+    BackupVerificationStopReason:
+      type: string
+      description: >
+        Session Vinted expirée ou non connectée, navigateur indisponible, Vinted inaccessible (réponse HTTP ≥ 400
+        autre que 404, réseau), formulaire illisible, échec inattendu (voir les logs).
+      enum: [SESSION_DISCONNECTED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, LISTING_UNREADABLE, VERIFICATION_ERROR]
+    BackupVerificationProgress:
+      type: object
+      description: Avancement de la vérification en lot.
+      required: [status, verifiedCount, totalCount, validatedCount, failedCount]
+      properties:
+        status:
+          $ref: '#/components/schemas/BackupVerificationStatus'
+        verifiedCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Annonces déjà vérifiées (n de « n / N »).
+        totalCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Annonces concernées, fixées au lancement (N).
+        validatedCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Vérifications réussies, donc sauvegardes validées.
+        failedCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Vérifications échouées, annonces passées à VERIFICATION_FAILED.
+        stopReason:
+          $ref: '#/components/schemas/BackupVerificationStopReason'
+      example:
+        status: RUNNING
+        verifiedCount: 3
+        totalCount: 12
+        validatedCount: 2
+        failedCount: 1
+    BackupVerificationRefusal:
+      type: object
+      description: Raison pour laquelle la vérification n'est pas lancée.
+      required: [reason]
+      properties:
+        reason:
+          $ref: '#/components/schemas/BackupVerificationRefusalReason'
+    BackupVerificationRefusalReason:
+      type: string
+      description: Une autre action navigateur ou une série « Tout lancer » est en cours.
+      enum: [BROWSER_BUSY]
     ListingBackupContent:
       type: object
       description: Contenu sauvegardé de l'annonce, par ses libellés ; un champ absent n'est pas renseigné.
@@ -1970,7 +2107,8 @@ components:
     ListingFieldDifference:
       type: object
       description: >
-        Champ dont la valeur lue sur la nouvelle annonce n'est pas celle sauvegardée. Les options sont comparées par
+        Champ dont la valeur lue sur la nouvelle annonce (ou, pour FIELD_CHANGED, sur l'annonce relue) n'est pas
+        celle sauvegardée. Les options sont comparées par
         leur identifiant Vinted et montrées « libellé (identifiant) » ; les photos par leur nombre.
       required: [field, saved, read]
       properties:

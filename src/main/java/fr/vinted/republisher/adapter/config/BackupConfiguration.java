@@ -8,9 +8,13 @@ import fr.vinted.republisher.application.backup.BackUpWardrobe;
 import fr.vinted.republisher.application.backup.ShowBackup;
 import fr.vinted.republisher.application.backup.ShowListingBackupPhoto;
 import fr.vinted.republisher.application.backup.ValidateListingBackup;
+import fr.vinted.republisher.application.backup.VerifyAndValidateBackups;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.run.LaunchAutomaticRun;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
+import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
 import fr.vinted.republisher.domain.backup.LastBackupProblem;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
@@ -76,9 +80,27 @@ public class BackupConfiguration {
                                   PhotoStorage photos, BackupProperties backup, Clock clock,
                                   @Qualifier("applicationTaskExecutor") Executor background,
                                   JournalWriter journal) {
-        BackupPace pace = new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()),
-                new Random());
-        return new BackUpWardrobe(session, lastBackupProblem, backups, reader, listings, listingBackups, photos, pace,
+        return new BackUpWardrobe(session, lastBackupProblem, backups, reader, listings, listingBackups, photos,
+                paceOf(backup), clock, new FailureLoggingExecutor(background), journal);
+    }
+
+    /** Exclusive of an automatic run too, which only takes the browser listing by listing. */
+    @Bean
+    VerifyAndValidateBackups verifyAndValidateBackups(VintedSession session, LaunchAutomaticRun launchAutomaticRun,
+                                                      ShowListingInventory showListingInventory,
+                                                      ListingContentReader reader,
+                                                      ListingBackupRepository listingBackups, PhotoStorage photos,
+                                                      BackupValidationRepository validations,
+                                                      BackupVerificationRepository verifications,
+                                                      BackupProperties backup, Clock clock,
+                                                      @Qualifier("applicationTaskExecutor") Executor background,
+                                                      JournalWriter journal) {
+        return new VerifyAndValidateBackups(session, () -> launchAutomaticRun.overview().inProgress(),
+                showListingInventory, reader, listingBackups, photos, validations, verifications, paceOf(backup),
                 clock, new FailureLoggingExecutor(background), journal);
+    }
+
+    private static BackupPace paceOf(BackupProperties backup) {
+        return new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()), new Random());
     }
 }

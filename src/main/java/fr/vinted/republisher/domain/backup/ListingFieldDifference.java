@@ -23,11 +23,22 @@ public record ListingFieldDifference(ListingFormField field, String saved, Strin
 
     /** {@code savedPhotos} is the number of photos kept; empty when the new listing is the backup again. */
     public static List<ListingFieldDifference> between(ListingContent saved, int savedPhotos, ListingReading read) {
-        ListingContent found = read.content();
-        CategoryDetails savedDetails = saved.details();
-        CategoryDetails readDetails = found.details();
         Comparison comparison = new Comparison();
         comparison.add(ListingFormField.PHOTOS, String.valueOf(savedPhotos), String.valueOf(read.photos().size()));
+        compareContents(comparison, saved, read.content());
+        return List.copyOf(comparison.differences);
+    }
+
+    /** Everything the form holds but the photos. */
+    public static List<ListingFieldDifference> between(ListingContent saved, ListingContent read) {
+        Comparison comparison = new Comparison();
+        compareContents(comparison, saved, read);
+        return List.copyOf(comparison.differences);
+    }
+
+    private static void compareContents(Comparison comparison, ListingContent saved, ListingContent found) {
+        CategoryDetails savedDetails = saved.details();
+        CategoryDetails readDetails = found.details();
         comparison.add(ListingFormField.TITLE, saved.title(), found.title());
         comparison.add(ListingFormField.DESCRIPTION, saved.description(), found.description());
         comparison.add(ListingFormField.PRICE, price(saved.price()), price(found.price()));
@@ -46,7 +57,6 @@ public record ListingFieldDifference(ListingFormField field, String saved, Strin
                 text(readDetails.manufacturer()));
         comparison.add(ListingFormField.MODEL, text(savedDetails.model()), text(readDetails.model()));
         comparison.add(ListingFormField.MEASUREMENTS, measurements(savedDetails), measurements(readDetails));
-        return List.copyOf(comparison.differences);
     }
 
     private static String price(Price price) {

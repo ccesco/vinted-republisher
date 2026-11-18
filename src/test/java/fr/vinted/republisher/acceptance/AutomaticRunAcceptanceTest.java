@@ -39,6 +39,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
@@ -654,7 +655,7 @@ class AutomaticRunAcceptanceTest {
         InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
         RelaunchListing relaunch = new RelaunchListing(
                 new ShowListingDetail(listings, statistics, listingBackups, validations, deletions, republications,
-                        delay, clock, journal),
+                        delay, clock, journal, new InMemoryBackupVerificationRepository()),
                 deletions, delay,
                 new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter,
                         deletionMode, delay, cadence, clock, journalWriter),
@@ -668,7 +669,8 @@ class AutomaticRunAcceptanceTest {
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
                         contents, noBackupPause(), clock, showRepublication));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
-                deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch, waiting, clock,
+                deletions, republications, delay, clock, new InMemoryListingTagRepository(),
+                new InMemoryBackupVerificationRepository()), relaunch, waiting, clock,
                 Runnable::run, parallelism, relaunchers == null ? Runnable::run : relaunchers);
     }
 

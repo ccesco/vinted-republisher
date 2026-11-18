@@ -1,10 +1,16 @@
 package fr.vinted.republisher.adapter.in.web;
 
+import fr.vinted.republisher.adapter.in.web.api.model.BackupVerificationStatusDto;
+import fr.vinted.republisher.adapter.in.web.api.model.BackupVerificationStopReasonDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ListingStageDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BackupProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BrowserActionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.JournaledActionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ScanProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.StatisticsRefreshProblemDto;
+import fr.vinted.republisher.domain.backup.BackupVerificationStatus;
+import fr.vinted.republisher.domain.backup.BackupVerificationStopReason;
+import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.wardrobe.StatisticsRefreshProblem;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
@@ -93,5 +99,18 @@ class ContractEnumsTest {
 
     private static String[] names(Enum<?>[] values) {
         return Arrays.stream(values).map(Enum::name).toArray(String[]::new);
+    }
+
+    @Test
+    void contract_knows_every_listing_stage() {
+        assertThat(names(ListingStageDto.values())).containsExactlyInAnyOrder(names(ListingStage.values()));
+    }
+
+    @Test
+    void contract_knows_every_backup_verification_status_and_stop_reason() {
+        assertThat(names(BackupVerificationStatusDto.values()))
+                .containsExactlyInAnyOrder(names(BackupVerificationStatus.values()));
+        assertThat(names(BackupVerificationStopReasonDto.values()))
+                .containsExactlyInAnyOrder(names(BackupVerificationStopReason.values()));
     }
 }

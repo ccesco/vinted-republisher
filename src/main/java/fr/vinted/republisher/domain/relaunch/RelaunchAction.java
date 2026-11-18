@@ -18,7 +18,7 @@ public enum RelaunchAction {
             case DELETION_TO_CHECK -> Optional.of(DELETION_RECHECK);
             case TO_REPUBLISH -> Optional.of(REPUBLICATION);
             case REPUBLICATION_TO_CHECK -> Optional.of(REPUBLICATION_VERIFICATION);
-            case TO_BACK_UP, TO_VALIDATE, WAITING, GONE, REPUBLISHED -> Optional.empty();
+            case TO_BACK_UP, TO_VALIDATE, VERIFICATION_FAILED, WAITING, GONE, REPUBLISHED -> Optional.empty();
         };
     }
 }

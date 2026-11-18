@@ -2,6 +2,7 @@ package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
@@ -44,7 +45,7 @@ public record ListingInventory(List<InventoryEntry> entries) {
      */
     public static ListingInventory of(List<Listing> listings, List<StatisticsReading> readings,
                                       List<StatisticsReading> baselines, List<ListingBackup> backups,
-                                      List<BackupValidation> validations,
+                                      List<BackupValidation> validations, List<VerificationResult> verifications,
                                       List<ListingDeletion> deletions, List<ListingRepublication> republications,
                                       RepublicationDelay delay, Instant now) {
         Map<VintedListingId, StatisticsReading> readingOf = readings.stream()
@@ -55,6 +56,8 @@ public record ListingInventory(List<InventoryEntry> entries) {
                 .collect(Collectors.toMap(ListingBackup::id, Function.identity()));
         Map<VintedListingId, BackupValidation> validationOf = validations.stream()
                 .collect(Collectors.toMap(BackupValidation::listingId, Function.identity()));
+        Map<VintedListingId, VerificationResult> verificationOf = verifications.stream()
+                .collect(Collectors.toMap(VerificationResult::listingId, Function.identity()));
         Map<VintedListingId, ListingDeletion> deletionOf = deletions.stream()
                 .collect(Collectors.toMap(ListingDeletion::listingId, Function.identity(),
                         BinaryOperator.maxBy(LATEST_DELETION)));
@@ -64,8 +67,10 @@ public record ListingInventory(List<InventoryEntry> entries) {
             Optional<ListingBackup> backup = Optional.ofNullable(backupOf.get(listing.id()));
             Optional<BackupValidation> validation = Optional.ofNullable(validationOf.get(listing.id()))
                     .filter(given -> backup.filter(given::holdsFor).isPresent());
+            boolean verificationFailed = Optional.ofNullable(verificationOf.get(listing.id()))
+                    .filter(result -> backup.filter(result::failsFor).isPresent()).isPresent();
             ListingStage stage = ListingStage.of(listing.present(), backup.isPresent(), validation.isPresent(),
-                    Optional.ofNullable(deletionOf.get(listing.id())),
+                    verificationFailed, Optional.ofNullable(deletionOf.get(listing.id())),
                     Optional.ofNullable(republicationOf.get(listing.id())), delay, now);
             Optional<StatisticsReading> latest = Optional.ofNullable(readingOf.get(listing.id()));
             return new InventoryEntry(listing, latest, backup, validation.map(BackupValidation::validatedAt), stage,

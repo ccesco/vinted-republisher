@@ -29,7 +29,8 @@ class ListingInventoryTest {
 
     private static ListingInventory inventoryOf(List<Listing> listings, List<StatisticsReading> readings,
                                                 List<ListingBackup> backups, List<BackupValidation> validations) {
-        return ListingInventory.of(listings, readings, List.of(), backups, validations, List.of(), List.of(),
+        return ListingInventory.of(listings, readings, List.of(), backups, validations, List.of(),
+                List.of(), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
     }
 
@@ -146,7 +147,7 @@ class ListingInventoryTest {
         ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(),
-                List.of(backup), List.of(), List.of(notDone, unconfirmed), List.of(),
+                List.of(backup), List.of(), List.of(), List.of(notDone, unconfirmed), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt);
 
         assertThat(inventory.entries()).singleElement()
@@ -168,7 +169,7 @@ class ListingInventoryTest {
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
                 List.of(dormantLatest, seenLatest), List.of(seenBaseline, dormantBaseline), List.of(), List.of(),
-                List.of(), List.of(), new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
+                List.of(), List.of(), List.of(), new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
 
         assertThat(inventory.entries()).extracting(InventoryEntry::advice)
                 .containsExactly(Optional.of(new RepublicationAdvice(6, eightDaysAgo)), Optional.empty());

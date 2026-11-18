@@ -140,7 +140,7 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .failures(verification.failures().stream().map(ListingBackupApiController::toDto).toList());
     }
 
-    private static VerificationFailureDto toDto(VerificationFailure failure) {
+    static VerificationFailureDto toDto(VerificationFailure failure) {
         return switch (failure) {
             case VerificationFailure.NoPhoto noPhoto -> failureOf(VerificationFailureKindDto.NO_PHOTO);
             case VerificationFailure.PhotoMissing missing ->
@@ -152,6 +152,8 @@ public class ListingBackupApiController implements ListingBackupApi {
                     .savedTitle(changed.saved()).scannedTitle(changed.scanned());
             case VerificationFailure.PriceChanged changed -> failureOf(VerificationFailureKindDto.PRICE_CHANGED)
                     .savedPrice(toDto(changed.saved())).scannedPrice(toDto(changed.scanned()));
+            case VerificationFailure.FieldChanged changed -> failureOf(VerificationFailureKindDto.FIELD_CHANGED)
+                    .difference(toDto(changed.difference()));
         };
     }
 

@@ -5,6 +5,7 @@ public enum BrowserAction {
     LOGGING_IN(true, false),
     SCANNING(false, false),
     BACKING_UP(false, false),
+    VERIFYING_BACKUPS(false, false),
     DELETING(false, true),
     REPUBLISHING(false, true),
     REFRESHING_STATISTICS(false, false),

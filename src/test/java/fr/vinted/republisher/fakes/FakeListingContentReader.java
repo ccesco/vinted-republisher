@@ -4,6 +4,7 @@ import fr.vinted.republisher.domain.backup.BackupFixtures;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
+import fr.vinted.republisher.domain.backup.ListingFormReading;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
@@ -14,10 +15,12 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
@@ -26,6 +29,7 @@ public class FakeListingContentReader implements ListingContentReader {
     private final Map<VintedListingId, ListingReading> readings = new HashMap<>();
     private final Map<VintedListingId, Supplier<RuntimeException>> failures = new HashMap<>();
     private final List<VintedListingId> opened = new ArrayList<>();
+    private final Set<VintedListingId> gone = new HashSet<>();
     private final List<Duration> pausesBetweenListings = new ArrayList<>();
     private Optional<RuntimeException> browserFailure = Optional.empty();
     private int tabs;
@@ -46,6 +50,7 @@ public class FakeListingContentReader implements ListingContentReader {
     public FakeListingContentReader afresh() {
         opened.clear();
         failures.clear();
+        gone.clear();
         browserFailure = Optional.empty();
         return this;
     }
@@ -60,6 +65,12 @@ public class FakeListingContentReader implements ListingContentReader {
 
     public FakeListingContentReader whereFormIsUnreadable(long listing, String reason) {
         return failingOn(listing, () -> new ListingUnreadable(reason));
+    }
+
+    /** Its edit form answers 404: the listing is gone from Vinted. */
+    public FakeListingContentReader whereFormIsGone(long listing) {
+        gone.add(new VintedListingId(listing));
+        return this;
     }
 
     public FakeListingContentReader whereBrowserCannotStart() {
@@ -99,6 +110,28 @@ public class FakeListingContentReader implements ListingContentReader {
         Iterator<VintedListingId> toOpen = listings.iterator();
         while (toOpen.hasNext()) {
             record.accept(open(toOpen.next()));
+            if (toOpen.hasNext()) {
+                pausesBetweenListings.add(pace.nextPauseBetweenPages());
+            }
+        }
+    }
+
+    @Override
+    public void readForms(List<VintedListingId> listings, BackupPace pace, Consumer<ListingFormReading> record) {
+        tabs++;
+        duringTheReading.run();
+        browserFailure.ifPresent(reason -> {
+            throw reason;
+        });
+        Iterator<VintedListingId> toOpen = listings.iterator();
+        while (toOpen.hasNext()) {
+            VintedListingId listing = toOpen.next();
+            if (gone.contains(listing)) {
+                opened.add(listing);
+                record.accept(new ListingFormReading(listing, Optional.empty()));
+            } else {
+                record.accept(new ListingFormReading(listing, Optional.of(open(listing).content())));
+            }
             if (toOpen.hasNext()) {
                 pausesBetweenListings.add(pace.nextPauseBetweenPages());
             }

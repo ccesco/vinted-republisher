@@ -6,7 +6,9 @@ import fr.vinted.republisher.adapter.in.web.api.model.LifecycleEventTypeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingDetailDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceChangeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.StatisticsComparisonDto;
+import fr.vinted.republisher.adapter.in.web.api.model.VerificationResultDto;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.inventory.LifecycleEvent;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.StatisticsComparison;
@@ -41,7 +43,15 @@ public class ListingDetailApiController implements ListingDetailApi {
                         .toList())
                 .statisticsComparison(detail.comparison().map(ListingDetailApiController::toDto).orElse(null))
                 .priceHistory(detail.priceHistory().stream().map(ListingDetailApiController::toDto).toList())
-                .lifecycle(detail.lifecycle().events().stream().map(ListingDetailApiController::toDto).toList()));
+                .lifecycle(detail.lifecycle().events().stream().map(ListingDetailApiController::toDto).toList())
+                .lastVerification(detail.lastVerification().map(ListingDetailApiController::toDto).orElse(null)));
+    }
+
+    private static VerificationResultDto toDto(VerificationResult result) {
+        return new VerificationResultDto()
+                .verifiedAt(result.verifiedAt().atOffset(ZoneOffset.UTC))
+                .passed(result.passed())
+                .failures(result.failures().stream().map(ListingBackupApiController::toDto).toList());
     }
 
     private static PriceChangeDto toDto(PriceChange change) {

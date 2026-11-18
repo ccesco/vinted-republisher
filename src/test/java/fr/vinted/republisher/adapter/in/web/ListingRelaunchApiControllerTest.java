@@ -25,6 +25,7 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
@@ -296,7 +297,8 @@ class ListingRelaunchApiControllerTest {
                     listings, RepublicationMode.REAL);
             return new RelaunchListing(
                     new ShowListingDetail(listings, new InMemoryListingStatisticsRepository(), listingBackups,
-                            validations, deletions, republications, delay, clock, journal),
+                            validations, deletions, republications, delay, clock, journal,
+                            new InMemoryBackupVerificationRepository()),
                     deletions, delay,
                     new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter,
                             DeletionMode.REAL, delay, cadence, clock, journalWriter),

@@ -4,6 +4,7 @@ import com.microsoft.playwright.Page;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingContentReader;
+import fr.vinted.republisher.domain.backup.ListingFormReading;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
@@ -49,6 +50,21 @@ public class PlaywrightListingContentReader implements ListingContentReader {
         tabs.workInNewTab(page -> {
             page.bringToFront();
             readEach(page, listings, pace, record);
+        });
+    }
+
+    @Override
+    public void readForms(List<VintedListingId> listings, BackupPace pace, Consumer<ListingFormReading> record) {
+        tabs.workInNewTab(page -> {
+            page.bringToFront();
+            for (int index = 0; index < listings.size(); index++) {
+                VintedListingId listing = listings.get(index);
+                if (index > 0) {
+                    ChromeTabs.pause(page, pace.nextPauseBetweenPages(), clock);
+                }
+                record.accept(new ListingFormReading(listing,
+                        ListingEditForm.readUnlessGone(page, listing, addressOf(editFormUrl, listing), labelTimeout)));
+            }
         });
     }
 

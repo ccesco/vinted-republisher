@@ -10,6 +10,7 @@ import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.PriceChange;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
@@ -55,7 +56,7 @@ class PriceHistoryAcceptanceTest {
     private final ShowListingDetail showListingDetail = new ShowListingDetail(listings, statistics,
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-            new RepublicationDelay(Duration.ofMinutes(5)), clock, journal);
+            new RepublicationDelay(Duration.ofMinutes(5)), clock, journal, new InMemoryBackupVerificationRepository());
 
     @Test
     void first_scan_starts_the_price_history() {

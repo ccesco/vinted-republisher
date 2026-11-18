@@ -21,14 +21,16 @@ public enum ListingStage {
     TO_REPUBLISH,
     GONE,
     TO_DELETE,
+    VERIFICATION_FAILED,
     TO_VALIDATE,
     TO_BACK_UP;
 
     /**
      * The first rule that applies wins, in the order of the constants. {@code validated} means a validation holds for
-     * the current backup; a deletion found not done, or a republication checked not published, counts as none.
+     * the current backup, {@code verificationFailed} that the last verification of the current backup on Vinted
+     * failed; a deletion found not done, or a republication checked not published, counts as none.
      */
-    public static ListingStage of(boolean present, boolean backedUp, boolean validated,
+    public static ListingStage of(boolean present, boolean backedUp, boolean validated, boolean verificationFailed,
                                   Optional<ListingDeletion> lastDeletion,
                                   Optional<ListingRepublication> lastRepublication, RepublicationDelay delay,
                                   Instant now) {
@@ -48,6 +50,9 @@ public enum ListingStage {
         }
         if (validated) {
             return TO_DELETE;
+        }
+        if (verificationFailed) {
+            return VERIFICATION_FAILED;
         }
         return backedUp ? TO_VALIDATE : TO_BACK_UP;
     }

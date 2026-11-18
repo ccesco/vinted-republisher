@@ -1,6 +1,13 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.backup.BackupVerification;
+import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
+import fr.vinted.republisher.domain.backup.ListingFormField;
+import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
+import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionId;
@@ -12,6 +19,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
@@ -36,6 +44,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -63,6 +72,41 @@ class ListingDetailApiControllerTest {
 
     @Autowired
     private InMemoryListingDeletionRepository deletions;
+
+    @Autowired
+    private InMemoryListingBackupRepository backups;
+
+    @Autowired
+    private InMemoryBackupVerificationRepository verifications;
+
+    @Test
+    void shows_the_last_verification_failure_of_the_current_backup() {
+        // AT-40-12 : la fiche affiche la date et les motifs de l'échec
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND)));
+        ListingBackup backup = aBackup(101, SECOND);
+        backups.save(backup);
+        verifications.save(VerificationResult.of(backup, new BackupVerification(List.of(new FieldChanged(
+                new ListingFieldDifference(ListingFormField.SIZE, "M (207)", "L (208)")), new ListingAbsent())), NOW));
+
+        assertThat(mvc.get().uri("/api/listings/101"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"listing": {"stage": "VERIFICATION_FAILED"},
+                         "lastVerification": {"verifiedAt": "2026-11-17T10:00:00Z", "passed": false, "failures": [
+                           {"kind": "FIELD_CHANGED", "difference": {"field": "SIZE", "saved": "M (207)",
+                                                                    "read": "L (208)"}},
+                           {"kind": "LISTING_ABSENT"}]}}""");
+    }
+
+    @Test
+    void a_verification_of_a_replaced_backup_is_not_shown() {
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND)));
+        ListingBackup old = aBackup(101, FIRST);
+        verifications.save(VerificationResult.of(old, new BackupVerification(List.of(new ListingAbsent())), NOW));
+        backups.save(aBackup(101, SECOND));
+
+        assertThat(mvc.get().uri("/api/listings/101")).bodyJson().doesNotHavePath("$.lastVerification");
+    }
 
     @Test
     void shows_the_listing_its_stage_and_its_statistics_history() {
@@ -200,15 +244,27 @@ class ListingDetailApiControllerTest {
         }
 
         @Bean
+        InMemoryListingBackupRepository backups() {
+            return new InMemoryListingBackupRepository();
+        }
+
+        @Bean
+        InMemoryBackupVerificationRepository verifications() {
+            return new InMemoryBackupVerificationRepository();
+        }
+
+        @Bean
         ShowListingDetail showListingDetail(InMemoryListingRepository listings,
                                             InMemoryListingStatisticsRepository statistics,
                                             InMemoryListingRepublicationRepository republications,
-                                            InMemoryListingDeletionRepository deletions) {
-            return new ShowListingDetail(listings, statistics, new InMemoryListingBackupRepository(),
+                                            InMemoryListingDeletionRepository deletions,
+                                            InMemoryListingBackupRepository backups,
+                                            InMemoryBackupVerificationRepository verifications) {
+            return new ShowListingDetail(listings, statistics, backups,
                     new InMemoryBackupValidationRepository(),
                     deletions, republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
-                    new InMemoryActionJournal());
+                    new InMemoryActionJournal(), verifications);
         }
     }
 }

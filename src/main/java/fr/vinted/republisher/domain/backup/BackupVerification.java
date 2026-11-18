@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.backup;
 
+import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
 import fr.vinted.republisher.domain.backup.VerificationFailure.NoPhoto;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoAltered;
@@ -14,7 +15,8 @@ import java.util.Optional;
 
 /**
  * Whether a backup can be trusted to republish its listing: photos kept and intact, listing still in the wardrobe,
- * as the last scan read it. Never kept: done again whenever it matters.
+ * as the last scan read it, or as its edit form shows it again on Vinted. Kept only as the {@link VerificationResult}
+ * of a verification on Vinted; otherwise done again whenever it matters.
  */
 public record BackupVerification(List<VerificationFailure> failures) {
 
@@ -29,6 +31,23 @@ public record BackupVerification(List<VerificationFailure> failures) {
             failures.add(new ListingAbsent());
         } else {
             failures.addAll(changes(backup.content(), listing.get()));
+        }
+        return new BackupVerification(failures);
+    }
+
+    /**
+     * Against the edit form read again on Vinted (US-40): every field compared by identifiers and texts, never
+     * labels. {@code read} is empty when the form is gone from Vinted.
+     */
+    public static BackupVerification online(ListingBackup backup, Optional<ListingContent> read,
+                                            PhotoStorage storage) {
+        List<VerificationFailure> failures = new ArrayList<>(photoFailures(backup, storage));
+        if (read.isEmpty()) {
+            failures.add(new ListingAbsent());
+        } else {
+            ListingFieldDifference.between(backup.content(), read.get()).stream()
+                    .map(FieldChanged::new)
+                    .forEach(failures::add);
         }
         return new BackupVerification(failures);
     }

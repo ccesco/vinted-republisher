@@ -22,6 +22,7 @@ import fr.vinted.republisher.domain.run.AutomaticRun;
 import fr.vinted.republisher.domain.run.RunStopReason;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
@@ -179,7 +180,8 @@ class AutomaticRunApiControllerTest {
                     photos, validations, deletions, DeletionMode.REAL, delay), republications, listings,
                     RepublicationMode.REAL);
             RelaunchListing relaunch = new RelaunchListing(new ShowListingDetail(listings, statistics, backups,
-                    validations, deletions, republications, delay, clock, journal), deletions, delay,
+                    validations, deletions, republications, delay, clock, journal,
+                    new InMemoryBackupVerificationRepository()), deletions, delay,
                     new DeleteListing(session, listings, backups, photos, validations, deletions, deleter,
                             DeletionMode.REAL, delay, cadence, clock, journalWriter),
                     new RecheckListingDeletion(session, listings, backups, photos, validations, deletions, deleter,
@@ -191,7 +193,8 @@ class AutomaticRunApiControllerTest {
                     new VerifyListingRepublication(session, backups, republications, listings, search,
                             new FakeListingContentReader(), noBackupPause(), clock, show));
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
-                    deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch,
+                    deletions, republications, delay, clock, new InMemoryListingTagRepository(),
+                    new InMemoryBackupVerificationRepository()), relaunch,
                     (until, interrupted) -> {
                     }, clock, launched::add, 1, Runnable::run);
         }

@@ -2,6 +2,9 @@ package fr.vinted.republisher;
 
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
+import fr.vinted.republisher.domain.backup.BackupVerification;
+import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
@@ -60,6 +63,8 @@ public final class DataInEveryTable {
         backups.save(aBackup(DELETED_LISTING, AT.plusSeconds(90)));
         ListingBackup backup = backups.find(new VintedListingId(DELETED_LISTING)).orElseThrow();
         application.getBean(BackupValidationRepository.class).save(BackupValidation.of(backup, AT.plusSeconds(180)));
+        application.getBean(BackupVerificationRepository.class)
+                .save(VerificationResult.of(backup, new BackupVerification(List.of()), AT.plusSeconds(170)));
         application.getBean(ListingDeletionRepository.class)
                 .save(ListingDeletion.attempted(backup, AT.plusSeconds(240)).confirmed(AT.plusSeconds(245)));
         application.getBean(ListingRepublicationRepository.class).save(ListingRepublication

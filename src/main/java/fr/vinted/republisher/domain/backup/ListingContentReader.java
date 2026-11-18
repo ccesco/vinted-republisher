@@ -15,4 +15,10 @@ import java.util.function.Consumer;
 public interface ListingContentReader {
 
     void read(List<VintedListingId> listings, BackupPace pace, Consumer<ListingReading> record);
+
+    /**
+     * Reads again the edit form of each given listing, in the same way, without its photos (US-40): a form answering
+     * 404 is handed over without content, and the reading goes on. Throws as {@link #read}.
+     */
+    void readForms(List<VintedListingId> listings, BackupPace pace, Consumer<ListingFormReading> record);
 }
