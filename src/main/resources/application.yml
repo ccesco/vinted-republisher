@@ -77,10 +77,10 @@ republication:
 # type (deletion-interval, republication-interval) depuis la dernière écriture, quel que soit le type de celle-ci, et
 # au plus daily-* de chaque type sur 24 heures glissantes. Absent, nul, négatif ou illisible, l'application ne démarre pas.
 cadence:
-  deletion-interval: 30s
-  republication-interval: 2m
+  deletion-interval: 1m
+  republication-interval: 1m
   daily-deletions: 140
-  daily-republications: 20
+  daily-republications: 140
 
 # Traitement en parallèle (US-15) : nombre d'actions sur des annonces (suppression, republication et leurs
 # vérifications) menées en même temps, chacune dans son onglet du même Chrome, par la série comme à la main.

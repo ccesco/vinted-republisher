@@ -25,6 +25,8 @@ En tant que membre, je veux pouvoir autoriser l'outil à mener plusieurs actions
    - Toutes les relances de la tournée demandent d'attendre → la série attend jusqu'à la date la plus proche (30 secondes pour un navigateur occupé), puis reprend.
    - Une relance demande l'arrêt (`STOP_RUN`) → la série s'arrête, raison de la première dans l'ordre de la tournée, une fois toute la tournée finie.
    
+   - **Une écriture réelle par tournée** (US-19, cadence vérifiée avant) : la tournée se clôt avant une seconde écriture réelle, ou avant une écriture que la cadence ne permet pas encore ; si cette écriture est la première candidate, la série attend la date permise. Les vérifications peuvent accompagner l'écriture.
+
    Avec 1 (défaut), une tournée est une relance : US-19 inchangée.
 6. **Pause et arrêt (US-21)** : prennent effet entre deux tournées. Toutes les relances de la tournée en cours se terminent (jamais coupées), puis la série passe en pause ou s'arrête. Une attente reste interrompue comme en US-21.
 7. **Reprise (US-19)** : inchangée. Les étapes sont en base ; après un redémarrage, un nouveau « Tout lancer » reprend, en tournées si le parallélisme le permet.
@@ -68,11 +70,12 @@ Test : `AutomaticRunAcceptanceTest.Parallel.relaunches_two_listings_at_the_same_
 ### AT-15-03 – La cadence reste globale au compte
 ```gherkin
 Étant donné deux annonces validées, en mode réel, parallélisme 2
-Quand la série les relance dans la même tournée
-Alors une seule est supprimée pendant la tournée, l'autre est refusée pour cadence pendant que la première est en cours
+Quand la série tourne
+Alors la première tournée ne supprime que la première, la seconde n'est pas tentée
 Et la série attend 2 minutes, puis supprime la seconde
+Et le journal n'a aucun refus « limite de cadence atteinte »
 ```
-Test : `AutomaticRunAcceptanceTest.Parallel.cadence_stays_global_to_the_account()`
+Test : `AutomaticRunAcceptanceTest.Parallel.cadence_stays_global_to_the_account()`, `a_check_goes_without_the_write_the_cadence_does_not_allow_yet()` (vérification sans l'écriture pas encore permise)
 
 ### AT-15-04 – Réservation de cadence
 ```gherkin
@@ -169,6 +172,7 @@ Test : `ChromeTabsTest.two_actions_work_in_their_own_tab_at_the_same_time()` (`@
   - `currentListingIds` remplace `currentListingId` : seule la page du dressing le lit.
   - relevé par la revue : une tournée ne regarde que les annonces atteintes avant d'être pleine (comme US-19 avec 1) ; une action d'annonce ne se termine jamais comme une action seule, et seules suppression et republication partagent le navigateur ; une écriture qui échoue rend sa réservation (`DeleteListingAcceptanceTest.a_failed_deletion_gives_its_cadence_reservation_back()`) ; les fils des relances ne sont pas un bean `Executor` (il remplacerait l'exécuteur de Spring Boot, vu par `ApplicationStartupAcceptanceTest`).
 - Premier usage d'un parallélisme supérieur à 1 sur le vrai compte : seulement avec l'accord explicite de l'utilisateur, en dry-run d'abord.
+- Une écriture réelle par tournée, décidé par l'utilisateur (2026-11-18) : la série vérifie la cadence avant d'écrire (US-19) ; une seconde écriture dans la même tournée serait refusée par la réservation de la première, elle attend donc la tournée suivante.
 
 ## Questions ouvertes
 - Aucune.

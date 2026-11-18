@@ -51,6 +51,18 @@ class WriteCadenceTest {
     }
 
     @Test
+    void tells_from_when_a_write_is_allowed_without_refusing_it() {
+        assertThat(CADENCE.allowedAt(VintedWrite.DELETION, List.of(minutesAgo(1)), List.of(), NOW))
+                .isEqualTo(minutesAgo(1).plus(Duration.ofMinutes(2)));
+    }
+
+    @Test
+    void a_write_allowed_now_is_allowed_from_now() {
+        assertThat(CADENCE.allowedAt(VintedWrite.REPUBLICATION, List.of(minutesAgo(3)), List.of(), NOW))
+                .isEqualTo(NOW);
+    }
+
+    @Test
     void a_write_once_the_minimum_interval_ended_is_allowed() {
         assertThatCode(() -> CADENCE.check(VintedWrite.DELETION, List.of(minutesAgo(2)), List.of(), NOW))
                 .doesNotThrowAnyException();
