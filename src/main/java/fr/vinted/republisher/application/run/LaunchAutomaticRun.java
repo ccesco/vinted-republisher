@@ -123,12 +123,14 @@ public class LaunchAutomaticRun {
                 } else if (current.pauseRequested()) {
                     pauseUntilResumedOrStopped();
                 } else {
-                    List<InventoryEntry> round = nextRound();
-                    if (round.isEmpty()) {
+                    Round round = nextRound();
+                    if (!round.entries().isEmpty()) {
+                        goesOn = relaunchTogether(round.entries());
+                    } else if (round.writeAllowedAt().isPresent()) {
+                        waitUntil(round.writeAllowedAt().get());
+                    } else {
                         update(run -> run.finishedAt(clock.instant()));
                         goesOn = false;
-                    } else {
-                        goesOn = relaunchTogether(round);
                     }
                 }
             }
@@ -139,8 +141,19 @@ public class LaunchAutomaticRun {
         }
     }
 
-    /** Up to {@code parallelism} listings, in the run's order; any back at a stage already relaunched is skipped. */
-    private List<InventoryEntry> nextRound() {
+    /**
+     * Listings to relaunch together; when there are none because the cadence does not allow the next write yet, the
+     * date from which it does.
+     */
+    private record Round(List<InventoryEntry> entries, Optional<Instant> writeAllowedAt) {
+    }
+
+    /**
+     * Up to {@code parallelism} listings, in the run's order; any back at a stage already relaunched is skipped. The
+     * round holds at most one real write, and ends before a write the cadence does not allow yet: no write is ever
+     * tried only to be refused for cadence.
+     */
+    private Round nextRound() {
         AutomaticRun current = overview();
         List<InventoryEntry> candidates = inventory.show(EVERY_LISTING).stream()
                 .filter(entry -> ORDER.contains(entry.stage()))
@@ -149,6 +162,7 @@ public class LaunchAutomaticRun {
                         .thenComparingLong(entry -> entry.listing().id().value()))
                 .toList();
         List<InventoryEntry> round = new ArrayList<>();
+        boolean writes = false;
         // Only listings reached before the round is full are looked at: the others may still move on meanwhile.
         for (int next = 0; next < candidates.size() && round.size() < parallelism; next++) {
             InventoryEntry entry = candidates.get(next);
@@ -156,11 +170,21 @@ public class LaunchAutomaticRun {
             // Back at a stage already relaunched (a deletion found not done, ready again): never write twice in a run.
             if (relaunchedSteps.contains(new Step(id, entry.stage()))) {
                 update(run -> run.skipping(id));
-            } else {
-                round.add(entry);
+                continue;
             }
+            Optional<Instant> writeAllowedAt = relaunchListing.realWriteAllowedAt(entry.stage());
+            if (writeAllowedAt.isPresent()) {
+                if (writes) {
+                    break;
+                }
+                if (clock.instant().isBefore(writeAllowedAt.get())) {
+                    return new Round(round, round.isEmpty() ? writeAllowedAt : Optional.empty());
+                }
+                writes = true;
+            }
+            round.add(entry);
         }
-        return round;
+        return new Round(round, Optional.empty());
     }
 
     /** What a relaunch of the round came to: its report, or the failure that stopped it. */
