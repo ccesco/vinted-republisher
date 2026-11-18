@@ -42,6 +42,12 @@ public record InventoryCriteria(PresenceFilter presence, BackupFilter backup, St
                 SortDirection.DESC);
     }
 
+    /** Present and absent listings, whatever their backup. */
+    public static InventoryCriteria everyListing() {
+        return new InventoryCriteria(PresenceFilter.ALL, BackupFilter.ALL, "", InventorySort.RECENCY,
+                SortDirection.DESC);
+    }
+
     boolean accepts(InventoryEntry entry) {
         return presence.accepts(entry.listing()) && backup.accepts(entry)
                 && SearchText.of(entry.listing().title()).contains(search)

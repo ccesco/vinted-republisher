@@ -670,6 +670,30 @@ class WardrobePageTest {
     }
 
     @Test
+    void skipped_listings_link_to_failures_page() {
+        // US-39 AT-39-07. Étant donné une série terminée avec 4 relances et 2 annonces écartées
+        runOverview.set("""
+                {"status": "FINISHED", "startedAt": "2026-11-17T10:00:00Z", "endedAt": "2026-11-17T10:07:00Z",
+                 "relaunchCount": 4, "skippedListingIds": [5, 6]}""");
+        // Quand le membre regarde la page du dressing
+        open();
+        // Alors « 2 annonces écartées » est un lien vers la page « Échecs »
+        assertThat(runSummary()).hasText("Traitement terminé : 4 relances, 2 annonces écartées.");
+        assertThat(runSummary().getByRole(AriaRole.LINK)).hasText("2 annonces écartées");
+        assertThat(runSummary().getByRole(AriaRole.LINK)).hasAttribute("href", "#/failures");
+    }
+
+    @Test
+    void no_link_without_skipped_listing() {
+        runOverview.set("""
+                {"status": "FINISHED", "startedAt": "2026-11-17T10:00:00Z", "endedAt": "2026-11-17T10:07:00Z",
+                 "relaunchCount": 4, "skippedListingIds": []}""");
+        open();
+        assertThat(runSummary()).hasText("Traitement terminé : 4 relances, 0 annonce écartée.");
+        assertThat(runSummary().getByRole(AriaRole.LINK)).hasCount(0);
+    }
+
+    @Test
     void shows_every_listing_of_the_round() {
         // Étant donné une série en cours sur une tournée de deux annonces (US-15), affichées dans la liste
         inventory.set(TWO_LISTINGS);

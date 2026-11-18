@@ -2,13 +2,9 @@ package fr.vinted.republisher.application.run;
 
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
-import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
-import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.ListingStage;
-import fr.vinted.republisher.domain.inventory.PresenceFilter;
-import fr.vinted.republisher.domain.inventory.SortDirection;
 import fr.vinted.republisher.domain.relaunch.FailureHandling;
 import fr.vinted.republisher.domain.relaunch.RelaunchReport;
 import fr.vinted.republisher.domain.run.AutomaticRun;
@@ -56,9 +52,6 @@ public class LaunchAutomaticRun {
     /** Stages the run relaunches, in the order it takes them. */
     private static final List<ListingStage> ORDER = List.of(ListingStage.REPUBLICATION_TO_CHECK,
             ListingStage.DELETION_TO_CHECK, ListingStage.TO_REPUBLISH, ListingStage.TO_DELETE, ListingStage.WAITING);
-
-    private static final InventoryCriteria EVERY_LISTING = new InventoryCriteria(PresenceFilter.ALL,
-            BackupFilter.ALL, "", InventorySort.RECENCY, SortDirection.DESC);
 
     private final ShowListingInventory inventory;
     private final RelaunchListing relaunchListing;
@@ -155,7 +148,7 @@ public class LaunchAutomaticRun {
      */
     private Round nextRound() {
         AutomaticRun current = overview();
-        List<InventoryEntry> candidates = inventory.show(EVERY_LISTING).stream()
+        List<InventoryEntry> candidates = inventory.show(InventoryCriteria.everyListing()).stream()
                 .filter(entry -> ORDER.contains(entry.stage()))
                 .filter(entry -> !current.skips(entry.listing().id()))
                 .sorted(Comparator.comparingInt((InventoryEntry entry) -> ORDER.indexOf(entry.stage()))
