@@ -34,8 +34,10 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
@@ -50,6 +52,7 @@ class ListingInventoryApiControllerTest {
 
     private static final Instant SCANNED_AT = Instant.parse("2026-11-06T10:15:30Z");
     private static final Instant SAVED_AT = Instant.parse("2026-11-07T10:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-11-17T10:00:00Z");
 
     @Autowired
     private MockMvcTester mvc;
@@ -100,6 +103,21 @@ class ListingInventoryApiControllerTest {
                                        "validatedAt": "2026-11-07T11:00:00Z",
                                        "statistics": {"viewCount": 15, "favouriteCount": 4,
                                                       "readAt": "2026-11-06T10:15:30Z"}}]}""");
+    }
+
+    @Test
+    void lists_the_republication_advice() {
+        Instant weekAndADayAgo = NOW.minus(Duration.ofDays(8));
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+        statistics.addAll(List.of(
+                new StatisticsReading(new VintedListingId(17), new ListingStatistics(40, 2), weekAndADayAgo),
+                new StatisticsReading(new VintedListingId(17), new ListingStatistics(46, 2),
+                        weekAndADayAgo.plus(Duration.ofDays(7)))));
+
+        assertThat(mvc.get().uri("/api/listings"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listings[0].republicationAdvice")
+                .isEqualTo(Map.of("viewsGained", 6, "since", weekAndADayAgo.toString()));
     }
 
     @Test
@@ -175,7 +193,7 @@ class ListingInventoryApiControllerTest {
                                                   InMemoryBackupValidationRepository validations) {
             return new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC());
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC));
         }
     }
 }

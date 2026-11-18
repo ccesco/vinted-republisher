@@ -51,6 +51,15 @@ class JpaListingStatisticsRepositoryTest extends ApplicationWithDatabaseTest {
     }
 
     @Test
+    void latest_reading_as_of_a_date_ignores_later_readings() {
+        statistics.addAll(List.of(aReading(1, 12, 3, FIRST_SCAN), aReading(1, 15, 3, NEXT_SCAN),
+                aReading(2, 4, 1, NEXT_SCAN)));
+
+        assertThat(statistics.findLatestAsOf(FIRST_SCAN)).containsExactly(aReading(1, 12, 3, FIRST_SCAN));
+        assertThat(statistics.findLatestAsOf(FIRST_SCAN.minusSeconds(1))).isEmpty();
+    }
+
+    @Test
     void every_reading_is_kept() {
         statistics.addAll(List.of(aReading(1, 12, 3, FIRST_SCAN)));
         statistics.addAll(List.of(aReading(1, 12, 3, NEXT_SCAN)));

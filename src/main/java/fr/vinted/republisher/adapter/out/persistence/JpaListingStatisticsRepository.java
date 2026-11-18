@@ -30,6 +30,12 @@ class JpaListingStatisticsRepository implements ListingStatisticsRepository {
     }
 
     @Override
+    public List<StatisticsReading> findLatestAsOf(Instant at) {
+        return repository.findLatestOfEachListingAsOf(at).stream()
+                .map(ListingStatisticsReadingJpaEntity::toStatisticsReading).toList();
+    }
+
+    @Override
     public List<StatisticsReading> historyOf(VintedListingId listing) {
         return repository.findByListingIdOrderByReadAtDesc(listing.value()).stream()
                 .map(ListingStatisticsReadingJpaEntity::toStatisticsReading).toList();

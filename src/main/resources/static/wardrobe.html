@@ -70,6 +70,7 @@
         <th scope="col">Prix</th>
         <th scope="col">Vues</th>
         <th scope="col">Favoris</th>
+        <th scope="col">Conseil</th>
         <th scope="col">Présence</th>
         <th scope="col">Sauvegarde</th>
         <th scope="col">Validation</th>
@@ -303,6 +304,17 @@
         return td;
     }
 
+    // US-35 : l'outil conseille, il n'agit pas.
+    function adviceCell(listing) {
+        const advice = listing.republicationAdvice;
+        const td = cell(advice ? 'À republier' : '');
+        if (advice) {
+            const since = new Date(advice.since).toLocaleDateString('fr-FR');
+            td.title = `+${advice.viewsGained} vues depuis le ${since}`;
+        }
+        return td;
+    }
+
     function backupCell(listing) {
         if (!listing.savedAt) {
             return cell('non sauvegardée');
@@ -413,6 +425,7 @@
             cell(price),
             statisticCell(listing, statistics => statistics.viewCount),
             statisticCell(listing, statistics => statistics.favouriteCount),
+            adviceCell(listing),
             cell(listing.present ? '' : 'absente'),
             backupCell(listing),
             cell(listing.validatedAt ? 'validée le ' + dateOf(listing.validatedAt) : ''),

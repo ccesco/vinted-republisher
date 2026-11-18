@@ -357,6 +357,19 @@ class ListingDetailPageTest {
         detail.set(DETAIL);
         open();
         assertThat(page.locator("#statistics-comparison")).isHidden();
+        assertThat(page.locator("#republication-advice")).isHidden();
+    }
+
+    @Test
+    void shows_the_republication_advice() {
+        // Étant donné l'annonce 3 conseillée à republier : 6 vues gagnées depuis le 8 novembre
+        detail.set(DETAIL.replace("\"present\": true", """
+                "present": true, "republicationAdvice": {"viewsGained": 6, "since": "2026-11-08T10:00:00Z"}"""));
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit le conseil et sa raison
+        assertThat(page.locator("#republication-advice")).hasText(
+                "Conseil : à republier, seulement 6 vues gagnées depuis le 08/11/2026 (moins de 10 en 7 jours).");
     }
 
     @Test

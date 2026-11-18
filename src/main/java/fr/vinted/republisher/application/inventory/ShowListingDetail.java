@@ -6,6 +6,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
+import fr.vinted.republisher.domain.inventory.RepublicationAdvice;
 import fr.vinted.republisher.domain.inventory.StatisticsComparison;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
@@ -18,6 +19,7 @@ import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -58,10 +60,13 @@ public class ShowListingDetail {
     public ListingDetail show(VintedListingId id) {
         Listing listing = listings.find(id).orElseThrow(() -> new ListingNotFound(id));
         List<StatisticsReading> history = statistics.historyOf(id);
+        Instant now = clock.instant();
+        Instant baselineAsOf = RepublicationAdvice.baselineAsOf(now);
         ListingInventory inventory = ListingInventory.of(List.of(listing), history.stream().limit(1).toList(),
+                history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
                 backups.find(id).stream().toList(), validations.find(id).stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
-                clock.instant());
+                now);
         return new ListingDetail(inventory.entries().getFirst(), history, journal.of(id),
                 comparison(id, history.stream().findFirst()), listings.priceHistoryOf(id));
     }

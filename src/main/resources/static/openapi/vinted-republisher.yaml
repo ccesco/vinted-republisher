@@ -1079,6 +1079,28 @@ components:
           description: Date de validation de la sauvegarde actuelle par le membre ; absente si elle n'est pas validée.
         stage:
           $ref: '#/components/schemas/ListingStage'
+        republicationAdvice:
+          $ref: '#/components/schemas/RepublicationAdvice'
+    RepublicationAdvice:
+      type: object
+      description: >
+        Conseil de republier une annonce en vente (à sauvegarder, à valider ou prête à supprimer) qui ne se voit
+        presque plus : moins de 10 vues gagnées depuis son dernier relevé d'il y a au moins 7 jours, relevé de moins
+        de 7 jours, moins de 5 favoris. Absent si l'annonce n'est pas conseillée ; l'outil conseille, il n'agit pas.
+      required: [viewsGained, since]
+      properties:
+        viewsGained:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Vues gagnées depuis le relevé de référence (zéro si elles ont baissé).
+        since:
+          type: string
+          format: date-time
+          description: Date du relevé de référence, le dernier fait il y a au moins 7 jours.
+      example:
+        viewsGained: 6
+        since: '2026-11-08T10:00:00Z'
     ListingStage:
       type: string
       description: >

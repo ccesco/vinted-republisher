@@ -35,14 +35,19 @@ public record ListingInventory(List<InventoryEntry> entries) {
     }
 
     /**
-     * {@code readings} and {@code deletions} are the latest of each listing; a validation counts only for the backup
-     * it was given to. Stages are those at {@code now}.
+     * {@code readings} and {@code deletions} are the latest of each listing, {@code baselines} the latest of each
+     * listing made at the latest {@link RepublicationAdvice#baselineAsOf(Instant) one observation period} before
+     * {@code now}; a validation counts only for the backup it was given to. Stages and advice are those at
+     * {@code now}.
      */
     public static ListingInventory of(List<Listing> listings, List<StatisticsReading> readings,
-                                      List<ListingBackup> backups, List<BackupValidation> validations,
+                                      List<StatisticsReading> baselines, List<ListingBackup> backups,
+                                      List<BackupValidation> validations,
                                       List<ListingDeletion> deletions, List<ListingRepublication> republications,
                                       RepublicationDelay delay, Instant now) {
         Map<VintedListingId, StatisticsReading> readingOf = readings.stream()
+                .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
+        Map<VintedListingId, StatisticsReading> baselineOf = baselines.stream()
                 .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
         Map<VintedListingId, ListingBackup> backupOf = backups.stream()
                 .collect(Collectors.toMap(ListingBackup::id, Function.identity()));
@@ -60,8 +65,9 @@ public record ListingInventory(List<InventoryEntry> entries) {
             ListingStage stage = ListingStage.of(listing.present(), backup.isPresent(), validation.isPresent(),
                     Optional.ofNullable(deletionOf.get(listing.id())),
                     Optional.ofNullable(republicationOf.get(listing.id())), delay, now);
-            return new InventoryEntry(listing, Optional.ofNullable(readingOf.get(listing.id())), backup,
-                    validation.map(BackupValidation::validatedAt), stage);
+            Optional<StatisticsReading> latest = Optional.ofNullable(readingOf.get(listing.id()));
+            return new InventoryEntry(listing, latest, backup, validation.map(BackupValidation::validatedAt), stage,
+                    RepublicationAdvice.of(stage, latest, Optional.ofNullable(baselineOf.get(listing.id())), now));
         }).toList());
     }
 

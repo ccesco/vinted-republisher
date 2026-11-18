@@ -157,7 +157,8 @@ class WardrobePageTest {
         // Alors il voit un tableau de deux lignes avec titre, prix, vues, favoris, présence, sauvegarde et validation
         //   et le titre affiché tel quel
         assertThat(page.locator("#listings thead th")).hasText(new String[]{
-                "Titre", "Prix", "Vues", "Favoris", "Présence", "Sauvegarde", "Validation", "Étape", "Action"});
+                "Titre", "Prix", "Vues", "Favoris", "Conseil", "Présence", "Sauvegarde", "Validation", "Étape",
+                "Action"});
         assertThat(rows()).hasCount(2);
         assertThat(listingCount()).hasText("2 annonces");
         assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
@@ -347,6 +348,24 @@ class WardrobePageTest {
         assertThat(cell(0, VIEWS)).hasAttribute("title", Pattern.compile("Relevé le 07/11/2026.*"));
         assertThat(cell(1, VIEWS)).hasText("");
         assertThat(cell(1, FAVOURITES)).hasText("");
+    }
+
+    @Test
+    void shows_the_republication_advice() {
+        // Étant donné une annonce conseillée à republier (6 vues gagnées depuis le 8 novembre), et une autre non
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                   "url": "https://vinted.test/items/3", "present": true,
+                   "republicationAdvice": {"viewsGained": 6, "since": "2026-11-08T10:00:00Z"}},
+                  {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                   "url": "https://vinted.test/items/1", "present": true}]}""");
+        // Quand j'ouvre la page du dressing
+        open();
+        // Alors la première est marquée « À republier », avec sa raison en infobulle, et rien pour la seconde
+        assertThat(cell(0, ADVICE)).hasText("À republier");
+        assertThat(cell(0, ADVICE)).hasAttribute("title", "+6 vues depuis le 08/11/2026");
+        assertThat(cell(1, ADVICE)).hasText("");
     }
 
     @Test
@@ -737,11 +756,12 @@ class WardrobePageTest {
 
     private static final int VIEWS = 2;
     private static final int FAVOURITES = 3;
-    private static final int PRESENCE = 4;
-    private static final int BACKUP = 5;
-    private static final int VALIDATION = 6;
-    private static final int STAGE = 7;
-    private static final int ACTION = 8;
+    private static final int ADVICE = 4;
+    private static final int PRESENCE = 5;
+    private static final int BACKUP = 6;
+    private static final int VALIDATION = 7;
+    private static final int STAGE = 8;
+    private static final int ACTION = 9;
     private static final String TO_DELETE_AND_TO_VALIDATE = """
             {"listings": [
                {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},

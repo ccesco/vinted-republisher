@@ -27,7 +27,7 @@ class ListingInventoryTest {
 
     private static ListingInventory inventoryOf(List<Listing> listings, List<StatisticsReading> readings,
                                                 List<ListingBackup> backups, List<BackupValidation> validations) {
-        return ListingInventory.of(listings, readings, backups, validations, List.of(), List.of(),
+        return ListingInventory.of(listings, readings, List.of(), backups, validations, List.of(), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
     }
 
@@ -42,9 +42,9 @@ class ListingInventoryTest {
 
         assertThat(inventory.select(InventoryCriteria.defaults())).containsExactly(
                 new InventoryEntry(present(2, "b", "1"), Optional.empty(), Optional.empty(), Optional.empty(),
-                        ListingStage.TO_BACK_UP),
+                        ListingStage.TO_BACK_UP, Optional.empty()),
                 new InventoryEntry(present(1, "a", "1"), Optional.of(reading), Optional.of(backup),
-                        Optional.of(validation.validatedAt()), ListingStage.TO_DELETE));
+                        Optional.of(validation.validatedAt()), ListingStage.TO_DELETE, Optional.empty()));
     }
 
     @Test
@@ -143,12 +143,33 @@ class ListingInventoryTest {
         ListingDeletion notDone = ListingDeletion.attempted(backup, clickedAt).notDone(clickedAt.plusSeconds(60));
         ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
 
-        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(backup),
-                List.of(), List.of(notDone, unconfirmed), List.of(), new RepublicationDelay(Duration.ofMinutes(5)),
-                clickedAt);
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(),
+                List.of(backup), List.of(), List.of(notDone, unconfirmed), List.of(),
+                new RepublicationDelay(Duration.ofMinutes(5)), clickedAt);
 
         assertThat(inventory.entries()).singleElement()
                 .satisfies(entry -> assertThat(entry.stage()).isEqualTo(ListingStage.DELETION_TO_CHECK));
+    }
+
+    @Test
+    void each_listing_carries_the_advice_from_its_latest_and_baseline_readings() {
+        Instant eightDaysAgo = SAVED_AT.minus(Duration.ofDays(8));
+        Instant yesterday = SAVED_AT.minus(Duration.ofDays(1));
+        StatisticsReading dormantBaseline = new StatisticsReading(new VintedListingId(1), new ListingStatistics(40, 2),
+                eightDaysAgo);
+        StatisticsReading dormantLatest = new StatisticsReading(new VintedListingId(1), new ListingStatistics(46, 2),
+                yesterday);
+        StatisticsReading seenBaseline = new StatisticsReading(new VintedListingId(2), new ListingStatistics(0, 0),
+                eightDaysAgo);
+        StatisticsReading seenLatest = new StatisticsReading(new VintedListingId(2), new ListingStatistics(30, 0),
+                yesterday);
+
+        ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
+                List.of(dormantLatest, seenLatest), List.of(seenBaseline, dormantBaseline), List.of(), List.of(),
+                List.of(), List.of(), new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
+
+        assertThat(inventory.entries()).extracting(InventoryEntry::advice)
+                .containsExactly(Optional.of(new RepublicationAdvice(6, eightDaysAgo)), Optional.empty());
     }
 
     private static Listing present(long id, String title, String price) {
