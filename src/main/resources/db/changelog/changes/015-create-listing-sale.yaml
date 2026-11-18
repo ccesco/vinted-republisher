@@ -1,0 +1,22 @@
+# US-36 : ventes constatées sur les cartes « Vendu » du dressing, une par annonce connue, jamais supprimée.
+databaseChangeLog:
+  - changeSet:
+      id: 015-create-listing-sale
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: listing_sale
+            columns:
+              # Clé primaire : une seule vente par annonce. Clé étrangère : seules les annonces connues sont vendues.
+              - column:
+                  name: listing_id
+                  type: bigint
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+                    foreignKeyName: listing_sale_listing
+                    references: listing(vinted_id)
+              - column: {name: noticed_at, type: timestamptz, constraints: {nullable: false}}
+      rollback:
+        - dropTable:
+            tableName: listing_sale

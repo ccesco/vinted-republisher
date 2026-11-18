@@ -228,7 +228,7 @@ Et sinon le problème indique que Vinted est inaccessible
 Test : `PlaywrightWardrobeReaderTest.Slow_page`
 
 ## Cas limites et erreurs
-- Annonce connue qui passe à « Vendu » : elle sort du relevé et est marquée absente à la fin du scan, comme une annonce retirée.
+- Annonce connue qui passe à « Vendu » : elle sort du relevé et est marquée absente à la fin du scan, comme une annonce retirée. Le relevé note toutefois son identifiant, pour enregistrer la vente (US-36).
 - Page d'annonce sans données `Product`, ou données incomplètes : problème « dressing illisible », le scan s'arrête et reste non terminé.
 - En-tête sans total lisible, ou plusieurs totaux différents sur la page : problème « dressing illisible », rien n'est changé.
 - Annonce vendue ou retirée entre le relevé et sa lecture, page en HTTP 404 : traitée comme toute erreur HTTP, le scan s'arrête ; le suivant la relèvera ou non.

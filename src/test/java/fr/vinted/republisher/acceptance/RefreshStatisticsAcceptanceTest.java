@@ -1,6 +1,7 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.application.wardrobe.RefreshStatistics;
 import fr.vinted.republisher.application.wardrobe.ShowStatisticsRefresh;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
@@ -19,10 +20,12 @@ import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +52,7 @@ class RefreshStatisticsAcceptanceTest {
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final RefreshStatistics refreshStatistics = new RefreshStatistics(session, lastProblem, reader, statistics,
+            new NoticeSales(new InMemoryListingRepository(), new InMemoryListingSaleRepository(), Clock.systemUTC()),
             noPause(), clock, RIGHT_AWAY, new JournalWriter(journal, clock));
     private final ShowStatisticsRefresh showStatisticsRefresh =
             new ShowStatisticsRefresh(session, lastProblem, statistics);

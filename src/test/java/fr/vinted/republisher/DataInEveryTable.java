@@ -14,6 +14,8 @@ import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
+import fr.vinted.republisher.domain.sale.ListingSale;
+import fr.vinted.republisher.domain.sale.ListingSaleRepository;
 import fr.vinted.republisher.domain.tag.ListingTagRepository;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -34,9 +36,9 @@ import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 
 /**
- * Two listings, the first one backed up, validated, deleted and republished as the second, with readings, journal
- * entries, a tag, a scan and a wardrobe backup: at least one row in every table of the changelog, through the application's
- * own repositories.
+ * Two listings, the first one backed up, validated, deleted and republished as the second, which is sold, with
+ * readings, journal entries, a tag, a scan and a wardrobe backup: at least one row in every table of the changelog,
+ * through the application's own repositories.
  */
 public final class DataInEveryTable {
 
@@ -64,6 +66,8 @@ public final class DataInEveryTable {
                 .attempted(backup, AT.plusSeconds(600)).published(new VintedListingId(NEW_LISTING), AT.plusSeconds(900)));
         application.getBean(ListingStatisticsRepository.class).addAll(List.of(
                 new StatisticsReading(new VintedListingId(DELETED_LISTING), new ListingStatistics(42, 3), AT)));
+        application.getBean(ListingSaleRepository.class).addAll(List.of(
+                new ListingSale(new VintedListingId(NEW_LISTING), AT.plusSeconds(1800))));
         application.getBean(ActionJournal.class).write(new ActionRecord(AT, JournaledAction.SCAN,
                 ActionOutcome.STARTED, Optional.empty(), Optional.empty()));
         application.getBean(ListingTagRepository.class)

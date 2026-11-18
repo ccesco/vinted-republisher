@@ -1,5 +1,5 @@
 # US-36 – Suivi des ventes
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-04 (scan, cartes « Vendu »), US-25 (rafraîchissement des statistiques), US-18b (fiche d'une annonce)
 
@@ -15,7 +15,7 @@ En tant que membre, je veux voir les ventes que l'outil a constatées dans mon d
 3. **Une vente par annonce** : la vente est enregistrée la première fois que l'annonce est vue vendue, datée de ce relevé (« constatée le »). Les relevés suivants ne la changent pas. Une vente n'est jamais supprimée.
 4. **Tout ou rien** : comme les relevés de statistiques, aucune vente n'est enregistrée si le dressing est incomplet (total incohérent, aucun lien), ou si le relevé échoue avant la fin de la grille.
 5. **Prix** : celui de l'annonce tel que l'outil l'a lu pour la dernière fois (prix affiché, hors frais), pas le montant réellement encaissé, que la carte ne donne pas.
-6. **Page « Ventes »** (`sales.html`, lien depuis le dressing) : les ventes, la plus récemment constatée d'abord, avec date de constat, titre de l'annonce (lien vers sa fiche) et prix ; au-dessus, le nombre de ventes et le total des prix, par devise. Sans vente : « Aucune vente constatée. » API indisponible : « Ventes indisponibles. »
+6. **Page « Ventes »** (`sales.html`, lien depuis le dressing) : les ventes, la plus récemment constatée d'abord (à date égale, par identifiant d'annonce), avec date de constat, titre de l'annonce (lien vers sa fiche) et prix ; au-dessus, le nombre de ventes et le total des prix, par devise. Sans vente : « Aucune vente constatée. » API indisponible : « Ventes indisponibles. »
 
 ## Contrat d'API
 - `GET /api/sales` (`operationId: showSales`, tag `sales`) → `200` `SalesOverview`.
@@ -23,11 +23,11 @@ En tant que membre, je veux voir les ventes que l'outil a constatées dans mon d
 - `Sale` : `listingId` (int64), `title` (texte), `price` (`Price`), `noticedAt` (date-heure) ; obligatoires.
 
 ## Critères d'acceptation
-- [ ] Le scan et le rafraîchissement des statistiques enregistrent comme vendues les annonces connues dont la carte affiche « Vendu », datées du relevé.
-- [ ] Une annonce vendue n'est enregistrée qu'une fois, à sa première date de constat.
-- [ ] Une annonce inconnue de l'outil n'est pas enregistrée ; un dressing incomplet n'enregistre rien.
-- [ ] Le lecteur du dressing relève les cartes « Vendu » sans les compter dans le total ni les ouvrir.
-- [ ] L'API et la page « Ventes » montrent les ventes, leur nombre et le total des prix par devise.
+- [x] Le scan et le rafraîchissement des statistiques enregistrent comme vendues les annonces connues dont la carte affiche « Vendu », datées du relevé.
+- [x] Une annonce vendue n'est enregistrée qu'une fois, à sa première date de constat.
+- [x] Une annonce inconnue de l'outil n'est pas enregistrée ; un dressing incomplet n'enregistre rien.
+- [x] Le lecteur du dressing relève les cartes « Vendu » sans les compter dans le total ni les ouvrir.
+- [x] L'API et la page « Ventes » montrent les ventes, leur nombre et le total des prix par devise.
 
 ## Tests d'acceptation
 ### AT-36-01 – Vente constatée au scan
@@ -96,6 +96,7 @@ Test : `SalesPageTest.shows_the_sales_and_their_total()`, `SalesPageTest.says_wh
 - Annonce vendue entre deux relevés puis disparue de la grille sans avoir été vue « Vendu » (si Vinted retire la carte d'une annonce vendue) : aucune vente ; l'annonce est seulement absente.
 - Plusieurs devises : un total par devise, aucun change.
 - Relevé interrompu (Vinted inaccessible, navigateur indisponible) : rien n'est enregistré ; le relevé suivant constatera la vente.
+- Échec de l'écriture des ventes (base) : le relevé est en échec (`SCAN_FAILED` ou `REFRESH_FAILED`), mais les relevés de statistiques déjà écrits restent, comme pour un scan qui échoue après eux ; le relevé suivant constate la vente, à sa date. Accepté plutôt qu'une transaction commune aux deux écritures (revue du 2026-11-17).
 
 ## Hors périmètre
 - Date réelle de la vente, acheteur, montant encaissé, frais, commandes et expéditions : il faudrait ouvrir les pages de commandes de Vinted.

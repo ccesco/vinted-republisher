@@ -2,6 +2,7 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.application.session.CheckVintedSession;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.application.wardrobe.ShowWardrobe;
@@ -31,6 +32,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
@@ -72,7 +74,8 @@ class ScanWardrobeAcceptanceTest {
     private final ScanPace pace = new ScanPace(new PauseRange(Duration.ofSeconds(3), Duration.ofSeconds(6)),
             new PauseRange(MINIMUM_PAUSE, MAXIMUM_PAUSE), new Random(42));
     private final ScanWardrobe scanWardrobe =
-            new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics, pace, clock, RIGHT_AWAY,
+            new ScanWardrobe(session, lastProblem, scans, reader, listings, statistics,
+                    new NoticeSales(new InMemoryListingRepository(), new InMemoryListingSaleRepository(), Clock.systemUTC()), pace, clock, RIGHT_AWAY,
                     new JournalWriter(journal, clock));
     private final ShowWardrobe showWardrobe = new ShowWardrobe(session, lastProblem, scans);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics,
