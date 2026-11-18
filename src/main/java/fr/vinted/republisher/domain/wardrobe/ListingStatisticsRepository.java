@@ -13,6 +13,9 @@ public interface ListingStatisticsRepository {
     /** The most recent reading of each listing ever read. */
     List<StatisticsReading> findLatest();
 
+    /** The most recent reading of each listing read at or before {@code at}. */
+    List<StatisticsReading> findLatestAsOf(Instant at);
+
     /** Every reading of the listing, most recent first. */
     List<StatisticsReading> historyOf(VintedListingId listing);
 

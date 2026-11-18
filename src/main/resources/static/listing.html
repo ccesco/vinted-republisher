@@ -18,6 +18,7 @@
     <p><a id="vinted-link" rel="noopener noreferrer">Voir sur Vinted</a></p>
     <p id="presence"></p>
     <h2>Vues et favoris</h2>
+    <p id="republication-advice" hidden></p>
     <p id="no-reading" hidden>Aucun relevé</p>
     <table id="history" hidden>
         <thead>
@@ -193,6 +194,7 @@
     const vintedLink = document.getElementById('vinted-link');
     const presence = document.getElementById('presence');
     const stage = document.getElementById('stage');
+    const republicationAdvice = document.getElementById('republication-advice');
     const noReading = document.getElementById('no-reading');
     const history = document.getElementById('history');
     const statisticsComparison = document.getElementById('statistics-comparison');
@@ -534,7 +536,17 @@
             return row;
         }));
         showStatisticsComparison(detail.statisticsComparison);
+        showRepublicationAdvice(listing.republicationAdvice);
         listingSection.hidden = false;
+    }
+
+    // US-35 : l'outil conseille, il n'agit pas.
+    function showRepublicationAdvice(advice) {
+        republicationAdvice.hidden = !advice;
+        republicationAdvice.textContent = advice
+            ? `Conseil : à republier, seulement ${advice.viewsGained} vues gagnées depuis le `
+              + `${new Date(advice.since).toLocaleDateString('fr-FR')} (moins de 10 en 7 jours).`
+            : '';
     }
 
     // US-24 : l'annonce remplacée et celle-ci côte à côte, puis le total de toute la chaîne de republications.

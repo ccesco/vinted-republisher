@@ -1,5 +1,5 @@
 # US-35 – Règles d'aide à la décision
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-07 et US-25 (relevés de vues et favoris), US-14 (étapes), US-18 (liste), US-18b (fiche)
 
@@ -25,12 +25,12 @@ En tant que membre, je veux que l'outil me signale les annonces qu'il conseille 
 - `RepublicationAdvice` : `viewsGained` (entier ≥ 0, vues gagnées depuis le relevé de référence) et `since` (date-heure du relevé de référence), tous deux obligatoires.
 
 ## Critères d'acceptation
-- [ ] Une annonce en vente qui a gagné moins de 10 vues depuis son relevé d'il y a au moins 7 jours est conseillée, avec les vues gagnées et la date du relevé de référence.
-- [ ] Une annonce qui a gagné 10 vues ou plus n'est pas conseillée.
-- [ ] Une annonce qui a 5 favoris ou plus n'est pas conseillée.
-- [ ] Sans relevé de référence ou sans relevé de moins de 7 jours, pas de conseil.
-- [ ] Une annonce absente, ou engagée dans une suppression ou une republication, n'est pas conseillée.
-- [ ] L'API, la liste et la fiche montrent le conseil.
+- [x] Une annonce en vente qui a gagné moins de 10 vues depuis son relevé d'il y a au moins 7 jours est conseillée, avec les vues gagnées et la date du relevé de référence.
+- [x] Une annonce qui a gagné 10 vues ou plus n'est pas conseillée.
+- [x] Une annonce qui a 5 favoris ou plus n'est pas conseillée.
+- [x] Sans relevé de référence ou sans relevé de moins de 7 jours, pas de conseil.
+- [x] Une annonce absente, ou engagée dans une suppression ou une republication, n'est pas conseillée.
+- [x] L'API, la liste et la fiche montrent le conseil.
 
 ## Tests d'acceptation
 Dates du 17 novembre à 10 h ; « il y a 7 jours » = le 10 novembre à 10 h.

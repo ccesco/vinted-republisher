@@ -27,6 +27,7 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -43,6 +44,7 @@ class ListingDetailApiControllerTest {
 
     private static final Instant FIRST = Instant.parse("2026-11-01T09:00:00Z");
     private static final Instant SECOND = Instant.parse("2026-11-02T09:00:00Z");
+    private static final Instant NOW = Instant.parse("2026-11-17T10:00:00Z");
 
     @Autowired
     private MockMvcTester mvc;
@@ -98,6 +100,19 @@ class ListingDetailApiControllerTest {
     }
 
     @Test
+    void detail_shows_the_republication_advice() {
+        Instant weekAndADayAgo = NOW.minus(Duration.ofDays(8));
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), weekAndADayAgo)));
+        statistics.addAll(List.of(reading(40, 2, weekAndADayAgo),
+                reading(46, 2, weekAndADayAgo.plus(Duration.ofDays(7)))));
+
+        assertThat(mvc.get().uri("/api/listings/101"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listing.republicationAdvice")
+                .isEqualTo(Map.of("viewsGained", 6, "since", weekAndADayAgo.toString()));
+    }
+
+    @Test
     void unknown_listing_is_not_found() {
         // Étant donné aucune annonce 999
         // Quand la page demande GET /api/listings/999
@@ -140,7 +155,8 @@ class ListingDetailApiControllerTest {
             return new ShowListingDetail(listings, statistics, new InMemoryListingBackupRepository(),
                     new InMemoryBackupValidationRepository(),
                     new InMemoryListingDeletionRepository(), republications,
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(), new InMemoryActionJournal());
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
+                    new InMemoryActionJournal());
         }
     }
 }

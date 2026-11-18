@@ -9,6 +9,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingStageDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingStatisticsDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PresenceFilterDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RepublicationAdviceDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SortDirectionDto;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -60,7 +61,10 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .photoCount(entry.backup().map(ListingBackup::photos).filter(photos -> !photos.isEmpty())
                         .map(List::size).orElse(null))
                 .validatedAt(entry.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
-                .statistics(entry.statistics().map(ListingInventoryApiController::statisticsOf).orElse(null));
+                .statistics(entry.statistics().map(ListingInventoryApiController::statisticsOf).orElse(null))
+                .republicationAdvice(entry.advice().map(advice -> new RepublicationAdviceDto()
+                        .viewsGained(advice.viewsGained())
+                        .since(advice.since().atOffset(ZoneOffset.UTC))).orElse(null));
     }
 
     static ListingStatisticsDto statisticsOf(StatisticsReading reading) {

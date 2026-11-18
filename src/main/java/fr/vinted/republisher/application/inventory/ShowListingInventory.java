@@ -6,12 +6,14 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
+import fr.vinted.republisher.domain.inventory.RepublicationAdvice;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
 
 import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 /** Reads what the tool keeps, never Vinted. */
@@ -41,8 +43,10 @@ public class ShowListingInventory {
     }
 
     public List<InventoryEntry> show(InventoryCriteria criteria) {
-        return ListingInventory.of(listings.findAll(), statistics.findLatest(), backups.findAll(),
-                validations.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay,
-                clock.instant()).select(criteria);
+        Instant now = clock.instant();
+        return ListingInventory.of(listings.findAll(), statistics.findLatest(),
+                statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAll(),
+                validations.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay, now)
+                .select(criteria);
     }
 }
