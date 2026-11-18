@@ -40,6 +40,7 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
+import fr.vinted.republisher.domain.run.RunWaiting;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -64,6 +65,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.function.Consumer;
@@ -102,6 +104,12 @@ class RepublishListingAcceptanceTest {
     private final FakeListingPublisher vinted = new FakeListingPublisher(wardrobe);
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final List<Instant> waitedUntil = new ArrayList<>();
+    /** Waiting moves the clock to the instant waited for, and remembers it. */
+    private final RunWaiting waiting = (instant, interrupted) -> {
+        waitedUntil.add(instant);
+        clock.set(instant);
+    };
 
     @Test
     void republishesConfirmedDeletion() {
@@ -123,7 +131,7 @@ class RepublishListingAcceptanceTest {
         assertThat(republication.outcome()).isEqualTo(RepublicationOutcome.PUBLISHED);
         assertThat(republication.newListingId()).contains(NEW_LISTING);
         assertThat(republication.attemptedAt()).isEqualTo(NOW);
-        assertThat(republication.publishedAt()).contains(NOW);
+        assertThat(republication.publishedAt()).contains(NOW.plusSeconds(30));
         assertThat(republication.backupSavedAt()).isEqualTo(SAVED_AT);
         assertThat(republications.findAll()).containsExactly(republication);
         // Et la nouvelle annonce est présente, reliée à l'ancienne, sans sauvegarde
@@ -311,6 +319,22 @@ class RepublishListingAcceptanceTest {
     }
 
     @Test
+    void looksForTheNewListingThirtySecondsAfterPublishing() {
+        // Étant donné les republications réelles activées
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.showingOncePublished(REPUBLISHED);
+        // Quand l'outil clique sur « Publier »
+        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        // Alors il attend 30 secondes avant de lire le dressing
+        assertThat(waitedUntil).containsExactly(NOW.plusSeconds(30));
+        // Et la republication est réussie si la nouvelle annonce y est alors seule avec le titre et le prix de la sauvegarde
+        ListingRepublication republication = report.lastRepublication().orElseThrow();
+        assertThat(republication.outcome()).isEqualTo(RepublicationOutcome.PUBLISHED);
+        assertThat(republication.attemptedAt()).isEqualTo(NOW);
+        assertThat(republication.publishedAt()).contains(NOW.plusSeconds(30));
+    }
+
+    @Test
     void leavesErrorOnFailureOrCrashAfterPublishClick() {
         // Étant donné un clic sur « Publier » fait
         // Quand la lecture du dressing échoue, ou l'outil s'arrête avant de la faire
@@ -481,7 +505,7 @@ class RepublishListingAcceptanceTest {
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
                 cadenceCheck(),
                 republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings, mode, clock,
-                show, new JournalWriter(journal, clock));
+                show, new JournalWriter(journal, clock), waiting, Duration.ofSeconds(30));
     }
 
     private CadenceCheck cadenceCheck() {

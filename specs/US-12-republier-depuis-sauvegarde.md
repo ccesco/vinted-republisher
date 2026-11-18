@@ -21,7 +21,7 @@ En tant que membre, je veux republier une annonce supprimée à partir de sa sau
 4. **Remplissage** : action navigateur `REPUBLISHING` (verrou d'US-03) ; formulaire de mise en vente ouvert dans le Chrome piloté ; photos originales dans l'ordre, puis titre, description, prix, catégorie, options et champs propres à la catégorie. Champ impossible à remplir → abandon, rien publié.
 5. **Dry-run** : arrêt ici, sans clic sur « Publier » ni enregistrement ; la réponse dit que tout a pu être rempli.
 6. **Publication** : la tentative est enregistrée « erreur de republication » juste avant le clic sur « Publier », puis l'outil clique.
-7. **Preuve** : une lecture du dressing, limitée aux annonces affichées à son ouverture, sans défiler (les plus récentes) ; parmi ces annonces dont l'identifiant Vinted est inconnu de l'outil, ouverture de leur page pour lire titre et prix (comme au scan). Exactement une avec le titre et le prix de la sauvegarde → republication réussie : nouvel identifiant et date de preuve enregistrés, nouvelle annonce créée présente et reliée à l'ancienne. Aucune ou plusieurs, ou toute erreur après le clic → le statut « erreur de republication » reste.
+7. **Preuve** : 30 secondes après le clic (réglage `republication.proof-delay`), le temps que Vinted montre la nouvelle annonce, une lecture du dressing, limitée aux annonces affichées à son ouverture, sans défiler (les plus récentes) ; parmi ces annonces dont l'identifiant Vinted est inconnu de l'outil, ouverture de leur page pour lire titre et prix (comme au scan). Exactement une avec le titre et le prix de la sauvegarde → republication réussie : nouvel identifiant et date de preuve enregistrés, nouvelle annonce créée présente et reliée à l'ancienne. Aucune ou plusieurs, ou toute erreur après le clic → le statut « erreur de republication » reste.
 8. **Après** : l'aperçu montre l'issue (réussie avec le nouvel identifiant et son lien, ou « erreur de republication, vérifier sur Vinted ») ; l'ancienne annonce reste absente avec sa sauvegarde, ses photos, sa validation et sa suppression.
 
 ## Contrat d'API
@@ -231,6 +231,15 @@ Et la republication reste « erreur de republication », l'aperçu invitant à �
 ```
 Test : `RepublishListingAcceptanceTest.looksForTheNewListingOnlyAmongTheListingsShownOnOpening()`, `PlaywrightWardrobeReaderTest.newest_listings_are_those_shown_on_opening_without_scrolling()`
 
+### AT-12-20 – Preuve 30 secondes après le clic
+```gherkin
+Étant donné les republications réelles activées
+Quand l'outil clique sur « Publier »
+Alors il attend 30 secondes avant de lire le dressing
+Et la republication est réussie si la nouvelle annonce y est alors seule avec le titre et le prix de la sauvegarde
+```
+Test : `RepublishListingAcceptanceTest.looksForTheNewListingThirtySecondsAfterPublishing()`
+
 ## Cas limites et erreurs
 - Brouillon gardé par Vinted quand on quitte le formulaire (erreur avant publication, dry-run) : aucun, d'après l'observation (AT-12-18) ; on ne clique jamais sur « Sauvegarder le brouillon ».
 - Libellé vide d'une taille : l'option se choisit par son identifiant (`size-group-<groupe>-grid-option-<id>`), le libellé ne sert pas.
@@ -257,7 +266,8 @@ Test : `RepublishListingAcceptanceTest.looksForTheNewListingOnlyAmongTheListings
 - Moment de l'erreur, décidé par l'utilisateur (2026-11-11) : une erreur avant le clic de publication ne laisse aucun statut (rien publié) : problème affiché, relance libre. Une erreur après le clic laisse le statut « erreur de republication », qui bloque toute nouvelle republication de l'annonce jusqu'à la vérification sur Vinted (US-13), pour éviter un doublon. Pour qu'un plantage juste après le clic laisse ce statut, la tentative est enregistrée juste avant le clic.
 
 - Preuve de la réussite, décidé par l'utilisateur (2026-11-11) : la page affichée juste après le clic ne suffit pas ; la republication est réussie quand la nouvelle annonce est retrouvée dans le dressing. La comparaison complète avec la sauvegarde reste en US-13.
-- Délai d'apparition, décidé par l'utilisateur (2026-11-11) : la nouvelle annonce apparaît dans le dressing quasi instantanément ; une seule lecture du dressing juste après la publication, sans attente ni relecture (hors le nouvel essai sur délai dépassé d'AT-04-19).
+- Délai d'apparition, décidé par l'utilisateur (2026-11-11) : la nouvelle annonce apparaît dans le dressing quasi instantanément ; une seule lecture du dressing juste après la publication, sans attente ni relecture (hors le nouvel essai sur délai dépassé d'AT-04-19). Remplacé le 2026-11-18 (ci-dessous).
+- Délai d'apparition revu, décidé par l'utilisateur (2026-11-18) : le 18/11, deux republications dont le dressing a été lu 5 à 8 s après le clic sont restées « erreur de republication », alors que la vérification d'US-13 les a ensuite trouvées publiées. La lecture du dressing attend désormais 30 secondes après le clic (réglage `republication.proof-delay`) ; toujours une seule lecture, sans relecture.
 - Lecture limitée de la preuve, décidé par l'utilisateur (2026-11-17) : relire tout le dressing, avec les pauses du défilement, à chaque republication coûterait trop une fois les republications enchaînées (US-19). La preuve ne lit que les annonces affichées à l'ouverture du dressing, sans défiler : Vinted y montre les plus récentes (hypothèse à confirmer au test réel). Nouvelle annonce absente de ces annonces → « erreur de republication » ; le membre lance alors « Vérifier sur Vinted » (US-13), qui garde la lecture complète du dressing.
 
 - Reconnaissance dans le dressing, décidé par l'utilisateur (2026-11-11) : la nouvelle annonce est celle du dressing dont l'identifiant Vinted est inconnu de l'outil, avec le même titre et le même prix que la sauvegarde. Exactement une → republication réussie : nouvel identifiant gardé, relié à l'ancienne annonce, avec la date. Aucune ou plusieurs → « erreur de republication » (bloque la relance jusqu'à US-13).

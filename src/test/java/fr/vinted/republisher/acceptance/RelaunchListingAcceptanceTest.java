@@ -280,7 +280,7 @@ class RelaunchListingAcceptanceTest {
                         new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay,
                                 clock),
                         cadence, republications, publisher, newListingSearch, listings, RepublicationMode.REAL, clock,
-                        showRepublication, journalWriter),
+                        showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
                         contents, noBackupPause(), clock, showRepublication));
     }
