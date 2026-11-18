@@ -17,6 +17,7 @@ import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.InventorySort;
+import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
 import fr.vinted.republisher.domain.tag.Tag;
@@ -42,12 +43,17 @@ public class ListingInventoryApiController implements ListingInventoryApi {
     @Override
     public ResponseEntity<ListingInventoryDto> showListingInventory(PresenceFilterDto presence, BackupFilterDto backup,
                                                                     String search, InventorySortDto sort,
-                                                                    SortDirectionDto direction, String tag) {
+                                                                    SortDirectionDto direction, String tag,
+                                                                    ListingStageDto stage) {
         InventoryCriteria criteria = new InventoryCriteria(PresenceFilter.valueOf(presence.name()),
                 BackupFilter.valueOf(backup.name()), search, InventorySort.valueOf(sort.name()),
-                SortDirection.valueOf(direction.name()), tagOf(tag));
+                SortDirection.valueOf(direction.name()), tagOf(tag),
+                Optional.ofNullable(stage).map(given -> ListingStage.valueOf(given.name())));
         return ResponseEntity.ok(new ListingInventoryDto().listings(showListingInventory.show(criteria).stream()
-                .map(entry -> toDto(entry).tags(entry.tags().stream().map(Tag::name).toList())).toList()));
+                .map(entry -> toDto(entry).tags(entry.tags().stream().map(Tag::name).toList())
+                        .republication(entry.republication().map(republication ->
+                                ListingBackupApiController.toDto(republication, entry.newListing())).orElse(null)))
+                .toList()));
     }
 
     /** A blank tag means no tag filter. */
@@ -55,7 +61,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
         return tag == null || tag.isBlank() ? Optional.empty() : Optional.of(new Tag(tag));
     }
 
-    /** Without tags: only the list shows them, the detail and the relaunch leave them out. */
+    /** Without tags nor republication: only the list shows them, the detail and the relaunch leave them out. */
     static ListingDto toDto(InventoryEntry entry) {
         Listing listing = entry.listing();
         return new ListingDto()

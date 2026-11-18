@@ -42,6 +42,11 @@ class InventoryCriteriaTest {
     }
 
     @Test
+    void no_stage_filter_by_default() {
+        assertThat(InventoryCriteria.defaults().stage()).isEmpty();
+    }
+
+    @Test
     void tag_filter_is_kept_as_a_formed_tag() {
         InventoryCriteria criteria = new InventoryCriteria(PresenceFilter.ALL, BackupFilter.ALL, "",
                 InventorySort.RECENCY, SortDirection.DESC, Optional.of(new Tag("Été")));
