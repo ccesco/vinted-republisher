@@ -92,4 +92,14 @@ public class Chrome {
     private URI endpoint() {
         return URI.create("http://127.0.0.1:" + debugPort);
     }
+
+    /** Its debug port tells the piloted Chromes apart. */
+    String name() {
+        return "Chrome (port " + debugPort + ")";
+    }
+
+    /** The debugging connection of one of its tabs, apart from the one Playwright works through. */
+    URI tabDebugger(String targetId) {
+        return URI.create("ws://127.0.0.1:" + debugPort + "/devtools/page/" + targetId);
+    }
 }

@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Aperçu live</title>
+    <style>
+        #live-previews img {
+            max-width: 100%;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+<p><a href="wardrobe.html">Retour au dressing</a></p>
+<h1>Aperçu live</h1>
+<p>Ce que montre chaque navigateur piloté dans l'onglet où il travaille, capturé toutes les 2 secondes tant que cette
+    page est ouverte. Lecture seule : l'aperçu n'agit pas sur la page.</p>
+<p id="live-preview-problem" role="alert" hidden>Aperçus indisponibles.</p>
+<p id="live-preview-summary"></p>
+<div id="live-previews"></div>
+<script>
+    const POLL_INTERVAL_MS = 2000;
+    const container = document.getElementById('live-previews');
+    const summary = document.getElementById('live-preview-summary');
+    const problem = document.getElementById('live-preview-problem');
+
+    function previewOf(preview) {
+        const article = document.createElement('article');
+        const heading = document.createElement('h2');
+        heading.textContent = preview.browser;
+        article.append(heading);
+        if (!preview.image) {
+            const unavailable = document.createElement('p');
+            unavailable.textContent = 'Aperçu indisponible.';
+            article.append(unavailable);
+            return article;
+        }
+        const capturedAt = document.createElement('p');
+        capturedAt.textContent = 'Capturé à ' + new Date(preview.capturedAt).toLocaleTimeString('fr-FR');
+        const image = document.createElement('img');
+        image.src = 'data:image/jpeg;base64,' + preview.image;
+        image.alt = 'Page de ' + preview.browser;
+        article.append(capturedAt, image);
+        return article;
+    }
+
+    async function refresh() {
+        try {
+            const response = await fetch('/api/live-previews');
+            if (!response.ok) {
+                throw new Error('HTTP ' + response.status);
+            }
+            const previews = (await response.json()).previews;
+            container.replaceChildren(...previews.map(previewOf));
+            summary.textContent = previews.length === 0 ? 'Aucun navigateur au travail.' : '';
+            problem.hidden = true;
+        } catch (unavailable) {
+            container.replaceChildren();
+            summary.textContent = '';
+            problem.hidden = false;
+        }
+        setTimeout(refresh, POLL_INTERVAL_MS);
+    }
+
+    refresh();
+</script>
+</body>
+</html>

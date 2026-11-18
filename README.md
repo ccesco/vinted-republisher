@@ -76,6 +76,8 @@ Cycle de vie : la fiche d'une annonce indique depuis quand l'outil la connaît (
 
 Ventes : le lien « Ventes » de la page du dressing ouvre `sales.html`, qui liste les annonces vues « Vendu » dans le dressing au scan ou au rafraîchissement des vues et favoris, la plus récente d'abord, avec la date du constat (pas celle de la vente), le dernier prix lu et le total des prix. Seules les annonces déjà connues de l'outil sont comptées ; rien n'est ouvert ni modifié sur Vinted pour cela.
 
+Aperçu live : le lien « Aperçu live » de la page du dressing ouvre `live-preview.html`, qui montre toutes les 2 secondes, pour chaque Chrome piloté au travail, une capture de la page de son onglet de travail (lecture seule : la capture, prise seulement quand la page est ouverte, ne navigue pas, ne clique pas et ne saisit rien). Fenêtre de Chrome réduite ou onglet passé au second plan : « Aperçu indisponible. ». Aucun travail en cours : « Aucun navigateur au travail. ».
+
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
 | `DB_NAME` | nom de la base | `appdb` |
@@ -138,7 +140,7 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 - US-19 `MVP` Bouton « Tout lancer » (automatique)
 - US-20 `MVP` Bouton « Relancer » par annonce
 - US-21 `MVP` Pause et stop
-- US-22 `V2` Aperçu live par sous-agent (navigateur ou onglet)
+- US-22 `V2` Aperçu live par sous-agent (navigateur ou onglet) (implémentée)
 - US-23 `MVP` Journal des actions
 
 ### Epic 7 – Statistiques
