@@ -1,5 +1,5 @@
 # US-15 – Traitement en parallèle (plusieurs navigateurs)
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-19 (série automatique), US-20 (relance), US-21 (pause et stop), US-27 (cadence)
 
@@ -35,14 +35,14 @@ En tant que membre, je veux pouvoir autoriser l'outil à mener plusieurs actions
 - `AutomaticRunOverview` : `currentListingIds` (tableau d'identifiants Vinted, obligatoire, vide hors tournée) remplace `currentListingId`. Aucun autre changement ; aucun nouveau chemin.
 
 ## Critères d'acceptation
-- [ ] Par défaut, une seule action d'annonce à la fois : la série se comporte comme en US-19.
-- [ ] Avec un parallélisme de N, la série relance jusqu'à N annonces en même temps, chacune dans son onglet.
-- [ ] Les limites de cadence restent globales : deux écritures ne passent jamais le contrôle ensemble.
-- [ ] Le verrou admet au plus N actions d'annonce, jamais deux sur la même annonce, et laisse seules les autres actions navigateur.
-- [ ] Pause et arrêt laissent finir toutes les relances de la tournée ; un problème du compte arrête la série une fois la tournée finie.
-- [ ] La série n'attend que si toutes les relances de la tournée le demandent, jusqu'à la date la plus proche.
-- [ ] L'aperçu et la page montrent les annonces de la tournée.
-- [ ] Une configuration invalide empêche l'application de démarrer.
+- [x] Par défaut, une seule action d'annonce à la fois : la série se comporte comme en US-19.
+- [x] Avec un parallélisme de N, la série relance jusqu'à N annonces en même temps, chacune dans son onglet.
+- [x] Les limites de cadence restent globales : deux écritures ne passent jamais le contrôle ensemble.
+- [x] Le verrou admet au plus N actions d'annonce, jamais deux sur la même annonce, et laisse seules les autres actions navigateur.
+- [x] Pause et arrêt laissent finir toutes les relances de la tournée ; un problème du compte arrête la série une fois la tournée finie.
+- [x] La série n'attend que si toutes les relances de la tournée le demandent, jusqu'à la date la plus proche.
+- [x] L'aperçu et la page montrent les annonces de la tournée.
+- [x] Une configuration invalide empêche l'application de démarrer.
 
 ## Tests d'acceptation
 Valeurs des scénarios : parallélisme 2, délai de republication 5 minutes, intervalle de cadence 2 minutes.
@@ -63,7 +63,7 @@ Alors les deux dry-runs sont en cours en même temps, chacun sur son annonce
 Et l'aperçu montre les deux annonces de la tournée
 Et la série est terminée avec 2 relances, les deux annonces écartées
 ```
-Test : `ParallelRunAcceptanceTest.relaunches_two_listings_at_the_same_time()`
+Test : `AutomaticRunAcceptanceTest.Parallel.relaunches_two_listings_at_the_same_time()`
 
 ### AT-15-03 – La cadence reste globale au compte
 ```gherkin
@@ -72,7 +72,7 @@ Quand la série les relance dans la même tournée
 Alors une seule est supprimée pendant la tournée, l'autre est refusée pour cadence pendant que la première est en cours
 Et la série attend 2 minutes, puis supprime la seconde
 ```
-Test : `ParallelRunAcceptanceTest.cadence_stays_global_to_the_account()`
+Test : `AutomaticRunAcceptanceTest.Parallel.cadence_stays_global_to_the_account()`
 
 ### AT-15-04 – Réservation de cadence
 ```gherkin
@@ -90,7 +90,7 @@ Quand trois actions d'annonce sont demandées, ou deux sur la même annonce, ou 
 Alors la troisième, la seconde sur la même annonce, le scan et l'action pendant le scan sont refusés (BROWSER_BUSY)
 Et une place libérée sert à l'action suivante
 ```
-Test : `VintedSessionTest.Parallelism` (`admits_up_to_the_parallelism`, `never_two_actions_on_the_same_listing`, `other_actions_stay_alone`)
+Test : `VintedSessionTest.Parallelism` (`admits_up_to_the_parallelism`, `never_two_actions_on_the_same_listing`, `other_actions_stay_alone`, `one_by_default`)
 
 ### AT-15-06 – Pause et arrêt laissent finir la tournée
 ```gherkin
@@ -100,15 +100,15 @@ Alors les deux se terminent, puis la série passe en pause
 Quand il demande l'arrêt pendant une tournée
 Alors les deux relances de la tournée se terminent, puis la série s'arrête (STOPPED_BY_MEMBER)
 ```
-Test : `ParallelRunAcceptanceTest.a_pause_lets_the_whole_round_end()`, `ParallelRunAcceptanceTest.a_stop_lets_the_whole_round_end()`
+Test : `AutomaticRunAcceptanceTest.Parallel.a_pause_lets_the_whole_round_end()`, `AutomaticRunAcceptanceTest.Parallel.a_stop_lets_the_whole_round_end()`
 
 ### AT-15-07 – Problème du compte : arrêt après la tournée
 ```gherkin
-Étant donné deux annonces prêtes et une session Vinted perdue, parallélisme 2
+Étant donné deux annonces prêtes et une session Vinted perdue, parallélisme 2, suppression en dry-run (en réel, la cadence refuserait la seconde avant Vinted)
 Quand la série les relance dans la même tournée
 Alors la série s'arrête une fois la tournée finie, raison SESSION_DISCONNECTED
 ```
-Test : `ParallelRunAcceptanceTest.stops_once_the_round_is_over()`
+Test : `AutomaticRunAcceptanceTest.Parallel.stops_once_the_round_is_over()`
 
 ### AT-15-08 – Attendre seulement si toute la tournée attend
 ```gherkin
@@ -117,7 +117,7 @@ Quand la série tourne
 Alors la première tournée passe la seconde en dry-run sans attendre
 Et la série n'attend qu'ensuite, jusqu'à la date de republication de la première
 ```
-Test : `ParallelRunAcceptanceTest.waits_only_when_the_whole_round_waits()`
+Test : `AutomaticRunAcceptanceTest.Parallel.waits_only_when_the_whole_round_waits()`
 
 ### AT-15-09 – Contrat et page
 ```gherkin
@@ -167,6 +167,7 @@ Test : `ChromeTabsTest.two_actions_work_in_their_own_tab_at_the_same_time()` (`@
   - **série par tournées** plutôt que N boucles indépendantes : pause, arrêt, attente et « une seule écriture par étape » restent décidés par un seul fil, entre deux tournées ; avec 1, la série d'US-19 est inchangée ;
   - attente seulement quand toute la tournée attend, jusqu'à la date la plus proche ;
   - `currentListingIds` remplace `currentListingId` : seule la page du dressing le lit.
+  - relevé par la revue : une tournée ne regarde que les annonces atteintes avant d'être pleine (comme US-19 avec 1) ; une action d'annonce ne se termine jamais comme une action seule, et seules suppression et republication partagent le navigateur ; une écriture qui échoue rend sa réservation (`DeleteListingAcceptanceTest.a_failed_deletion_gives_its_cadence_reservation_back()`) ; les fils des relances ne sont pas un bean `Executor` (il remplacerait l'exécuteur de Spring Boot, vu par `ApplicationStartupAcceptanceTest`).
 - Premier usage d'un parallélisme supérieur à 1 sur le vrai compte : seulement avec l'accord explicite de l'utilisateur, en dry-run d'abord.
 
 ## Questions ouvertes
@@ -174,14 +175,14 @@ Test : `ChromeTabsTest.two_actions_work_in_their_own_tab_at_the_same_time()` (`@
 
 ## Modèle de domaine
 - `VintedSession` : verrou à `parallelListingActions` places ; `start(BrowserAction, VintedListingId)` et `finish(VintedListingId)` pour une action d'annonce ; `start(BrowserAction)` et `finish()` pour une action seule.
-- `CadenceCheck.reserve(VintedWrite)` → `WriteReservation` (réservation d'écriture), rendue par `release(WriteReservation)`.
+- `CadenceCheck.reserve(VintedWrite)` → `WriteReservation` (réservation d'écriture), rendue par `release(WriteReservation)` ; remplace `CadenceCheck.check`.
 - `AutomaticRun.currentListings` (annonces de la tournée) remplace `currentListing` ; `relaunching(List<VintedListingId>)`.
 - `LaunchAutomaticRun` : tournée (`round`) de `parallelism` relances, menées par un exécuteur dédié.
-- Configuration : `ParallelismProperties` (`parallelism.listing-actions`).
+- Configuration : `ParallelismConfiguration` (`parallelism.listing-actions`, `ParallelListingActions`) ; fils dédiés `RelaunchThreads` (un par place, volontairement pas un bean `Executor`, qui remplacerait l'`applicationTaskExecutor` de Spring Boot) ; `Chrome.ensureRunning` synchronisé (deux onglets ne démarrent jamais deux Chrome).
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : `VintedSessionTest`, `AutomaticRunTest` si besoin.
-- Application : `CadenceCheckTest`, `ParallelRunAcceptanceTest`, `AutomaticRunAcceptanceTest` (inchangé, parallélisme 1).
+- Application : `CadenceCheckTest`, `AutomaticRunAcceptanceTest.Parallel`, et `AutomaticRunAcceptanceTest` (US-19, US-21) inchangé avec le parallélisme 1 ; contre-épreuve faite : sans la réservation, `CadenceCheckTest.a_write_in_progress_holds_the_cadence` et `cadence_stays_global_to_the_account` échouent.
 - Configuration : `ParallelismConfigurationTest`.
 - Navigateur : `ChromeTabsTest` (`@Tag("browser")`).
 - Web : `AutomaticRunApiControllerTest`, `WardrobePageTest`.

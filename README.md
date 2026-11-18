@@ -78,6 +78,8 @@ Ventes : le lien « Ventes » de la page du dressing ouvre `sales.html`, qui lis
 
 Aperçu live : le lien « Aperçu live » de la page du dressing ouvre `live-preview.html`, qui montre toutes les 2 secondes, pour chaque Chrome piloté au travail, une capture de la page de son onglet de travail (lecture seule : la capture, prise seulement quand la page est ouverte, ne navigue pas, ne clique pas et ne saisit rien). Fenêtre de Chrome réduite ou onglet passé au second plan : « Aperçu indisponible. ». Aucun travail en cours : « Aucun navigateur au travail. ».
 
+Traitement en parallèle (US-15) : désactivé par défaut. `parallelism.listing-actions` (`application.yml`, de 1 à 4, 1 par défaut) fixe le nombre d'actions sur des annonces (suppression, republication et leurs vérifications) menées en même temps, chacune dans son onglet du même Chrome (même profil, une seule connexion à Vinted). « Tout lancer » relance alors les annonces par tournées de ce nombre ; pause, arrêt et attente se décident entre deux tournées. Les limites de cadence restent communes à tout le compte : deux écritures ne passent jamais ensemble, le gain porte surtout sur les vérifications. Scan, sauvegarde, connexion, statistiques et archive gardent le navigateur seuls, et une annonce n'a jamais deux actions en même temps. Plusieurs onglets augmentent le risque de blocage anti-robot et Chrome peut ralentir un onglet en arrière-plan : essayez d'abord en dry-run.
+
 | Variable | Rôle | Défaut (profil `local` uniquement) |
 |---|---|---|
 | `DB_NAME` | nom de la base | `appdb` |
@@ -130,7 +132,7 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 
 ### Epic 5 – Orchestration
 - US-14 `MVP` États d'une annonce en cours de traitement
-- US-15 `V2` Traitement en parallèle (plusieurs navigateurs) : les limites de cadence plafonnent déjà les écritures, et plusieurs navigateurs augmentent le risque de blocage anti-robot
+- US-15 `V2` Traitement en parallèle (plusieurs onglets du même Chrome), désactivé par défaut : les limites de cadence plafonnent déjà les écritures, et plusieurs onglets augmentent le risque de blocage anti-robot
 - US-16 `MVP` Reprise après plantage (couverte par US-19 : étapes déduites de la base, nouveau « Tout lancer » sans redémarrage automatique)
 - US-17 `MVP` Gestion des échecs
 

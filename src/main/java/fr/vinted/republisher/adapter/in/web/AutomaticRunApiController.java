@@ -59,7 +59,7 @@ public class AutomaticRunApiController implements AutomaticRunApi {
                 .startedAt(run.startedAt().map(AutomaticRunApiController::utc).orElse(null))
                 .endedAt(run.endedAt().map(AutomaticRunApiController::utc).orElse(null))
                 .waitingUntil(run.waitingUntil().map(AutomaticRunApiController::utc).orElse(null))
-                .currentListingId(run.currentListing().map(VintedListingId::value).orElse(null))
+                .currentListingIds(run.currentListings().stream().map(VintedListingId::value).toList())
                 .relaunchCount(run.relaunchCount())
                 .skippedListingIds(run.skippedListings().stream().map(VintedListingId::value).toList())
                 .stopReason(run.stopReason().map(reason -> RunStopReasonDto.valueOf(reason.name())).orElse(null))

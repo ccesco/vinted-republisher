@@ -437,7 +437,7 @@ class RepublishListingAcceptanceTest {
         assertThat(session.overview().currentAction()).isEmpty();
         // Quand il lance une suppression (une seule tentée sur 24 heures, il y a 6 minutes)
         // Alors elle est permise
-        assertThatCode(() -> cadenceCheck().check(VintedWrite.DELETION)).doesNotThrowAnyException();
+        assertThatCode(() -> cadenceCheck().reserve(VintedWrite.DELETION)).doesNotThrowAnyException();
     }
 
     private void assertLeftInError(RepublicationReport report) {

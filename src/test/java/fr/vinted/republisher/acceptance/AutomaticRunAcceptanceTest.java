@@ -52,15 +52,25 @@ import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HashMap;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.BrokenBarrierException;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.function.BooleanSupplier;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
@@ -77,6 +87,7 @@ class AutomaticRunAcceptanceTest {
 
     private static final VintedListingId ROBE = new VintedListingId(1);
     private static final VintedListingId PULL = new VintedListingId(2);
+    private static final VintedListingId JUPE = new VintedListingId(3);
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00Z");
     private static final Instant NOW = Instant.parse("2026-11-11T10:00:00Z");
 
@@ -91,12 +102,184 @@ class AutomaticRunAcceptanceTest {
     private final FakeWardrobeReader wardrobe = new FakeWardrobeReader();
     private final FakeListingPublisher publisher = new FakeListingPublisher(wardrobe);
     private final FakeListingContentReader contents = new FakeListingContentReader();
-    private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
     private final ClockWaiting waiting = new ClockWaiting();
+    private VintedSession session = new VintedSession();
+    private int parallelism = 1;
+    private ExecutorService relaunchers;
     private DeletionMode deletionMode = DeletionMode.REAL;
     private LaunchAutomaticRun launchAutomaticRun;
+
+    @AfterEach
+    void stopRelaunchers() {
+        if (relaunchers != null) {
+            relaunchers.shutdownNow();
+        }
+    }
+
+    /** US-15: up to {@code listingActions} relaunches at once, each on its own thread as in its own tab. */
+    private void inParallel(int listingActions) {
+        parallelism = listingActions;
+        session = new VintedSession(listingActions);
+        relaunchers = Executors.newFixedThreadPool(listingActions);
+    }
+
+    @Nested
+    class Parallel {
+
+        @Test
+        void relaunches_two_listings_at_the_same_time() {
+            // Étant donné deux annonces « Prête à supprimer », suppression en dry-run, parallélisme 2
+            inParallel(2);
+            deletionMode = DeletionMode.DRY_RUN;
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            CyclicBarrier bothOpened = new CyclicBarrier(2);
+            List<AutomaticRun> seenDuringTheRound = Collections.synchronizedList(new ArrayList<>());
+            deleter.onOpening(() -> {
+                await(bothOpened);
+                seenDuringTheRound.add(launchAutomaticRun.overview());
+            });
+            // Quand la série tourne
+            launch();
+            // Alors les deux dry-runs sont en cours en même temps, chacun sur son annonce
+            assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL);
+            // Et l'aperçu montre les deux annonces de la tournée
+            assertThat(seenDuringTheRound).allSatisfy(run ->
+                    assertThat(run.currentListings()).containsExactly(ROBE, PULL));
+            // Et la série est terminée avec 2 relances, les deux annonces écartées
+            AutomaticRun run = launchAutomaticRun.overview();
+            assertThat(run.status()).isEqualTo(RunStatus.FINISHED);
+            assertThat(run.relaunchCount()).isEqualTo(2);
+            assertThat(run.skippedListings()).containsExactly(ROBE, PULL);
+            assertThat(run.currentListings()).isEmpty();
+        }
+
+        @Test
+        void cadence_stays_global_to_the_account() {
+            // Étant donné deux annonces validées, en mode réel, parallélisme 2
+            inParallel(2);
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            // La première écriture ne se termine qu'une fois l'autre relance refusée : elle est bien en cours
+            deleter.beforeDeleting(() -> {
+                if (deletions.findAll().isEmpty()) {
+                    awaitRefusal();
+                } else {
+                    launchAutomaticRun.stop();
+                }
+            });
+            // Quand la série les relance dans la même tournée
+            launch();
+            // Alors une seule est supprimée pendant la tournée, l'autre refusée pour cadence pendant la première
+            assertThat(deletions.findAll()).extracting(ListingDeletion::attemptedAt)
+                    .containsExactly(NOW, NOW.plusSeconds(120));
+            // Et la série attend 2 minutes, puis supprime la seconde
+            assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(120));
+            assertThat(launchAutomaticRun.overview().stopReason()).contains(RunStopReason.STOPPED_BY_MEMBER);
+        }
+
+        @Test
+        void a_pause_lets_the_whole_round_end() {
+            // Étant donné une tournée de deux suppressions en dry-run
+            inParallel(2);
+            deletionMode = DeletionMode.DRY_RUN;
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            CyclicBarrier bothOpened = new CyclicBarrier(2, () -> launchAutomaticRun.pause());
+            deleter.onOpening(() -> await(bothOpened));
+            List<AutomaticRun> seenWhilePaused = new ArrayList<>();
+            waiting.during(() -> {
+                seenWhilePaused.add(launchAutomaticRun.overview());
+                launchAutomaticRun.stop();
+            });
+            // Quand le membre demande une pause pendant la première
+            launch();
+            // Alors les deux se terminent, puis la série passe en pause
+            assertThat(seenWhilePaused).singleElement().satisfies(run -> {
+                assertThat(run.status()).isEqualTo(RunStatus.PAUSED);
+                assertThat(run.relaunchCount()).isEqualTo(2);
+            });
+        }
+
+        @Test
+        void a_stop_lets_the_whole_round_end() {
+            // Étant donné une tournée de deux suppressions en dry-run
+            inParallel(2);
+            deletionMode = DeletionMode.DRY_RUN;
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            aValidatedListing(JUPE, "Jupe plissée", "9.00");
+            CyclicBarrier bothOpened = new CyclicBarrier(2, () -> launchAutomaticRun.stop());
+            deleter.onOpening(() -> await(bothOpened));
+            // Quand il demande l'arrêt pendant une tournée
+            launch();
+            // Alors les deux relances de la tournée se terminent, puis la série s'arrête (STOPPED_BY_MEMBER)
+            AutomaticRun run = launchAutomaticRun.overview();
+            assertThat(run.relaunchCount()).isEqualTo(2);
+            assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL);
+            assertThat(run.stopReason()).contains(RunStopReason.STOPPED_BY_MEMBER);
+        }
+
+        @Test
+        void stops_once_the_round_is_over() {
+            // Étant donné deux annonces prêtes et une session Vinted perdue, parallélisme 2 (dry-run : sans cadence)
+            inParallel(2);
+            deletionMode = DeletionMode.DRY_RUN;
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            aValidatedListing(JUPE, "Jupe plissée", "9.00");
+            deleter.disconnected();
+            // Quand la série les relance dans la même tournée
+            launch();
+            // Alors la série s'arrête une fois la tournée finie, raison SESSION_DISCONNECTED
+            AutomaticRun run = launchAutomaticRun.overview();
+            assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL);
+            assertThat(run.status()).isEqualTo(RunStatus.STOPPED);
+            assertThat(run.stopReason()).contains(RunStopReason.SESSION_DISCONNECTED);
+        }
+
+        @Test
+        void waits_only_when_the_whole_round_waits() {
+            // Étant donné une annonce « En attente » republiable dans 5 minutes et une « Prête à supprimer » en dry-run
+            inParallel(2);
+            deletionMode = DeletionMode.DRY_RUN;
+            ListingBackup robe = aValidatedListing(ROBE, "Robe bleue", "12.00");
+            listings.saveAll(List.of(Listing.seen(aListing(1, "Robe bleue", "12.00", ACTIVE), SAVED_AT).absent()));
+            deleter.gone(ROBE);
+            deletions.save(ListingDeletion.attempted(robe, NOW).confirmed(NOW));
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            List<Instant> waitsWhenPullRelaunched = new ArrayList<>();
+            deleter.onOpening(() -> waitsWhenPullRelaunched.addAll(waiting.untils()));
+            waiting.during(() -> launchAutomaticRun.stop());
+            // Quand la série tourne
+            launch();
+            // Alors la première tournée passe la seconde en dry-run sans attendre
+            assertThat(waitsWhenPullRelaunched).isEmpty();
+            assertThat(launchAutomaticRun.overview().skippedListings()).containsExactly(PULL);
+            // Et la série n'attend qu'ensuite, jusqu'à la date de republication de la première
+            assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(300));
+        }
+    }
+
+    private static void await(CyclicBarrier barrier) {
+        try {
+            barrier.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException | BrokenBarrierException | TimeoutException notTogether) {
+            throw new IllegalStateException("the relaunches did not run at the same time", notTogether);
+        }
+    }
+
+    private void awaitRefusal() {
+        Instant deadline = Instant.now().plusSeconds(5);
+        while (journal.records().stream().noneMatch(record -> record.outcome() == ActionOutcome.REFUSED)) {
+            if (Instant.now().isAfter(deadline)) {
+                throw new IllegalStateException("the other relaunch was not refused while this write was in progress");
+            }
+            Thread.onSpinWait();
+        }
+    }
 
     @Test
     void deletes_waits_and_republishes_every_validated_listing() {
@@ -486,7 +669,7 @@ class AutomaticRunAcceptanceTest {
                         contents, noBackupPause(), clock, showRepublication));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
                 deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch, waiting, clock,
-                Runnable::run);
+                Runnable::run, parallelism, relaunchers == null ? Runnable::run : relaunchers);
     }
 
     /** Present, backed up with its photo kept, validated by the member, and shown as is on Vinted. */
@@ -521,11 +704,17 @@ class AutomaticRunAcceptanceTest {
     /** Vinted as the deleter sees it: one page per listing, gone once its deletion is confirmed. */
     private static final class VintedDeleter implements ListingDeleter {
 
-        private final Map<VintedListingId, ScannedListing> shown = new HashMap<>();
-        private final List<VintedListingId> opened = new ArrayList<>();
+        private final Map<VintedListingId, ScannedListing> shown = new ConcurrentHashMap<>();
+        private final List<VintedListingId> opened = Collections.synchronizedList(new ArrayList<>());
         private final List<VintedListingId> staying = new ArrayList<>();
         private Runnable beforeDeleting = () -> {
         };
+        private Runnable onOpening = () -> {
+        };
+
+        void onOpening(Runnable action) {
+            onOpening = action;
+        }
         private boolean disconnected;
 
         void staysOnceConfirmed(VintedListingId id) {
@@ -555,6 +744,7 @@ class AutomaticRunAcceptanceTest {
         @Override
         public Optional<ScannedListing> delete(ListingLink listing, DeletionVisit visit) {
             opened.add(listing.id());
+            onOpening.run();
             if (disconnected) {
                 throw new SessionDisconnected("redirected to login");
             }

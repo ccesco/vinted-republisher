@@ -583,11 +583,22 @@
         return `${count} ${word}${count > 1 ? 's' : ''}`;
     }
 
+    // Annonces de la tournée en cours (US-15) : une seule par défaut.
+    function runningSummaryOf(ids) {
+        switch (ids?.length ?? 0) {
+            case 0:
+                return 'Traitement en cours.';
+            case 1:
+                return `Traitement en cours : annonce ${ids[0]}.`;
+            default:
+                return `Traitement en cours : annonces ${ids.join(', ')}.`;
+        }
+    }
+
     function runSummaryOf(run) {
         switch (run.status) {
             case 'RUNNING':
-                return run.currentListingId ? `Traitement en cours : annonce ${run.currentListingId}.`
-                    : 'Traitement en cours.';
+                return runningSummaryOf(run.currentListingIds);
             case 'WAITING':
                 return `En attente jusqu'au ${dateOf(run.waitingUntil)}.`;
             case 'FINISHED':

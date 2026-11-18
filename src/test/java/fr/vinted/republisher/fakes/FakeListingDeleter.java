@@ -63,6 +63,11 @@ public class FakeListingDeleter implements ListingDeleter {
         return failingBeforeAnyClick(() -> new BrowserUnavailable("Chrome not found"));
     }
 
+    public FakeListingDeleter whereVintedAnswersAgain() {
+        failureBeforeAnyClick = Optional.empty();
+        return this;
+    }
+
     public FakeListingDeleter whereVintedRefuses() {
         return failingBeforeAnyClick(() -> new VintedUnreachable("HTTP 403"));
     }

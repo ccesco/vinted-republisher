@@ -82,13 +82,13 @@ public class RecheckListingDeletion {
                 .filter(latest -> latest.outcome() == DeletionOutcome.UNCONFIRMED)
                 .orElseThrow(() -> new NoUnconfirmedDeletion(id));
         Listing listing = listings.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
-        if (!session.start(BrowserAction.DELETING)) {
+        if (!session.start(BrowserAction.DELETING, id)) {
             throw new BrowserBusy();
         }
         try {
             settle(deletion, listing, deleter.show(new ListingLink(listing.id(), listing.url())));
         } finally {
-            session.finish();
+            session.finish(id);
         }
         return showListingDeletion.show(id);
     }

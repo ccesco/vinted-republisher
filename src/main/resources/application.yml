@@ -79,6 +79,13 @@ cadence:
   daily-deletions: 20
   daily-republications: 20
 
+# Traitement en parallèle (US-15) : nombre d'actions sur des annonces (suppression, republication et leurs
+# vérifications) menées en même temps, chacune dans son onglet du même Chrome, par la série comme à la main.
+# 1 par défaut : plusieurs onglets augmentent le risque de blocage anti-robot, et la cadence ci-dessus reste commune
+# à tout le compte. De 1 à 4 ; absent ou illisible, l'application ne démarre pas.
+parallelism:
+  listing-actions: 1
+
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:
   path: ${CHROME_PATH}

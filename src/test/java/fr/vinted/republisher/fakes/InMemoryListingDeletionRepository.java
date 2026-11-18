@@ -26,31 +26,31 @@ public class InMemoryListingDeletionRepository implements ListingDeletionReposit
         return this;
     }
 
-    public List<ListingDeletion> findAll() {
+    public synchronized List<ListingDeletion> findAll() {
         return List.copyOf(deletions.values());
     }
 
     @Override
-    public List<ListingDeletion> findAllLatest() {
+    public synchronized List<ListingDeletion> findAllLatest() {
         return deletions.values().stream().map(ListingDeletion::listingId).distinct()
                 .map(listing -> findLatest(listing).orElseThrow()).toList();
     }
 
     @Override
-    public Optional<ListingDeletion> findLatest(VintedListingId listing) {
+    public synchronized Optional<ListingDeletion> findLatest(VintedListingId listing) {
         return deletions.values().stream().filter(deletion -> deletion.listingId().equals(listing))
                 .max(Comparator.comparing(ListingDeletion::attemptedAt));
     }
 
     @Override
-    public List<Instant> findAttemptedSince(Instant since) {
+    public synchronized List<Instant> findAttemptedSince(Instant since) {
         return deletions.values().stream().map(ListingDeletion::attemptedAt)
                 .filter(attempted -> attempted.isAfter(since))
                 .toList();
     }
 
     @Override
-    public void save(ListingDeletion deletion) {
+    public synchronized void save(ListingDeletion deletion) {
         if (savesBeforeTheDatabaseGoesDown == 0) {
             throw new IllegalStateException("database down");
         }
