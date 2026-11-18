@@ -1,10 +1,13 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.adapter.in.web.api.ListingDetailApi;
+import fr.vinted.republisher.adapter.in.web.api.model.LifecycleEventDto;
+import fr.vinted.republisher.adapter.in.web.api.model.LifecycleEventTypeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingDetailDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceChangeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.StatisticsComparisonDto;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.inventory.LifecycleEvent;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.StatisticsComparison;
 import fr.vinted.republisher.domain.wardrobe.PriceChange;
@@ -30,13 +33,15 @@ public class ListingDetailApiController implements ListingDetailApi {
         ListingDetail detail = showListingDetail.show(new VintedListingId(listingId));
         return ResponseEntity.ok(new ListingDetailDto()
                 .listing(ListingInventoryApiController.toDto(detail.entry()))
+                .firstSeenAt(detail.entry().listing().firstSeenAt().atOffset(ZoneOffset.UTC))
                 .lastSeenAt(detail.entry().listing().lastSeenAt().atOffset(ZoneOffset.UTC))
                 .statisticsHistory(detail.history().stream().map(ListingInventoryApiController::statisticsOf).toList())
                 .journal(detail.journal().stream()
                         .map(entry -> ActionJournalApiController.toDto(entry, Optional.of(detail.entry().listing().title())))
                         .toList())
                 .statisticsComparison(detail.comparison().map(ListingDetailApiController::toDto).orElse(null))
-                .priceHistory(detail.priceHistory().stream().map(ListingDetailApiController::toDto).toList()));
+                .priceHistory(detail.priceHistory().stream().map(ListingDetailApiController::toDto).toList())
+                .lifecycle(detail.lifecycle().events().stream().map(ListingDetailApiController::toDto).toList()));
     }
 
     private static PriceChangeDto toDto(PriceChange change) {
@@ -54,5 +59,13 @@ public class ListingDetailApiController implements ListingDetailApi {
                 .cumulatedViewCount(comparison.cumulated().viewCount())
                 .cumulatedFavouriteCount(comparison.cumulated().favouriteCount())
                 .previousListingCount(comparison.previousListingCount());
+    }
+
+    private static LifecycleEventDto toDto(LifecycleEvent event) {
+        return new LifecycleEventDto()
+                .type(LifecycleEventTypeDto.valueOf(event.type().name()))
+                .listingId(event.listing().value())
+                .at(event.at().atOffset(ZoneOffset.UTC))
+                .newListingId(event.newListing().map(VintedListingId::value).orElse(null));
     }
 }

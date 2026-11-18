@@ -38,7 +38,8 @@ public class InMemoryListingRepository implements ListingRepository {
             throw new IllegalStateException("database down");
         }
         changed.forEach(listing -> {
-            listings.put(listing.id(), listing);
+            listings.merge(listing.id(), listing, (known, seen) -> new Listing(seen.id(), seen.url(), seen.title(),
+                    seen.price(), seen.present(), known.firstSeenAt(), seen.lastSeenAt()));
             PriceChange.of(priceHistoryOf(listing.id()).stream().findFirst(), listing)
                     .ifPresent(priceChanges::addFirst);
         });

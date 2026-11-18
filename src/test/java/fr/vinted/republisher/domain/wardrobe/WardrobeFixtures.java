@@ -3,6 +3,7 @@ package fr.vinted.republisher.domain.wardrobe;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.Random;
 
 /** Invented listings: never real data from a wardrobe. */
@@ -37,5 +38,11 @@ public final class WardrobeFixtures {
     public static ScanPace noPause() {
         PauseRange none = new PauseRange(Duration.ZERO, Duration.ZERO);
         return new ScanPace(none, none, new Random(42));
+    }
+
+    /** A listing read again at {@code lastSeenAt}, first seen by the tool at {@code firstSeenAt}. */
+    public static Listing seenSince(ScannedListing scanned, Instant firstSeenAt, Instant lastSeenAt) {
+        return new Listing(scanned.id(), scanned.url(), scanned.title(), scanned.price(), true, firstSeenAt,
+                lastSeenAt);
     }
 }

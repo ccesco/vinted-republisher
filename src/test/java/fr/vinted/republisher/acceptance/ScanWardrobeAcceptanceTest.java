@@ -48,6 +48,7 @@ import java.util.stream.LongStream;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.seenSince;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anInactiveListing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -124,9 +125,9 @@ class ScanWardrobeAcceptanceTest {
         // Alors la première est mise à jour, sans doublon
         // Et la seconde reste en base, marquée absente
         // Et elle n'apparaît plus dans la liste
-        assertThat(listings.findAll()).containsExactly(Listing.seen(cheaper, NOW), missing.absent());
+        assertThat(listings.findAll()).containsExactly(seenSince(cheaper, EARLIER, NOW), missing.absent());
         assertThat(showListingInventory.show(InventoryCriteria.defaults())).extracting(InventoryEntry::listing)
-                .containsExactly(Listing.seen(cheaper, NOW));
+                .containsExactly(seenSince(cheaper, EARLIER, NOW));
     }
 
     @Test

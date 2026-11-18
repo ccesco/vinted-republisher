@@ -1,5 +1,5 @@
 # US-32 – Cycle de vie des annonces
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-04 (scan), US-09 (suppression), US-12 et US-13 (republication et lien vers la nouvelle annonce), US-18b (fiche), US-24 (chaîne de republications)
 
@@ -29,12 +29,12 @@ En tant que membre, je veux voir sur la fiche d'une annonce la chronologie de l'
 - `LifecycleEventType` : `FIRST_SEEN`, `DELETED`, `REPUBLISHED`, `LEFT_WARDROBE`.
 
 ## Critères d'acceptation
-- [ ] La date de première détection d'une annonce est gardée telle quelle à chaque nouvelle lecture.
-- [ ] Les annonces connues avant l'US reçoivent une date de première détection reprise de leurs relevés ou de leur dernière vue.
-- [ ] La fiche d'une annonce montre la chronologie de tout l'article, quelle que soit l'annonce de la chaîne ouverte.
-- [ ] Une annonce sortie du dressing sans suppression confirmée a l'événement « sortie du dressing ».
-- [ ] Les faits incertains ne donnent aucun événement.
-- [ ] L'API et la fiche montrent la première détection et le cycle de vie.
+- [x] La date de première détection d'une annonce est gardée telle quelle à chaque nouvelle lecture.
+- [x] Les annonces connues avant l'US reçoivent une date de première détection reprise de leurs relevés ou de leur dernière vue.
+- [x] La fiche d'une annonce montre la chronologie de tout l'article, quelle que soit l'annonce de la chaîne ouverte.
+- [x] Une annonce sortie du dressing sans suppression confirmée a l'événement « sortie du dressing ».
+- [x] Les faits incertains ne donnent aucun événement.
+- [x] L'API et la fiche montrent la première détection et le cycle de vie.
 
 ## Tests d'acceptation
 ### AT-32-01 – Première détection gardée
@@ -111,7 +111,7 @@ Test : `ListingDetailApiControllerTest.detail_shows_the_first_sighting_and_the_l
 ## Décisions
 Décidé par Claude sur délégation de l'utilisateur (2026-11-17, « rédiger et valider la spec soi-même », le README ne donnant que le titre de l'US) :
 - Le cycle de vie est une chronologie lue en base, pas un nouvel état : l'étape de traitement (US-14) dit déjà où en est l'annonce ; ce qui manque est l'historique de l'article et sa date d'entrée. Seule donnée nouvelle : la date de première détection.
-- La première détection est gardée par le dépôt des annonces (une annonce déjà connue garde la sienne quand elle est réenregistrée), pour que tous les cas d'usage qui enregistrent une annonce (scan, republication, vérification, validation manuelle) la respectent sans changement.
+- La première détection est gardée par le dépôt des annonces (une annonce déjà connue garde la sienne quand elle est réenregistrée ; l'adaptateur JPA relit la date gardée avant d'écrire), pour que tous les cas d'usage qui enregistrent une annonce (scan, republication, vérification, validation manuelle) la respectent sans changement.
 - Reprise des annonces existantes depuis le plus ancien relevé ou la dernière vue plutôt qu'une colonne facultative : la fiche et l'API ont toujours une date, au prix d'une approximation dite dans la spec.
 - La chronologie couvre toute la chaîne de republications, dans les deux sens, comme le total cumulé d'US-24 : c'est le même article.
 - Date de suppression = date du clic (quand l'outil a supprimé), pas celle de la preuve ; date de republication = date de preuve, comme US-24.

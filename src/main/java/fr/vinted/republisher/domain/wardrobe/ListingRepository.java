@@ -11,7 +11,8 @@ public interface ListingRepository {
 
     /**
      * All or nothing: a failure leaves the inventory as it was. Adds to the price history of each listing the
-     * {@link PriceChange} its price makes, if any.
+     * {@link PriceChange} its price makes, if any. A listing already known keeps the date it was first seen, whatever
+     * the one given.
      */
     void saveAll(List<Listing> listings);
 

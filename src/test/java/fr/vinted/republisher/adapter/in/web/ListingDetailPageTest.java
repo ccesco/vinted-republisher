@@ -41,6 +41,8 @@ class ListingDetailPageTest {
             {"listing": {"vintedId": 3, "title": "Pull <b>rayé</b>", "price": {"amount": 12.5, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
              "lastSeenAt": "2026-11-03T09:00:00Z",
+             "firstSeenAt": "2026-11-01T09:00:00Z",
+             "lifecycle": [{"type": "FIRST_SEEN", "listingId": 3, "at": "2026-11-01T09:00:00Z"}],
              "journal": [],
              "statisticsHistory": [
                {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
@@ -51,6 +53,8 @@ class ListingDetailPageTest {
     private static final String NEVER_READ = """
             {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
+             "firstSeenAt": "2026-11-01T09:00:00Z",
+             "lifecycle": [{"type": "FIRST_SEEN", "listingId": 3, "at": "2026-11-01T09:00:00Z"}],
              "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": [], "priceHistory": [], "journal": []}""";
     private static final String ABSENT = NEVER_READ.replace("\"present\": true", "\"present\": false");
 
@@ -350,6 +354,33 @@ class ListingDetailPageTest {
         assertThat(page.locator("#statistics-comparison-table tbody tr").nth(1)).containsText("jamais relevée");
         assertThat(page.locator("#statistics-comparison-table tbody tr").nth(2))
                 .containsText("Total depuis la première mise en ligne (2 annonces)");
+    }
+
+    @Test
+    void shows_the_lifecycle() {
+        // Étant donné l'annonce 3, vue le 10 novembre, venue de l'annonce 1 vue le 1er, supprimée et republiée le 10
+        detail.set(DETAIL.replace("""
+                "firstSeenAt": "2026-11-01T09:00:00Z",
+                 "lifecycle": [{"type": "FIRST_SEEN", "listingId": 3, "at": "2026-11-01T09:00:00Z"}],""", """
+                "firstSeenAt": "2026-11-10T09:30:00Z",
+                 "lifecycle": [
+                   {"type": "FIRST_SEEN", "listingId": 1, "at": "2026-11-01T09:00:00Z"},
+                   {"type": "DELETED", "listingId": 1, "at": "2026-11-10T09:00:00Z"},
+                   {"type": "REPUBLISHED", "listingId": 1, "at": "2026-11-10T09:20:00Z", "newListingId": 3},
+                   {"type": "FIRST_SEEN", "listingId": 3, "at": "2026-11-10T09:30:00Z"}],"""));
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit sa première détection, le début du suivi de l'article et les événements dans l'ordre
+        assertThat(page.locator("#first-seen")).containsText("Vue pour la première fois le 10/11/2026");
+        assertThat(page.locator("#tracked-since")).containsText("Article suivi depuis le 01/11/2026");
+        assertThat(page.locator("#lifecycle li")).hasCount(4);
+        assertThat(page.locator("#lifecycle li").nth(0)).containsText("01/11/2026");
+        assertThat(page.locator("#lifecycle li").nth(0)).containsText("Annonce 1 vue pour la première fois");
+        assertThat(page.locator("#lifecycle li").nth(0).locator("a")).hasAttribute("href", "listing.html?id=1");
+        assertThat(page.locator("#lifecycle li").nth(1)).containsText("Annonce 1 supprimée par l'outil");
+        assertThat(page.locator("#lifecycle li").nth(2)).containsText("Annonce 1 republiée sous cette annonce");
+        assertThat(page.locator("#lifecycle li").nth(3)).containsText("Cette annonce vue pour la première fois");
+        assertThat(page.locator("#lifecycle li").nth(3).locator("a")).hasCount(0);
     }
 
     @Test
