@@ -15,4 +15,10 @@ public interface ActionJournal {
 
     /** Every entry of the listing, most recent first. */
     List<JournalEntry> of(VintedListingId listing);
+
+    /**
+     * The most recent entry of each listing named in the journal, in no particular order, refusals that only ask to
+     * wait ({@link ActionRecord#isWaitingRefusal()}) left aside.
+     */
+    List<JournalEntry> lastOfEachListing();
 }

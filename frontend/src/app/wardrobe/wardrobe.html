@@ -27,7 +27,7 @@
 
 <section class="card run">
   <h2>Série automatique</h2>
-  <p id="run-summary">{{ runSummary() }}</p>
+  <p id="run-summary">@for (part of runSummary(); track $index) {@if (part.failuresLink) {<a href="#/failures">{{ part.text }}</a>} @else {{{ part.text }}}}</p>
   <div class="actions">
     <button id="automatic-run" matButton="filled" type="button" [hidden]="!runButtonShown()" (click)="launchRun()">Tout lancer</button>
     <button id="pause-run" matButton="tonal" type="button" [hidden]="!pauseShown()" (click)="controlRun('pause')">Pause</button>

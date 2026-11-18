@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.application.inventory.ShowFailedListings;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
@@ -29,6 +30,11 @@ class InventoryConfiguration {
                                               ListingTagRepository tags) {
         return new ShowListingInventory(listings, statistics, backups, validations, deletions, republications,
                 republicationDelay, clock, tags);
+    }
+
+    @Bean
+    ShowFailedListings showFailedListings(ActionJournal journal, ShowListingInventory showListingInventory) {
+        return new ShowFailedListings(journal, showListingInventory);
     }
 
     @Bean

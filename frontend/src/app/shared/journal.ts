@@ -40,11 +40,28 @@ export interface JournalLine {
 export function journalLineOf(entry: JournalEntry): JournalLine {
   return {
     date: dateOf(entry.occurredAt),
-    action: JOURNAL_ACTIONS[entry.action] ?? entry.action,
-    outcome: JOURNAL_OUTCOMES[entry.outcome] ?? entry.outcome,
+    action: actionOf(entry),
+    outcome: outcomeOf(entry),
     highlighted: JOURNAL_HIGHLIGHTED.includes(entry.outcome),
-    reason: entry.reason ? (JOURNAL_REASONS[entry.reason] ?? entry.reason) : '',
+    reason: reasonOf(entry),
     listingId: entry.listingId,
     listingName: entry.listingTitle ?? String(entry.listingId ?? '')
   };
+}
+
+// Annonces en échec (US-39) : la raison en clair ; une revérification « non faite » n'en a pas.
+export function causeOf(entry: JournalEntry): string {
+  return entry.outcome === 'NOT_DONE' && !entry.reason ? 'suppression non faite' : reasonOf(entry);
+}
+
+export function actionOf(entry: JournalEntry): string {
+  return JOURNAL_ACTIONS[entry.action] ?? entry.action;
+}
+
+export function outcomeOf(entry: JournalEntry): string {
+  return JOURNAL_OUTCOMES[entry.outcome] ?? entry.outcome;
+}
+
+function reasonOf(entry: JournalEntry): string {
+  return entry.reason ? (JOURNAL_REASONS[entry.reason] ?? entry.reason) : '';
 }

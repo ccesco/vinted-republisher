@@ -7,7 +7,9 @@ import fr.vinted.republisher.domain.journal.JournalPage;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.OptionalLong;
 
 public class InMemoryActionJournal implements ActionJournal {
@@ -39,6 +41,14 @@ public class InMemoryActionJournal implements ActionJournal {
                 .filter(entry -> before.isEmpty() || entry.id() < before.getAsLong())
                 .toList();
         return new JournalPage(older.stream().limit(JournalPage.SIZE).toList(), older.size() > JournalPage.SIZE);
+    }
+
+    @Override
+    public synchronized List<JournalEntry> lastOfEachListing() {
+        Map<VintedListingId, JournalEntry> last = new HashMap<>();
+        entries.stream().filter(entry -> !entry.record().isWaitingRefusal())
+                .forEach(entry -> entry.record().listingId().ifPresent(listing -> last.put(listing, entry)));
+        return List.copyOf(last.values());
     }
 
     @Override

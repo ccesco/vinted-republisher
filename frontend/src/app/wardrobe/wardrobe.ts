@@ -13,22 +13,16 @@ import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import { dateOf, dayOf, listingLink, plural, priceOf } from '../shared/format';
 import { inventoryCriteriaOf } from './inventory-criteria';
 import { keyFiguresOf } from './key-figures';
+import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
 import { runningSummaryOf } from './run-summary';
 import {
   APPLICATION_DOWN_MESSAGE, ARCHIVE_PROBLEM_MESSAGES, ARCHIVE_UNREACHABLE_MESSAGE, BACKUP_PROBLEM_MESSAGES,
-  PROBLEM_MESSAGES, RELAUNCHABLE_STAGES, RELAUNCH_DONE_MESSAGES, RELAUNCH_DRY_RUN_MESSAGE, RELAUNCH_FAILED_MESSAGE,
-  RELAUNCH_REFUSAL_MESSAGES, RELAUNCH_UNCERTAIN_MESSAGE, RUN_STOP_MESSAGES, STAGES_TO_CHECK, STAGE_LABELS,
+  PROBLEM_MESSAGES, RELAUNCHABLE_STAGES, RELAUNCH_FAILED_MESSAGE, RUN_STOP_MESSAGES, STAGES_TO_CHECK, STAGE_LABELS,
   STATISTICS_PROBLEM_MESSAGES, TAG_EDIT_FAILED_MESSAGE, TAG_EDIT_REFUSALS
 } from './wardrobe-messages';
 
 const POLL_INTERVAL_MS = 2000;
 const SEARCH_DELAY_MS = 300;
-
-// Morceau d'un message de relance : texte, ou lien vers la fiche d'une annonce.
-interface MessagePart {
-  text: string;
-  listingId?: number;
-}
 
 interface Row {
   listing: Listing;
@@ -59,7 +53,7 @@ export class Wardrobe {
   private readonly run = signal<AutomaticRunOverview | null>(null);
   protected readonly runSummary = computed(() => {
     const run = this.run();
-    return run ? runSummaryOf(run, (this.rows() ?? []).map(row => row.listing)) + requestOf(run) : '';
+    return run ? [...runSummaryOf(run, (this.rows() ?? []).map(row => row.listing)), { text: requestOf(run) }] : [];
   });
   protected readonly runButtonShown = signal(false);
   protected readonly pauseShown = signal(false);
@@ -302,7 +296,7 @@ export class Wardrobe {
         this.relaunches.relaunchListing(listing.vintedId, { stage: listing.stage }));
       if (report?.listing) {
         shown = report.listing;
-        message = [{ text: this.relaunchMessageOf(report) }];
+        message = [{ text: relaunchMessageOf(report) }];
       } else {
         message = [{ text: RELAUNCH_FAILED_MESSAGE }];
       }
@@ -315,7 +309,7 @@ export class Wardrobe {
         if (refusal.reason === 'STAGE_CHANGED' && refusal.stage) {
           shown = { ...listing, stage: refusal.stage };
         }
-        message = this.refusalMessageOf(listing, refusal);
+        message = refusalMessageOf(listing.vintedId, refusal);
       }
     }
     this.rows.update(rows => (rows ?? []).map(other => other.listing.vintedId === listing.vintedId
@@ -328,31 +322,6 @@ export class Wardrobe {
 
   private replaceRow(row: Row, replacement: Row): void {
     this.rows.update(rows => (rows ?? []).map(other => other === row ? replacement : other));
-  }
-
-  // Une action dont l'annonce reste ou devient « à vérifier » n'a pas d'issue prouvée (US-17).
-  private relaunchMessageOf(report: RelaunchReport): string {
-    if (report.dryRun) {
-      return RELAUNCH_DRY_RUN_MESSAGE;
-    }
-    if (STAGES_TO_CHECK.includes(report.listing.stage)) {
-      return RELAUNCH_UNCERTAIN_MESSAGE;
-    }
-    return RELAUNCH_DONE_MESSAGES[report.action] ?? '';
-  }
-
-  private refusalMessageOf(listing: Listing, refusal: RelaunchRefusal): MessagePart[] {
-    if (refusal.reason === 'NOT_RELAUNCHABLE' && refusal.allowedAt) {
-      return [{ text: `Republication possible à partir du ${dateOf(refusal.allowedAt)}` }];
-    }
-    let text = RELAUNCH_REFUSAL_MESSAGES[refusal.reason] ?? RELAUNCH_FAILED_MESSAGE;
-    if (refusal.allowedAt) {
-      text += ` (à partir du ${dateOf(refusal.allowedAt)})`;
-    }
-    if (refusal.reason === 'ACTION_REFUSED') {
-      return [{ text: text + ' ' }, { text: "fiche de l'annonce", listingId: listing.vintedId }];
-    }
-    return [{ text }];
   }
 
   // Application arrêtée ou en erreur : on réessaie jusqu'à ce qu'elle réponde.
@@ -486,17 +455,35 @@ function inProgress(overview: WardrobeOverview): boolean {
   return overview.scanInProgress || overview.backupInProgress || overview.statisticsRefreshInProgress;
 }
 
-function runSummaryOf(run: AutomaticRunOverview, listings: Listing[]): string {
+// Morceau de la ligne d'état de la série : texte, ou lien vers la page des échecs (US-39).
+interface SummaryPart {
+  text: string;
+  failuresLink?: boolean;
+}
+
+function runSummaryOf(run: AutomaticRunOverview, listings: Listing[]): SummaryPart[] {
+  if (run.status === 'FINISHED') {
+    return finishedSummaryOf(run);
+  }
+  return [{ text: runStateOf(run, listings) }];
+}
+
+function finishedSummaryOf(run: AutomaticRunOverview): SummaryPart[] {
+  const skipped = run.skippedListingIds.length;
+  const skippedText = `${plural(skipped, 'annonce')} écartée${skipped > 1 ? 's' : ''}`;
+  return [
+    { text: `Traitement terminé : ${plural(run.relaunchCount, 'relance')}, ` },
+    { text: skippedText, failuresLink: skipped > 0 },
+    { text: '.' }
+  ];
+}
+
+function runStateOf(run: AutomaticRunOverview, listings: Listing[]): string {
   switch (run.status) {
     case 'RUNNING':
       return runningSummaryOf(run.currentListingIds, listings);
     case 'WAITING':
       return `En attente jusqu'au ${dateOf(run.waitingUntil ?? '')}.`;
-    case 'FINISHED': {
-      const skipped = run.skippedListingIds.length;
-      return `Traitement terminé : ${plural(run.relaunchCount, 'relance')}, `
-        + `${plural(skipped, 'annonce')} écartée${skipped > 1 ? 's' : ''}.`;
-    }
     case 'PAUSED':
       return 'Traitement en pause.';
     case 'STOPPED':
