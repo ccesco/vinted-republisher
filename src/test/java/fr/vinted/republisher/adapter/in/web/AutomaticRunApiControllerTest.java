@@ -173,7 +173,7 @@ class AutomaticRunApiControllerTest {
             FakeWardrobeReader wardrobe = new FakeWardrobeReader();
             JournalWriter journalWriter = new JournalWriter(journal, clock);
             CadenceCheck cadence = new CadenceCheck(deletions, republications,
-                    new WriteCadence(Duration.ofMinutes(2), 20, 20), clock);
+                    new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock);
             NewListingSearch search = new NewListingSearch(wardrobe, noPause(), listings);
             ShowListingRepublication show = new ShowListingRepublication(new ShowListingDeletion(listings, backups,
                     photos, validations, deletions, DeletionMode.REAL, delay), republications, listings,

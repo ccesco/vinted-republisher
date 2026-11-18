@@ -348,7 +348,7 @@ class ListingDeletionApiControllerTest {
                     DeletionMode.DRY_RUN,
                     new RepublicationDelay(Duration.ofMinutes(5)),
                     new CadenceCheck(deletions, new InMemoryListingRepublicationRepository(),
-                            new WriteCadence(Duration.ofMinutes(2), 20, 20), Clock.fixed(NOW, ZoneOffset.UTC)),
+                            new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), Clock.fixed(NOW, ZoneOffset.UTC)),
                     Clock.fixed(NOW, ZoneOffset.UTC),
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }

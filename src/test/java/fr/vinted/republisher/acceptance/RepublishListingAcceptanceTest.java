@@ -485,7 +485,7 @@ class RepublishListingAcceptanceTest {
     }
 
     private CadenceCheck cadenceCheck() {
-        return new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 2, 2), clock);
+        return new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 2, 2), clock);
     }
 
     /** Backed up with two photos kept, validated by the member, absent from the wardrobe: not deleted yet. */

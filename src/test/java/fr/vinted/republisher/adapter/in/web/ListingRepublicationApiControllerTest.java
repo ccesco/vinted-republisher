@@ -525,7 +525,7 @@ class ListingRepublicationApiControllerTest {
             Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
             return new RepublishListing(session, new RepublicationChecks(listingBackups, photos, validations,
                     deletions, republications, new RepublicationDelay(Duration.ofMinutes(5)), clock),
-                    new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), 20, 20), clock),
+                    new CadenceCheck(deletions, republications, new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
                     republications, vinted, new NewListingSearch(wardrobe, noPause(), listings), listings,
                     RepublicationMode.REAL, clock, show, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }

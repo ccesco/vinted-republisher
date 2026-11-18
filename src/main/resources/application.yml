@@ -71,12 +71,13 @@ republication:
   minimum-delay: 5m
   dry-run: ${REPUBLICATION_DRY_RUN:true}
 
-# Limites de cadence (US-27) : écritures sur Vinted (suppressions et republications réelles) espacées d'au moins
-# minimum-interval, tous types confondus, et au plus daily-* de chaque type sur 24 heures glissantes.
-# Absent, nul, négatif ou illisible, l'application ne démarre pas.
+# Limites de cadence (US-27) : une écriture sur Vinted (suppression ou republication réelle) attend l'intervalle de son
+# type (deletion-interval, republication-interval) depuis la dernière écriture, quel que soit le type de celle-ci, et
+# au plus daily-* de chaque type sur 24 heures glissantes. Absent, nul, négatif ou illisible, l'application ne démarre pas.
 cadence:
-  minimum-interval: 2m
-  daily-deletions: 20
+  deletion-interval: 30s
+  republication-interval: 2m
+  daily-deletions: 140
   daily-republications: 20
 
 # Traitement en parallèle (US-15) : nombre d'actions sur des annonces (suppression, republication et leurs

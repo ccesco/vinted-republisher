@@ -24,7 +24,7 @@ class CadenceCheckTest {
     private final InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final CadenceCheck cadence = new CadenceCheck(deletions, new InMemoryListingRepublicationRepository(),
-            new WriteCadence(Duration.ofMinutes(2), 20, 20), clock);
+            new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock);
 
     @Test
     void a_write_in_progress_holds_the_cadence() {
