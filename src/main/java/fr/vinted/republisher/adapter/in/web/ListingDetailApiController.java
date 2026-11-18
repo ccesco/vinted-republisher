@@ -2,10 +2,12 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.adapter.in.web.api.ListingDetailApi;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingDetailDto;
+import fr.vinted.republisher.adapter.in.web.api.model.PriceChangeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.StatisticsComparisonDto;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.StatisticsComparison;
+import fr.vinted.republisher.domain.wardrobe.PriceChange;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -33,7 +35,14 @@ public class ListingDetailApiController implements ListingDetailApi {
                 .journal(detail.journal().stream()
                         .map(entry -> ActionJournalApiController.toDto(entry, Optional.of(detail.entry().listing().title())))
                         .toList())
-                .statisticsComparison(detail.comparison().map(ListingDetailApiController::toDto).orElse(null)));
+                .statisticsComparison(detail.comparison().map(ListingDetailApiController::toDto).orElse(null))
+                .priceHistory(detail.priceHistory().stream().map(ListingDetailApiController::toDto).toList()));
+    }
+
+    private static PriceChangeDto toDto(PriceChange change) {
+        return new PriceChangeDto()
+                .price(ListingBackupApiController.toDto(change.price()))
+                .changedAt(change.changedAt().atOffset(ZoneOffset.UTC));
     }
 
     private static StatisticsComparisonDto toDto(StatisticsComparison comparison) {

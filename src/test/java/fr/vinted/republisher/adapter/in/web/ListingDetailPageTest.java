@@ -44,11 +44,14 @@ class ListingDetailPageTest {
              "journal": [],
              "statisticsHistory": [
                {"viewCount": 12, "favouriteCount": 3, "readAt": "2026-11-02T09:00:00Z"},
-               {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}]}""";
+               {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}],
+             "priceHistory": [
+               {"price": {"amount": 10, "currency": "EUR"}, "changedAt": "2026-11-02T09:00:00Z"},
+               {"price": {"amount": 12.5, "currency": "EUR"}, "changedAt": "2026-11-01T09:00:00Z"}]}""";
     private static final String NEVER_READ = """
             {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
-             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": [], "journal": []}""";
+             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": [], "priceHistory": [], "journal": []}""";
     private static final String ABSENT = NEVER_READ.replace("\"present\": true", "\"present\": false");
 
     private static final String VERIFIED = """
@@ -297,6 +300,33 @@ class ListingDetailPageTest {
         assertThat(page.locator("#backup")).isHidden();
         assertThat(problem()).isHidden();
         assertThat(page.getByRole(AriaRole.BUTTON)).hasCount(0);
+    }
+
+    @Test
+    void shows_the_price_history() {
+        // US-33 AT-33-07. Étant donné l'annonce 3 à 12,50 € depuis le 1er novembre, puis à 10 € depuis le 2
+        detail.set(DETAIL);
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit ses prix, du plus récent au plus ancien
+        Locator rows = page.locator("#price-history tbody tr");
+        assertThat(rows).hasCount(2);
+        assertThat(rows.nth(0)).containsText("02/11/2026");
+        assertThat(rows.nth(0)).containsText("10,00");
+        assertThat(rows.nth(1)).containsText("01/11/2026");
+        assertThat(rows.nth(1)).containsText("12,50");
+        assertThat(page.locator("#no-price")).isHidden();
+    }
+
+    @Test
+    void listing_without_price_history() {
+        // Étant donné l'annonce 3 enregistrée avant l'historique de prix
+        detail.set(NEVER_READ);
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors il voit « Aucun prix relevé »
+        assertThat(page.locator("#no-price")).hasText("Aucun prix relevé");
+        assertThat(page.locator("#price-history")).isHidden();
     }
 
     @Test

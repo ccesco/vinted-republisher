@@ -67,7 +67,7 @@ Vues et favoris : « Rafraîchir les vues et favoris » relit seulement les cart
 
 Conseil : la colonne « Conseil » de la liste, et la fiche, signalent « À republier » une annonce en vente qui ne se voit presque plus : moins de 10 vues gagnées depuis son dernier relevé d'il y a au moins 7 jours (relevé récent de moins de 7 jours, moins de 5 favoris, qu'une republication ferait perdre). Rafraîchissez les vues et favoris régulièrement pour en profiter. Le conseil ne lance rien : c'est au membre de relancer l'annonce.
 
-Fiche et validation : sur la page du dressing, le titre d'une annonce ouvre sa fiche (`listing.html`) : l'annonce, l'historique de ses vues et favoris, puis l'aperçu de sa sauvegarde : photos gardées, contenu par ses libellés et vérification faite à l'ouverture (au moins une photo, fichiers présents et intacts, annonce présente, titre et prix identiques au dernier scan). « Valider » confirme cette version de la sauvegarde ; une nouvelle sauvegarde de l'annonce annule la validation. Rien n'est demandé à Vinted.
+Fiche et validation : sur la page du dressing, le titre d'une annonce ouvre sa fiche (`listing.html`) : l'annonce, l'historique de ses prix (un prix de plus à chaque changement vu par un scan ou une republication ; pour une annonce connue avant cet historique, il commence au scan suivant), l'historique de ses vues et favoris, puis l'aperçu de sa sauvegarde : photos gardées, contenu par ses libellés et vérification faite à l'ouverture (au moins une photo, fichiers présents et intacts, annonce présente, titre et prix identiques au dernier scan). « Valider » confirme cette version de la sauvegarde ; une nouvelle sauvegarde de l'annonce annule la validation. Rien n'est demandé à Vinted.
 
 Journal : le lien « Journal » de la page du dressing ouvre `journal.html`, qui liste les actions de l'outil (scans, sauvegardes du dressing, validations, suppressions, revérifications, republications) avec leur issue, refus, dry-runs et erreurs compris, 50 par page ; la fiche d'une annonce montre les siennes. Les lignes ne sont jamais supprimées.
 
@@ -134,7 +134,7 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 
 ### Epic 9 – Gestion d'annonces `V2`
 - US-32 Cycle de vie des annonces
-- US-33 Historique de prix
+- [x] US-33 Historique de prix
 - US-34 Édition en masse et tags
 - US-35 Règles d'aide à la décision (implémentée)
 - US-36 Suivi des ventes
