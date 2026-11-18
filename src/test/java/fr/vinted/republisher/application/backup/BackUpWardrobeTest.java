@@ -50,8 +50,8 @@ class BackUpWardrobeTest {
 
     private static final Instant NOW = Instant.parse("2026-11-07T10:00:00Z");
     private static final Instant EARLIER = NOW.minusSeconds(3600);
-    private static final Duration MINIMUM_PAUSE = Duration.ofSeconds(10);
-    private static final Duration MAXIMUM_PAUSE = Duration.ofSeconds(15);
+    private static final Duration MINIMUM_PAUSE = Duration.ofSeconds(5);
+    private static final Duration MAXIMUM_PAUSE = Duration.ofSeconds(10);
 
     private final VintedSession session = new VintedSession();
     private final LastBackupProblem lastProblem = new LastBackupProblem();

@@ -11,7 +11,7 @@ En tant que membre, je veux que l'outil garde les photos de chaque annonce de mo
 
 ## Comportement attendu
 La sauvegarde d'US-05 (bouton « Sauvegarder », verrou `BACKING_UP`, reprise, problèmes) est étendue ; aucune nouvelle action.
-1. **Lecture d'une annonce** : dans l'onglet de la sauvegarde, l'outil ouvre le formulaire de modification (`/items/<id>/edit`) et en lit le contenu comme en US-05. Il ouvre ensuite la page publique de l'annonce (`/items/<id>`), après la même pause aléatoire de 10 à 15 secondes (une pause sépare ainsi deux pages ouvertes), et y lit la liste ordonnée des photos dans leur version pleine taille.
+1. **Lecture d'une annonce** : dans l'onglet de la sauvegarde, l'outil ouvre le formulaire de modification (`/items/<id>/edit`) et en lit le contenu comme en US-05. Il ouvre ensuite la page publique de l'annonce (`/items/<id>`), après la même pause aléatoire de 5 à 10 secondes (une pause sépare ainsi deux pages ouvertes), et y lit la liste ordonnée des photos dans leur version pleine taille.
 2. **Téléchargement** : la page publique ouverte télécharge elle-même (`fetch` dans le vrai Chrome) chaque photo, l'une après l'autre, sans pause entre elles. L'outil reçoit les octets tels quels et le type servi. Il ne clique sur rien, ne saisit rien, ne soumet rien.
 3. **Écriture des fichiers** : chaque photo est écrite dans `APP_DATA_DIR/photos/<identifiant Vinted de l'annonce>/<SHA-256>.<extension>`, d'abord dans un fichier temporaire du même dossier, puis renommée une fois complète. Un fichier déjà présent sous ce nom n'est pas réécrit. Un fichier écrit n'est jamais modifié.
 4. **Enregistrement** : une lecture complète (contenu et toutes les photos) remplace d'un seul coup la sauvegarde de l'annonce en base : contenu, et pour chaque photo son rang (0 = couverture) et son empreinte. Ensuite seulement, les fichiers du dossier de l'annonce qui ne servent plus sont supprimés.
@@ -36,7 +36,7 @@ Les photos elles-mêmes ne sont pas exposées par l'API (validation de la sauveg
 - [x] Les fichiers d'une ancienne version qui ne servent plus sont supprimés après l'enregistrement de la nouvelle, jamais avant.
 - [x] Aucune donnée Vinted attachée aux photos (adresse, identifiant, orientation) n'est gardée.
 - [x] Les photos sont téléchargées par la page publique dans le vrai Chrome ; la sauvegarde ne fait toujours aucun clic, aucune saisie, aucune soumission.
-- [x] Une pause de 10 à 15 secondes sépare deux pages ouvertes par la sauvegarde.
+- [x] Une pause de 5 à 10 secondes sépare deux pages ouvertes par la sauvegarde.
 - [x] La page du dressing affiche le nombre de photos de chaque annonce sauvegardée.
 - [x] Aucun test automatisé ne contacte le vrai site Vinted.
 
@@ -119,7 +119,7 @@ Test : `PlaywrightListingContentReaderTest.Local_public_page`
 ```gherkin
 Étant donné une sauvegarde en cours
 Quand l'outil ouvre le formulaire puis la page publique d'une annonce
-Alors une pause de 10 à 15 secondes sépare la page publique du formulaire, et chaque annonce de la précédente
+Alors une pause de 5 à 10 secondes sépare la page publique du formulaire, et chaque annonce de la précédente
 ```
 Test : `PlaywrightListingContentReaderTest.Local_public_page` (ordre des pages) et `BackupPaceTest` (bornes)
 
@@ -179,6 +179,8 @@ Recette du 2026-11-11 (10 annonces, 17 photos) : pour chacune, autant de fichier
 - Affichage, décidé par l'utilisateur (2026-11-11) : la page du dressing affiche, pour chaque annonce sauvegardée, le nombre de photos gardées à côté de la date (« sauvegardée le … · 3 photos ») ; l'API ajoute `photoCount` à chaque `Listing`. Les photos elles-mêmes ne sont pas affichées (US-08).
 - Pause, précisé à l'implémentation (2026-11-11) : la pause aléatoire sépare deux pages ouvertes (formulaire → page publique, page publique → formulaire suivant) ; aucune avant la toute première page, comme en US-05. Les clés de configuration deviennent `min-page-pause` / `max-page-pause`, avec `listing-page-url` et `photo-timeout` (30 s).
 - Extension du fichier : déduite du type servi (`image/webp` → `webp`, `image/jpeg` → `jpg`, `image/png` → `png`) ; tout autre type est « pas une image ».
+
+- Pause raccourcie, décidé par l'utilisateur (2026-11-18) : 5 à 10 secondes au lieu de 10 à 15 entre deux pages ouvertes par la sauvegarde, pour gagner environ 10 secondes par annonce (environ 23 minutes pour 137 annonces). Les lectures des validations et vérifications de republication (US-12, US-13) partagent ce réglage.
 
 ## Questions ouvertes
 - Aucune.
