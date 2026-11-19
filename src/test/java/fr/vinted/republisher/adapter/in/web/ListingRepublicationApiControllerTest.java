@@ -442,13 +442,15 @@ class ListingRepublicationApiControllerTest {
     }
 
     @Test
-    void manual_republication_too_early_is_a_conflict() {
+    void manual_republication_waits_for_no_republication_date() {
         aDeletedListing(Duration.ofMinutes(2));
 
         assertThat(prepareManually("2026-11-10T10:00:00Z"))
-                .hasStatus(409)
-                .bodyJson().isStrictlyEqualTo("""
-                        {"reason": "TOO_EARLY", "republishableAt": "2026-11-11T10:03:00Z"}""");
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"listing": {"vintedId": 1, "republication": {"outcome": "FAILED",
+                                     "attemptedAt": "2026-11-11T10:00:00Z"}},
+                         "unfilledFields": []}""");
     }
 
     @Test
@@ -595,8 +597,6 @@ class ListingRepublicationApiControllerTest {
             Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
             return new PrepareManualRepublication(session, new RepublicationChecks(listingBackups, photos,
                     validations, deletions, republications, new RepublicationDelay(Duration.ofMinutes(5)), clock),
-                    new CadenceCheck(deletions, republications,
-                            new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
                     republications, vinted, RepublicationMode.REAL, clock, show,
                     new JournalWriter(new InMemoryActionJournal(), clock));
         }

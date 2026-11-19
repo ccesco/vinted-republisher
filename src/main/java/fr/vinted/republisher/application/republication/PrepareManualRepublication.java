@@ -1,10 +1,7 @@
 package fr.vinted.republisher.application.republication;
 
-import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.application.cadence.WriteReservation;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.RepublicationChecks.RepublishableBackup;
-import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
@@ -25,8 +22,8 @@ import java.util.List;
 import java.util.Optional;
 
 /**
- * Fills the listing form from the backup for the member to complete and publish, when the automatic republication is
- * refused. Never clicks Publish.
+ * Fills the listing form from the backup for the member to complete and publish, when the member wants it. Never
+ * clicks Publish.
  */
 public class PrepareManualRepublication {
 
@@ -35,7 +32,6 @@ public class PrepareManualRepublication {
 
     private final VintedSession session;
     private final RepublicationChecks checks;
-    private final CadenceCheck cadence;
     private final ListingRepublicationRepository republications;
     private final ListingPublisher publisher;
     private final RepublicationMode mode;
@@ -43,13 +39,12 @@ public class PrepareManualRepublication {
     private final ShowListingRepublication showListingRepublication;
     private final JournalWriter journal;
 
-    public PrepareManualRepublication(VintedSession session, RepublicationChecks checks, CadenceCheck cadence,
+    public PrepareManualRepublication(VintedSession session, RepublicationChecks checks,
                                       ListingRepublicationRepository republications, ListingPublisher publisher,
                                       RepublicationMode mode, Clock clock,
                                       ShowListingRepublication showListingRepublication, JournalWriter journal) {
         this.session = session;
         this.checks = checks;
-        this.cadence = cadence;
         this.republications = republications;
         this.publisher = publisher;
         this.mode = mode;
@@ -59,8 +54,9 @@ public class PrepareManualRepublication {
     }
 
     /**
-     * {@code seen} is the date of the backup the member saw. Checked as a republication, then refused in dry-run,
-     * then the cadence, before Chrome opens. Once the form is filled, a republication in error is recorded: the
+     * {@code seen} is the date of the backup the member saw. Checked as a republication, except that neither the
+     * republication date nor the write cadence holds it back; then refused in dry-run, before Chrome opens. Once the
+     * form is filled, a republication in error is recorded: it counts in the cadence of the following writes, and the
      * member's publication is then verified or validated as any other (US-13).
      */
     public ManualRepublicationReport prepare(VintedListingId id, Instant seen) {
@@ -69,21 +65,18 @@ public class PrepareManualRepublication {
     }
 
     private ManualRepublicationReport prepareNow(VintedListingId id, Instant seen) {
-        RepublishableBackup republishable = checks.check(id, seen);
+        RepublishableBackup republishable = checks.checkWithoutDelay(id, seen);
         if (mode == RepublicationMode.DRY_RUN) {
             throw new ManualRepublicationInDryRun();
         }
         if (!session.start(BrowserAction.REPUBLISHING, id)) {
             throw new BrowserBusy();
         }
-        Optional<WriteReservation> reservation = Optional.empty();
         try {
-            reservation = Optional.of(cadence.reserve(VintedWrite.REPUBLICATION));
             List<UnfilledField> unfilled = publisher.prepare(republishable.backup().content(), republishable.photos());
             republications.save(ListingRepublication.attempted(republishable.backup(), clock.instant()));
             return new ManualRepublicationReport(showListingRepublication.report(id, false), unfilled);
         } finally {
-            reservation.ifPresent(cadence::release);
             session.finish(id);
         }
     }

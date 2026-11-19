@@ -50,12 +50,24 @@ public class RepublicationChecks {
 
     /** {@code seen} is the date of the backup the member saw. Answers with the backup and its photo files, in order. */
     RepublishableBackup check(VintedListingId id, Instant seen) {
+        return check(id, seen, true);
+    }
+
+    /** As {@link #check}, without waiting for the republication date: the member republishes by hand when they want. */
+    RepublishableBackup checkWithoutDelay(VintedListingId id, Instant seen) {
+        return check(id, seen, false);
+    }
+
+    private RepublishableBackup check(VintedListingId id, Instant seen, boolean waitsForRepublicationDate) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         if (!backup.savedAt().equals(seen)) {
             throw new BackupReplaced(id, seen);
         }
         republications.findLatest(id).ifPresent(ListingRepublication::allowNewAttempt);
-        checkDeleted(backup);
+        ListingDeletion deletion = confirmedDeletionOf(backup);
+        if (waitsForRepublicationDate) {
+            checkDelay(deletion);
+        }
         validations.find(id).filter(validation -> validation.holdsFor(backup.summary()))
                 .orElseThrow(() -> new BackupNotValidated(id));
         BackupVerification verification = BackupVerification.ofPhotos(backup, photos);
@@ -65,11 +77,14 @@ public class RepublicationChecks {
         return new RepublishableBackup(backup, backup.photos().stream().map(photo -> fileOf(backup, photo)).toList());
     }
 
-    private void checkDeleted(ListingBackup backup) {
-        ListingDeletion deletion = deletions.findLatest(backup.id())
+    private ListingDeletion confirmedDeletionOf(ListingBackup backup) {
+        return deletions.findLatest(backup.id())
                 .filter(latest -> latest.outcome() == DeletionOutcome.CONFIRMED)
                 .filter(confirmed -> confirmed.backupSavedAt().equals(backup.savedAt()))
                 .orElseThrow(() -> new ListingNotDeleted(backup.id()));
+    }
+
+    private void checkDelay(ListingDeletion deletion) {
         Instant republishableAt = delay.republishableAt(deletion).orElseThrow();
         if (clock.instant().isBefore(republishableAt)) {
             throw new RepublicationTooEarly(republishableAt);

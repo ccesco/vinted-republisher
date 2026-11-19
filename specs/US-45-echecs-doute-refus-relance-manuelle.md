@@ -22,10 +22,10 @@ En tant que membre, je veux voir mes annonces en échec groupées selon ce que j
 
    Le groupe se déduit de l'issue de la dernière ligne du journal, côté domaine (`FailureKind`), et voyage dans l'API.
 2. **Bouton « Republier manuellement »** :
-   - page « Échecs », section « Refusées » : pour une annonce à l'étape `TO_REPUBLISH` ; « Relancer » reste proposé (le refus a pu être levé, ex. option ajoutée par Vinted). Les autres refus (suppression, validation) gardent les actions d'US-39 ;
-   - fiche de l'annonce (US-18b) : pour toute annonce à l'étape `TO_REPUBLISH`, refusée ou non, à côté de « Republier ».
+   - page « Échecs », section « Refusées » : pour une annonce supprimée pas encore republiée (étape `WAITING` ou `TO_REPUBLISH`) ; « Relancer » reste proposé (le refus a pu être levé, ex. option ajoutée par Vinted). Les autres refus (suppression, validation) gardent les actions d'US-39 ;
+   - fiche de l'annonce (US-18b) : pour toute annonce supprimée pas encore republiée (étape `WAITING` ou `TO_REPUBLISH`), refusée ou non, à côté de « Republier sur Vinted ». Il n'attend aucun minuteur : actif pendant le compte à rebours du délai de republication, alors que « Republier sur Vinted » reste désactivé jusqu'à la date.
 3. **Republication manuelle** (`POST /api/listings/{listingId}/republication/manual`) :
-   1. mêmes contrôles qu'une republication (US-12) : étape `TO_REPUBLISH`, date atteinte, sauvegarde validée, ancienne annonce supprimée, verrou du navigateur, limite de cadence (US-27), la préparation comptant comme une republication ;
+   1. mêmes contrôles qu'une republication (US-12) — sauvegarde vue toujours actuelle et validée, ancienne annonce supprimée sur cette version, photos intactes, jamais republiée, verrou du navigateur — **sauf les délais** : ni le délai après la suppression (US-11, `TOO_EARLY`) ni la limite de cadence (US-27, `CADENCE_LIMIT_REACHED`) ne la refusent. Sa republication enregistrée compte toutefois dans la cadence : les republications automatiques suivantes (« Republier sur Vinted », « Relancer », « Tout lancer ») attendent comme après toute republication ;
    2. l'outil ouvre le formulaire « Vendre » dans un **nouvel onglet** du Chrome piloté, qu'il laisse ouvert et ne réutilise jamais (ses autres actions ouvrent chacune leur onglet, US-03), et le remplit depuis la sauvegarde (photos, champs) comme une republication ; un champ impossible à remplir est **laissé vide**, au lieu d'arrêter le remplissage, et l'outil remplit les champs suivants ;
    3. il **ne clique jamais sur « Publier »** : il laisse l'onglet ouvert, rend la main et enregistre une republication **en erreur** (`ListingRepublication`, issue `FAILED`, comme un clic sur « Publier » sans preuve, US-12) : l'annonce passe à l'étape `REPUBLICATION_TO_CHECK`, sans nouvel état ni changement de schéma ;
    4. la réponse liste les champs laissés vides, que le membre complète dans Chrome avant de publier lui-même.
@@ -56,15 +56,17 @@ Dans `vinted-republisher.yaml`, commité avec le code (`kind` requis ne compile 
 - [x] La page « Échecs » sépare « Dans le doute », « Refusées » et « Autres échecs », chacune triée de la plus récente à la plus ancienne.
 - [x] Une annonce à republier, refusée, propose « Republier manuellement » en plus de « Relancer ».
 - [x] La republication manuelle passe par les mêmes contrôles que la republication.
+- [x] Ni le délai après la suppression ni la limite de cadence ne refusent une republication manuelle ; elle compte dans la cadence des republications suivantes.
+- [x] Sur la fiche et la page « Échecs », « Republier manuellement » est proposé dès la suppression confirmée, sans attendre aucun minuteur.
 - [x] Elle remplit le formulaire depuis la sauvegarde, laisse vides les champs impossibles à remplir, les liste, et ne publie jamais.
 - [x] Le formulaire est ouvert dans un onglet que l'outil laisse ouvert et ne réutilise pas.
 - [x] La préparation enregistre une republication en erreur et une ligne de journal en doute (`MANUAL_REPUBLICATION_PREPARED`) ; l'annonce est « Republication à vérifier » et dans « Dans le doute ».
 - [x] Une republication manuelle se termine par la vérification ou la validation manuelle d'US-13 (« publiée » avec lien, ou « non publiée »).
-- [x] Elle compte dans la limite de cadence et est refusée en dry-run.
+- [x] Elle est refusée en dry-run.
 - [x] La vérification et la validation d'une republication sont journalisées ; retrouvée ou validée « publiée », l'annonce quitte la page « Échecs ».
 - [ ] AT-45-07 (vrai compte) : non joué, l'utilisateur a décidé de s'en passer (2026-11-19).
 
-Vérifié (2026-11-19) : `mvn test "-Pbrowser,docker"` vert (1337 tests), `npm test` vert (41 tests) ; AT-45-07 (manuel, vrai compte) non joué sur décision de l'utilisateur.
+Vérifié (2026-11-19, après la révision « aucun minuteur ») : `mvn test "-Pbrowser,docker"` vert (1339 tests), `npm test` vert (41 tests) ; AT-45-07 (manuel, vrai compte) non joué sur décision de l'utilisateur.
 
 ## Tests d'acceptation
 ### AT-45-01 – Groupes de la page « Échecs »
@@ -103,9 +105,9 @@ Et la fiche propose de valider la republication « publiée » ou « non publié
 ```
 Test : `PrepareManualRepublicationAcceptanceTest.fills_the_form_leaves_unfillable_fields_empty_and_never_publishes()`
 
-### AT-45-04 – Mêmes contrôles que la republication
+### AT-45-04 – Mêmes contrôles que la republication, hors délais
 ```gherkin
-Étant donné une annonce dont la date de republication n'est pas atteinte
+Étant donné une annonce dont la sauvegarde n'est pas validée
 Ou dont l'ancienne annonce n'est pas supprimée
 Ou alors que le navigateur est occupé
 Quand le membre la republie manuellement
@@ -113,17 +115,24 @@ Alors c'est refusé avec la raison de la republication et Chrome n'ouvre aucun f
 ```
 Test : `PrepareManualRepublicationAcceptanceTest.refused_like_a_republication()`, `refused_when_the_old_listing_is_not_deleted()`, `refused_while_the_browser_is_busy()`
 
-### AT-45-04b – Cadence et dry-run
+### AT-45-04a – Ni délai ni cadence
 ```gherkin
-Étant donné la limite de cadence atteinte
-Quand le membre republie manuellement une annonce à republier
-Alors c'est refusé (CADENCE_LIMIT_REACHED) et Chrome n'ouvre aucun formulaire
+Étant donné une annonce supprimée il y a 2 minutes, dont la date de republication n'est pas atteinte
+Et la limite de cadence atteinte
+Quand le membre la republie manuellement
+Alors le formulaire est rempli et la republication en erreur enregistrée
+Et la prochaine republication automatique n'est permise que 2 minutes (intervalle de cadence) après la préparation : elle compte dans la cadence
+```
+Test : `PrepareManualRepublicationAcceptanceTest.ignores_the_delay_and_the_cadence_but_counts_in_it()`
+
+### AT-45-04b – Dry-run
+```gherkin
 Étant donné le dry-run de republication actif
 Quand le membre republie manuellement une annonce à republier
 Alors c'est refusé (MANUAL_REPUBLICATION_IN_DRY_RUN), rien n'est enregistré
 Et sur la fiche le bouton « Republier manuellement » est désactivé, « Indisponible en dry-run »
 ```
-Test : `PrepareManualRepublicationAcceptanceTest.counts_in_cadence()`, `refused_in_dry_run()`, `ListingDetailPageTest.Republication.manual_republication_unavailable_in_dry_run()`
+Test : `PrepareManualRepublicationAcceptanceTest.refused_in_dry_run()`, `ListingDetailPageTest.Republication.manual_republication_unavailable_in_dry_run()`
 
 ### AT-45-04c – Fiche
 ```gherkin
@@ -135,6 +144,17 @@ Alors la fiche affiche « Formulaire rempli dans Chrome, à compléter : Taille 
 Et la fiche propose la validation manuelle
 ```
 Test : `ListingDetailPageTest.Republication.member_prepares_a_manual_republication()`
+
+### AT-45-04d – Aucun minuteur sur le bouton
+```gherkin
+Étant donné une annonce supprimée dont la date de republication est dans 3 minutes
+Quand le membre ouvre sa fiche
+Alors « Republier sur Vinted » est désactivé avec son compte à rebours
+Et « Republier manuellement » est actif
+Étant donné, sur la page « Échecs », une annonce supprimée en attente de sa date dont la republication a été refusée
+Alors elle propose « Republier manuellement »
+```
+Test : `ListingDetailPageTest.Republication.manual_republication_waits_for_no_timer()`, `FailedListingsPageTest.offers_manual_republication_while_waiting()`
 
 ### AT-45-05 – Validation après publication par le membre
 ```gherkin
@@ -185,6 +205,9 @@ Test : manuel (vrai compte Vinted, publication faite par le membre).
 - État après pré-remplissage, décidé par l'utilisateur (2026-11-19) : republication enregistrée « en erreur » ; l'annonce passe « Republication à vérifier » et se termine par la vérification ou la validation manuelle d'US-13. Ni nouvel état ni changeset.
 - Journal, décidé par l'utilisateur (2026-11-19) : la préparation est un doute (`REPUBLICATION`, `IN_DOUBT`, `MANUAL_REPUBLICATION_PREPARED`), pour que l'annonce reste dans « Dans le doute » comme rappel jusqu'à la validation.
 - Cadence, décidé par l'utilisateur (2026-11-19) : la republication manuelle compte comme une republication (US-27).
+- Aucun minuteur, demandé par l'utilisateur (2026-11-19, après l'implémentation) : un bouton dédié, sans timer, pour republier manuellement quand il le veut ; ni le délai après la suppression (US-11) ni la limite de cadence (US-27) ne refusent la republication manuelle, mais elle compte toujours dans la cadence des écritures suivantes. Les garde-fous de contenu restent (suppression confirmée, sauvegarde validée, photos intactes), le refus en dry-run aussi ; « Republier sur Vinted » garde ses délais.
+- Constat de revue (2026-11-19) : la préparation ne réserve plus de créneau de cadence ; en parallèle (US-15), une republication automatique d'une autre annonce peut donc passer pendant le remplissage. Assumé : la préparation n'écrit rien sur Vinted, et le clic « Publier » du membre échappe de toute façon à la cadence.
+- Proposé par Claude (2026-11-19) : le bouton apparaît aussi à l'étape `WAITING` (supprimée, date non atteinte), sur la fiche et dans « Refusées » de la page « Échecs », puisque le délai ne l'arrête plus.
 - Dry-run, décidé par l'utilisateur (2026-11-19) : republication manuelle refusée en dry-run (`MANUAL_REPUBLICATION_IN_DRY_RUN`, nouvelle raison de `RepublicationRefusal`).
 - Titre et prix, décidé par l'utilisateur (2026-11-19) : la validation « publiée » garde son contrôle (titre et prix de la sauvegarde), qui prouve que le lien est bien cette annonce ; les modifier reste hors périmètre.
 - Onglet, décidé par l'utilisateur (2026-11-19) : formulaire dans un onglet dédié, laissé ouvert, jamais réutilisé ; aucun verrou du navigateur après la préparation, les autres actions et « Tout lancer » continuent dans leurs propres onglets.
