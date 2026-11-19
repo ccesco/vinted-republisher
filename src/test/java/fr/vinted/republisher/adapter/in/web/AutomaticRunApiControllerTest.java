@@ -187,7 +187,8 @@ class AutomaticRunApiControllerTest {
             backups.save(backup);
             validations.save(BackupValidation.of(backup, NOW));
             return new ShowRunQueue(new ShowListingInventory(listings, new InMemoryListingStatisticsRepository(),
-                    backups, validations, deletions, republications, delay, clock, new InMemoryListingTagRepository()),
+                    backups, validations, deletions, republications, delay, clock, new InMemoryListingTagRepository(),
+                    new InMemoryBackupVerificationRepository()),
                     deletions, delay, new CadenceCheck(deletions, republications,
                     new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 20, 20), clock),
                     new WriteModes(DeletionMode.REAL, RepublicationMode.REAL), AutomaticRun::idle, clock);
