@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
+import fr.vinted.republisher.application.republication.PrepareManualRepublication;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
@@ -424,6 +425,60 @@ class ListingRepublicationApiControllerTest {
                 .contains(RepublicationOutcome.FAILED);
     }
 
+    @Test
+    void manual_republication_answers_with_the_fields_left_empty() {
+        // AT-45-06. Quand le membre demande la republication manuelle d'une annonce
+        // Alors l'API répond selon le contrat (200, 409, 502, 500)
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.whereSizeCannotBeFilled();
+
+        assertThat(prepareManually("2026-11-10T10:00:00Z"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"listing": {"vintedId": 1, "republication": {"outcome": "FAILED",
+                                     "attemptedAt": "2026-11-11T10:00:00Z"}},
+                         "unfilledFields": [{"field": "SIZE", "optionId": 588}]}""");
+        assertThat(vinted.publishClicks()).isZero();
+    }
+
+    @Test
+    void manual_republication_too_early_is_a_conflict() {
+        aDeletedListing(Duration.ofMinutes(2));
+
+        assertThat(prepareManually("2026-11-10T10:00:00Z"))
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"reason": "TOO_EARLY", "republishableAt": "2026-11-11T10:03:00Z"}""");
+    }
+
+    @Test
+    void manual_republication_with_disconnected_session_is_a_bad_gateway() {
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.whereSessionIsDisconnected();
+
+        assertThat(prepareManually("2026-11-10T10:00:00Z"))
+                .hasStatus(502)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"reason": "SESSION_DISCONNECTED"}""");
+        assertThat(republications.findAll()).isEmpty();
+    }
+
+    @Test
+    void manual_republication_unexpected_failure_is_a_failed_republication() {
+        aDeletedListing(Duration.ofMinutes(6));
+        vinted.whereBrowserFailsUnexpectedly();
+
+        assertThat(prepareManually("2026-11-10T10:00:00Z"))
+                .hasStatus(500)
+                .bodyJson().isStrictlyEqualTo("""
+                        {"reason": "REPUBLICATION_FAILED"}""");
+    }
+
+    private MockMvcTester.MockMvcRequestBuilder prepareManually(String savedAt) {
+        return mvc.post().uri("/api/listings/1/republication/manual").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"savedAt\": \"" + savedAt + "\"}");
+    }
+
     private MockMvcTester.MockMvcRequestBuilder validate(String validation) {
         return mvc.post().uri("/api/listings/1/republication/manual-validation").contentType(MediaType.APPLICATION_JSON)
                 .content(validation);
@@ -530,6 +585,23 @@ class ListingRepublicationApiControllerTest {
                     RepublicationMode.REAL, clock, show, new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()), (instant, interrupted) -> { }, Duration.ZERO);
         }
         @Bean
+        PrepareManualRepublication prepareManualRepublication(VintedSession session,
+                                                              InMemoryListingBackupRepository listingBackups,
+                                                              InMemoryPhotoStorage photos,
+                                                              InMemoryBackupValidationRepository validations,
+                                                              InMemoryListingDeletionRepository deletions,
+                                                              InMemoryListingRepublicationRepository republications,
+                                                              FakeListingPublisher vinted, ShowListingRepublication show) {
+            Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+            return new PrepareManualRepublication(session, new RepublicationChecks(listingBackups, photos,
+                    validations, deletions, republications, new RepublicationDelay(Duration.ofMinutes(5)), clock),
+                    new CadenceCheck(deletions, republications,
+                            new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
+                    republications, vinted, RepublicationMode.REAL, clock, show,
+                    new JournalWriter(new InMemoryActionJournal(), clock));
+        }
+
+        @Bean
         FakeListingContentReader contents() {
             return new FakeListingContentReader();
         }
@@ -542,7 +614,8 @@ class ListingRepublicationApiControllerTest {
                                                                   FakeListingContentReader contents,
                                                                   ShowListingRepublication show) {
             return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
-                    noBackupPause(), Clock.fixed(NOW, ZoneOffset.UTC), show, URI.create("https://www.vinted.fr/member/42"));
+                    noBackupPause(), Clock.fixed(NOW, ZoneOffset.UTC), show, URI.create("https://www.vinted.fr/member/42"),
+                    new JournalWriter(new InMemoryActionJournal(), Clock.fixed(NOW, ZoneOffset.UTC)));
         }
 
         @Bean
@@ -555,7 +628,8 @@ class ListingRepublicationApiControllerTest {
                                                               ShowListingRepublication show) {
             return new VerifyListingRepublication(session, listingBackups, republications, listings,
                     new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(),
-                    Clock.fixed(NOW, ZoneOffset.UTC), show);
+                    Clock.fixed(NOW, ZoneOffset.UTC), show,
+                    new JournalWriter(new InMemoryActionJournal(), Clock.fixed(NOW, ZoneOffset.UTC)));
         }
     }
 }

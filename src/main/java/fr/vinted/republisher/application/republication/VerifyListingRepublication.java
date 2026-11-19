@@ -1,5 +1,8 @@
 package fr.vinted.republisher.application.republication;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
@@ -43,12 +46,14 @@ public class VerifyListingRepublication {
     private final BackupPace backupPace;
     private final Clock clock;
     private final ShowListingRepublication showListingRepublication;
+    private final JournalWriter journal;
 
     public VerifyListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
                                       ListingRepublicationRepository republications, ListingRepository listings,
                                       NewListingSearch newListingSearch, ListingContentReader contents,
                                       BackupPace backupPace, Clock clock,
-                                      ShowListingRepublication showListingRepublication) {
+                                      ShowListingRepublication showListingRepublication, JournalWriter journal) {
+        this.journal = journal;
         this.session = session;
         this.listingBackups = listingBackups;
         this.republications = republications;
@@ -65,6 +70,17 @@ public class VerifyListingRepublication {
      * Several listings matching the backup leave the republication in error.
      */
     public RepublicationReport verify(VintedListingId id) {
+        return journal.journaled(JournaledAction.REPUBLICATION_VERIFICATION, id, () -> verifyNow(id),
+                VerifyListingRepublication::outcomeOf, Optional.of("REPUBLICATION_FAILED"));
+    }
+
+    /** Still in error once verified: the doubt remains until the member validates it. */
+    private static ActionOutcome outcomeOf(RepublicationReport report) {
+        return report.lastRepublication().filter(last -> last.outcome() == RepublicationOutcome.PUBLISHED)
+                .isPresent() ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
+    }
+
+    private RepublicationReport verifyNow(VintedListingId id) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestToVerify(id);
         if (!session.start(BrowserAction.REPUBLISHING, id)) {

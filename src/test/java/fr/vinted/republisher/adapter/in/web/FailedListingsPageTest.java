@@ -35,14 +35,28 @@ import static org.assertj.core.api.Assertions.assertThat;
 class FailedListingsPageTest {
 
     private static final String PULL = """
-            {"listingId": 3, "listingTitle": "Pull <b>bleu</b>", "stage": "TO_DELETE",
+            {"listingId": 3, "listingTitle": "Pull <b>bleu</b>", "stage": "TO_DELETE", "kind": "OTHER",
              "failure": {"entryId": 2, "occurredAt": "2026-11-18T10:00:00Z", "action": "DELETION_RECHECK",
                          "outcome": "NOT_DONE", "listingId": 3, "listingTitle": "Pull <b>bleu</b>"}}""";
     private static final String DRESS = """
-            {"listingId": 4, "listingTitle": "Robe", "stage": "TO_BACK_UP",
+            {"listingId": 4, "listingTitle": "Robe", "stage": "TO_BACK_UP", "kind": "REFUSED",
              "failure": {"entryId": 1, "occurredAt": "2026-11-17T10:00:00Z", "action": "BACKUP_VALIDATION",
                          "outcome": "REFUSED", "listingId": 4, "listingTitle": "Robe",
                          "reason": "BACKUP_REPLACED"}}""";
+    private static final String SWEATER_IN_DOUBT = """
+            {"listingId": 5, "listingTitle": "Pull bleu", "stage": "REPUBLICATION_TO_CHECK", "kind": "IN_DOUBT",
+             "failure": {"entryId": 3, "occurredAt": "2026-11-18T11:00:00Z", "action": "REPUBLICATION",
+                         "outcome": "IN_DOUBT", "listingId": 5, "listingTitle": "Pull bleu"}}""";
+    private static final String SKIRT_REFUSED = """
+            {"listingId": 6, "listingTitle": "Robe", "stage": "TO_REPUBLISH", "kind": "REFUSED",
+             "failure": {"entryId": 4, "occurredAt": "2026-11-18T12:00:00Z", "action": "REPUBLICATION",
+                         "outcome": "REFUSED", "listingId": 6, "listingTitle": "Robe",
+                         "reason": "FIELD_NOT_FILLABLE"}}""";
+    private static final String SKIRT_BACKUP = """
+            {"vintedId": 6, "savedAt": "2026-11-10T10:00:00Z"}""";
+    private static final String SKIRT_PREPARED = """
+            {"listing": {"vintedId": 6, "savedAt": "2026-11-10T10:00:00Z"},
+             "unfilledFields": [{"field": "SIZE", "optionId": 588}]}""";
     private static final String DELETED = """
             {"action": "DELETION", "dryRun": false,
              "listing": {"vintedId": 3, "title": "Pull <b>bleu</b>", "price": {"amount": 10, "currency": "EUR"},
@@ -57,6 +71,7 @@ class FailedListingsPageTest {
     private final AtomicBoolean applicationDown = new AtomicBoolean();
     private final AtomicBoolean relaunchRefused = new AtomicBoolean();
     private final List<String> relaunches = new CopyOnWriteArrayList<>();
+    private final List<String> manualRepublications = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -93,6 +108,14 @@ class FailedListingsPageTest {
                 respond(exchange, 200, "application/json", DELETED.getBytes(StandardCharsets.UTF_8));
             }
         });
+        fakeApi.createContext("/api/listings/6/backup", exchange ->
+                respond(exchange, 200, "application/json", SKIRT_BACKUP.getBytes(StandardCharsets.UTF_8)));
+        fakeApi.createContext("/api/listings/6/republication/manual", exchange -> {
+            manualRepublications.add(exchange.getRequestMethod() + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            failedListings.set("{\"listings\": [" + SWEATER_IN_DOUBT + "]}");
+            respond(exchange, 200, "application/json", SKIRT_PREPARED.getBytes(StandardCharsets.UTF_8));
+        });
         fakeApi.start();
         page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
     }
@@ -113,24 +136,24 @@ class FailedListingsPageTest {
         // Alors il voit « Pull bleu », lien vers sa fiche, « Prête à supprimer », la cause « suppression non faite »
         //   et la date
         assertThat(rows()).hasCount(2);
-        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasText("Pull <b>bleu</b>");
-        assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/3");
-        assertThat(rows().nth(0)).containsText("Prête à supprimer");
-        assertThat(rows().nth(0)).containsText("Revérification");
-        assertThat(rows().nth(0).locator("strong")).hasText("non faite");
-        assertThat(rows().nth(0)).containsText("suppression non faite");
-        assertThat(rows().nth(0)).containsText("18/11/2026 11:00:00");
-        assertThat(rows().nth(1)).containsText("À sauvegarder");
-        assertThat(rows().nth(1)).containsText("sauvegarde remplacée");
+        assertThat(pull().getByRole(AriaRole.LINK)).hasText("Pull <b>bleu</b>");
+        assertThat(pull().getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/3");
+        assertThat(pull()).containsText("Prête à supprimer");
+        assertThat(pull()).containsText("Revérification");
+        assertThat(pull().locator("strong")).hasText("non faite");
+        assertThat(pull()).containsText("suppression non faite");
+        assertThat(pull()).containsText("18/11/2026 11:00:00");
+        assertThat(dress()).containsText("À sauvegarder");
+        assertThat(dress()).containsText("sauvegarde remplacée");
         // Et « Pull bleu » a un bouton « Relancer », « Robe » n'en a pas
-        assertThat(rows().nth(0).getByRole(AriaRole.BUTTON)).hasText("Relancer");
-        assertThat(rows().nth(1).getByRole(AriaRole.BUTTON)).hasCount(0);
+        assertThat(pull().getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        assertThat(dress().getByRole(AriaRole.BUTTON)).hasCount(0);
         // Quand il relance « Pull bleu » et que la suppression réussit
-        rows().nth(0).getByRole(AriaRole.BUTTON).click();
+        pull().getByRole(AriaRole.BUTTON).click();
         // Alors la page relit la liste, qui ne contient plus « Pull bleu »
         assertThat(page.locator("#relaunch-message")).hasText("Pull <b>bleu</b> : Suppression faite");
         assertThat(rows()).hasCount(1);
-        assertThat(rows().nth(0)).containsText("Robe");
+        assertThat(dress()).containsText("Robe");
         assertThat(relaunches).containsExactly("POST {\"stage\":\"TO_DELETE\"}");
     }
 
@@ -139,21 +162,56 @@ class FailedListingsPageTest {
         // Relance refusée depuis la page : message de refus comme dans la liste ; la ligne reste
         relaunchRefused.set(true);
         open();
-        rows().nth(0).getByRole(AriaRole.BUTTON).click();
+        pull().getByRole(AriaRole.BUTTON).click();
         assertThat(page.locator("#relaunch-message"))
                 .hasText("Pull <b>bleu</b> : Relance refusée : voir la fiche fiche de l'annonce");
         assertThat(page.locator("#relaunch-message").getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/3");
         assertThat(rows()).hasCount(2);
-        assertThat(rows().nth(0).getByRole(AriaRole.BUTTON)).isEnabled();
+        assertThat(pull().getByRole(AriaRole.BUTTON)).isEnabled();
     }
 
     @Test
     void says_when_there_is_no_failed_listing() {
-        // Et sans annonce en échec, la page affiche « Aucune annonce en échec. »
+        // US-45 : sans annonce en échec, les trois sections restent affichées, vides
         failedListings.set("{\"listings\": []}");
         open();
-        assertThat(page.locator("#no-failure")).hasText("Aucune annonce en échec.");
+        assertThat(page.locator(".failure-group h2")).hasText(new String[]{"Dans le doute (0)", "Refusées (0)",
+                "Autres échecs (0)"});
+        assertThat(page.locator(".failure-group .no-failure")).hasText(new String[]{"Aucune annonce.",
+                "Aucune annonce.", "Aucune annonce."});
         assertThat(rows()).hasCount(0);
+    }
+
+    @Test
+    void groups_failures_and_offers_manual_republication() {
+        // AT-45-02. Étant donné une annonce « Pull bleu » dont la republication est en doute
+        // Et une annonce « Robe » à republier, dont la republication a été refusée (taille impossible à remplir)
+        failedListings.set("{\"listings\": [" + SKIRT_REFUSED + ", " + SWEATER_IN_DOUBT + "]}");
+        // Quand le membre ouvre la page « Échecs »
+        open();
+        // Alors « Pull bleu » est dans « Dans le doute » avec « Relancer »
+        assertThat(group("in-doubt").locator("h2")).hasText("Dans le doute (1)");
+        assertThat(group("in-doubt").locator("tbody tr")).containsText("Pull bleu");
+        assertThat(group("in-doubt").getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        // Et « Robe » est dans « Refusées » avec « Relancer » et « Republier manuellement »
+        assertThat(group("refused").locator("tbody tr")).containsText("Robe");
+        assertThat(group("refused").getByRole(AriaRole.BUTTON)).hasText(new String[]{"Relancer",
+                "Republier manuellement"});
+        // Et la section « Autres échecs » est affichée avec « Aucune annonce. »
+        assertThat(group("other").locator(".no-failure")).hasText("Aucune annonce.");
+
+        // Quand il la republie manuellement
+        group("refused").getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions().setName("Republier manuellement"))
+                .click();
+        // Alors le formulaire est préparé pour la sauvegarde vue, et la page dit quoi compléter
+        assertThat(page.locator("#relaunch-message")).hasText(
+                "Robe : Formulaire rempli dans Chrome, à compléter : Taille (588). Publiez puis validez sur la fiche.");
+        assertThat(manualRepublications).containsExactly("POST {\"savedAt\":\"2026-11-10T10:00:00Z\"}");
+        assertThat(group("refused").locator("tbody tr")).hasCount(0);
+    }
+
+    private Locator group(String kind) {
+        return page.locator("#failures-" + kind);
     }
 
     @Test
@@ -177,8 +235,18 @@ class FailedListingsPageTest {
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));
     }
 
+    /** « Pull bleu », revérification non faite : dans « Autres échecs ». */
+    private Locator pull() {
+        return group("other").locator("tbody tr");
+    }
+
+    /** « Robe », validation refusée : dans « Refusées ». */
+    private Locator dress() {
+        return group("refused").locator("tbody tr");
+    }
+
     private Locator rows() {
-        return page.locator("#failed-listings tbody tr");
+        return page.locator(".failure-group tbody tr");
     }
 
     private static void respond(HttpExchange exchange, int status, String contentType, byte[] body) throws IOException {

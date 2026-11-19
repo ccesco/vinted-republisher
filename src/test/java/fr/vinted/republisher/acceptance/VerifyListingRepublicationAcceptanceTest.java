@@ -54,6 +54,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
+
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
@@ -84,6 +88,7 @@ class VerifyListingRepublicationAcceptanceTest {
     private final FakeListingContentReader contents = new FakeListingContentReader();
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
 
     @Test
     void failed_republication_found_in_the_wardrobe_becomes_published() {
@@ -124,6 +129,39 @@ class VerifyListingRepublicationAcceptanceTest {
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
                 .contains(RepublicationOutcome.PUBLISHED);
         assertThat(wardrobe.reads()).isZero();
+    }
+
+    @Test
+    void verifications_are_written() {
+        // US-45 : une vérification qui ne retrouve rien laisse le doute ; retrouvée, elle réussit
+        aFailedRepublication();
+        wardrobe.holding(aListing(3, "Robe bleue", "15.00", ACTIVE)).showingOnOpening(1);
+        verify();
+        assertThat(journal.records().getLast()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.IN_DOUBT);
+        wardrobe.holding(REPUBLISHED, anActiveListing(3));
+        listings.saveAll(List.of(Listing.seen(anActiveListing(3), SAVED_AT)));
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        verify();
+        assertThat(journal.records().getLast()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED);
+    }
+
+    @Test
+    void refusals_and_failures_of_a_verification_are_written_with_their_reason() {
+        aFailedRepublication();
+        session.start(BrowserAction.SCANNING);
+        assertThatThrownBy(this::verify).isInstanceOf(BrowserBusy.class);
+        session.finish();
+        assertThat(journal.records().getLast()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(ActionOutcome.REFUSED, Optional.of("BROWSER_BUSY"));
+
+        wardrobe.holding(REPUBLISHED, anActiveListing(3));
+        listings.saveAll(List.of(Listing.seen(anActiveListing(3), SAVED_AT)));
+        contents.whereFormIsUnreadable(2, "no title");
+        assertThatThrownBy(this::verify).isInstanceOf(ListingUnreadable.class);
+        assertThat(journal.records().getLast()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(ActionOutcome.FAILED, Optional.of("LISTING_UNREADABLE"));
     }
 
     @Test
@@ -329,7 +367,7 @@ class VerifyListingRepublicationAcceptanceTest {
     private RepublicationReport verify() {
         return new VerifyListingRepublication(session, listingBackups, republications, listings,
                 new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(), clock,
-                show()).verify(LISTING);
+                show(), new JournalWriter(journal, clock)).verify(LISTING);
     }
 
     private RepublishListing republishListing(FakeListingPublisher vinted) {

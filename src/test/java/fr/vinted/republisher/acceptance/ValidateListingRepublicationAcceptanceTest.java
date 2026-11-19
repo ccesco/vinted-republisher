@@ -1,6 +1,16 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.inventory.ShowFailedListings;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupValidation;
@@ -66,6 +76,7 @@ class ValidateListingRepublicationAcceptanceTest {
     private final FakeListingContentReader contents = new FakeListingContentReader();
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
 
     @Test
     void published_with_the_link_of_the_new_listing() {
@@ -161,6 +172,54 @@ class ValidateListingRepublicationAcceptanceTest {
     }
 
     @Test
+    void validates_a_manual_republication() {
+        // Étant donné une republication manuelle préparée
+        aFailedRepublication();
+        journal.write(new ActionRecord(CLICKED_AT, JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT,
+                Optional.of(LISTING), Optional.of("MANUAL_REPUBLICATION_PREPARED")));
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre publie sur Vinted puis valide « publiée » avec le lien de la nouvelle annonce
+        RepublicationReport report = validate().published(LISTING, Optional.of(NEW_LISTING_LINK));
+        // Alors la nouvelle annonce est contrôlée, comparée et reliée à l'ancienne
+        assertThat(contents.opened()).containsExactly(NEW_LISTING);
+        assertThat(report.lastRepublication()).map(ListingRepublication::newListingId).contains(Optional.of(NEW_LISTING));
+        assertThat(report.comparison()).contains(List.of());
+        // Et l'annonce quitte la page « Échecs »
+        assertThat(journal.records().getLast()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED);
+        assertThat(showFailedListings().show()).isEmpty();
+    }
+
+    @Test
+    void validations_are_written() {
+        // « non publiée » : à republier, en échec « non faite »
+        aFailedRepublication();
+        validate().notPublished(LISTING);
+        assertThat(journal.records().getLast()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.NOT_DONE);
+        // Refus : avec sa raison
+        assertThatThrownBy(() -> validate().notPublished(LISTING)).isInstanceOf(NoRepublicationToVerify.class);
+        assertThat(journal.records().getLast()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(ActionOutcome.REFUSED, Optional.of("NO_REPUBLICATION_TO_VERIFY"));
+    }
+
+    @Test
+    void refused_links_are_written_with_their_reason() {
+        aFailedRepublication();
+        assertThatThrownBy(() -> validate().published(LISTING, Optional.of("https://www.vinted.fr/catalog")))
+                .isInstanceOf(NewListingLinkInvalid.class);
+        assertThat(journal.records().getLast()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(ActionOutcome.REFUSED, Optional.of("NEW_LISTING_LINK_INVALID"));
+
+        contents.showing(new ListingReading(aContent(2, "Robe bleue", "Portée une fois", "15.00"),
+                List.of(aPhoto("a"))));
+        assertThatThrownBy(() -> validate().published(LISTING, Optional.of(NEW_LISTING_LINK)))
+                .isInstanceOf(NewListingMismatch.class);
+        assertThat(journal.records().getLast()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(ActionOutcome.REFUSED, Optional.of("NEW_LISTING_MISMATCH"));
+    }
+
+    @Test
     void browser_errors_leave_the_republication_failed() {
         // Étant donné une annonce en erreur de republication
         ListingRepublication failed = aFailedRepublication();
@@ -186,7 +245,15 @@ class ValidateListingRepublicationAcceptanceTest {
                 listingBackups, photos, validations, deletions, DeletionMode.REAL, delay), republications, listings,
                 RepublicationMode.REAL);
         return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
-                noBackupPause(), clock, show, URI.create("https://www.vinted.fr/member/42-cyril"));
+                noBackupPause(), clock, show, URI.create("https://www.vinted.fr/member/42-cyril"),
+                new JournalWriter(journal, clock));
+    }
+
+    private ShowFailedListings showFailedListings() {
+        return new ShowFailedListings(journal, new ShowListingInventory(listings,
+                new InMemoryListingStatisticsRepository(), listingBackups, validations, deletions, republications,
+                new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
+                new InMemoryBackupVerificationRepository()));
     }
 
     private static ListingContent sameContentAs(VintedListingId id) {

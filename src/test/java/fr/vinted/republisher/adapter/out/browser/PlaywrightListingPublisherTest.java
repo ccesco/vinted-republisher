@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.out.browser;
 
 import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -13,6 +14,7 @@ import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.RepublicationVisit;
+import fr.vinted.republisher.domain.republication.UnfilledField;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -31,10 +33,12 @@ import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 
 import static fr.vinted.republisher.adapter.out.browser.ListingFormFixtures.ALL_DETAILS;
 import static fr.vinted.republisher.adapter.out.browser.ListingFormFixtures.BRAND;
@@ -239,6 +243,75 @@ class PlaywrightListingPublisherTest {
     }
 
     @Nested
+    class Manual_republication {
+
+        @AfterEach
+        void closeTheTabLeftOpen() {
+            onFakeVintedTabs(page -> page.close());
+        }
+
+        @Test
+        void fills_the_form_in_a_tab_left_open_and_never_publishes() {
+            List<UnfilledField> unfilled = publisher().prepare(pyjama(), List.of(COVER, BACK));
+
+            assertThat(unfilled).isEmpty();
+            assertThat(published).isEmpty();
+            assertThat(clicks()).doesNotContain("click=upload-form-save-button",
+                    "click=upload-form-save-draft-button", "click=boost-checkbox");
+            assertThat(tabsOnFakeVinted()).isOne();
+            assertThat(leftOpen("#price")).isEqualTo("12,50");
+        }
+
+        @Test
+        void leaves_an_unfillable_field_empty_and_fills_the_next_ones() {
+            List<UnfilledField> unfilled = publisher().prepare(withSize(new FormOption(588, "")), List.of(COVER));
+
+            assertThat(unfilled).containsExactly(new UnfilledField(ListingFormField.SIZE, Optional.of(588L)));
+            assertThat(leftOpen("#size")).isEmpty();
+            assertThat(leftOpen("#condition")).isNotEmpty();
+            assertThat(leftOpen("#price")).isEqualTo("12,50");
+            assertThat(published).isEmpty();
+        }
+
+        @Test
+        void leaves_details_never_observed_to_the_member() {
+            ListingContent book = withDetails(new CategoryDetails(Optional.of("9782070612758"), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
+
+            assertThat(publisher().prepare(book, List.of(COVER)))
+                    .containsExactly(new UnfilledField(ListingFormField.ISBN, Optional.empty()));
+            assertThat(tabsOnFakeVinted()).isOne();
+        }
+
+        @Test
+        void login_page_means_the_session_is_disconnected() {
+            redirectsToLogin = true;
+
+            assertThatThrownBy(() -> publisher().prepare(pyjama(), List.of(COVER)))
+                    .isInstanceOf(SessionDisconnected.class);
+            // A failed preparation records nothing: no form must be left for the member to publish.
+            assertThat(tabsOnFakeVinted()).isZero();
+        }
+
+        @Test
+        void lists_a_field_once_and_the_unobserved_details_after_the_form() {
+            ListingContent book = withDetails(new CategoryDetails(Optional.of("9782070612758"), Optional.empty(),
+                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(),
+                    Optional.empty(), Optional.empty()));
+            ListingContent unknownCategory = new ListingContent(book.id(), book.title(), book.description(),
+                    book.price(), new FormOption(5000, "Pyjamas une pièce"), book.brand(), book.condition(),
+                    book.size(), book.colors(), book.materials(), book.packageSize(), book.details());
+
+            List<UnfilledField> unfilled = publisher().prepare(unknownCategory, List.of(COVER));
+
+            assertThat(unfilled).doesNotHaveDuplicates();
+            assertThat(unfilled.getFirst().field()).isEqualTo(ListingFormField.CATEGORY);
+            assertThat(unfilled.getLast()).isEqualTo(new UnfilledField(ListingFormField.ISBN, Optional.empty()));
+        }
+    }
+
+    @Nested
     class Before_publishing {
 
         @Test
@@ -432,6 +505,21 @@ class PlaywrightListingPublisherTest {
              Browser chrome = playwright.chromium().connectOverCDP(CHROME.endpoint())) {
             return chrome.contexts().getFirst().pages().stream()
                     .filter(page -> page.url().startsWith(address(""))).count();
+        }
+    }
+
+    /** The value of a field in the form the manual republication left open. */
+    private String leftOpen(String field) {
+        List<String> values = new ArrayList<>();
+        onFakeVintedTabs(page -> values.add(page.locator(field).inputValue()));
+        return values.getFirst();
+    }
+
+    private void onFakeVintedTabs(Consumer<Page> action) {
+        try (Playwright playwright = Playwright.create();
+             Browser chrome = playwright.chromium().connectOverCDP(CHROME.endpoint())) {
+            chrome.contexts().getFirst().pages().stream().filter(page -> page.url().startsWith(address("")))
+                    .forEach(action);
         }
     }
 

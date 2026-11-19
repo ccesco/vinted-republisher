@@ -5,39 +5,49 @@
 <p id="relaunch-message" role="status">
   @for (part of message(); track $index) {@if (part.listingId) {<a [href]="listingLink(part.listingId)">{{ part.text }}</a>} @else {{{ part.text }}}}
 </p>
-@if (listings()?.length === 0) {
-  <p id="no-failure">Aucune annonce en échec.</p>
-}
-<section class="card table-wrap">
-  <table id="failed-listings" class="data">
-    <thead>
-    <tr>
-      <th scope="col">Annonce</th>
-      <th scope="col">Étape</th>
-      <th scope="col">Action</th>
-      <th scope="col">Issue</th>
-      <th scope="col">Cause</th>
-      <th scope="col">Date</th>
-      <th scope="col">Relance</th>
-    </tr>
-    </thead>
-    <tbody>
-      @for (failed of listings() ?? []; track failed.listingId) {
-        <tr>
-          <td><a [href]="listingLink(failed.listingId)">{{ failed.listingTitle }}</a></td>
-          <td>{{ stageLabels[failed.stage] ?? failed.stage }}</td>
-          <td>{{ actionOf(failed.failure) }}</td>
-          <td><strong>{{ outcomeOf(failed.failure) }}</strong></td>
-          <td>{{ causeOf(failed.failure) }}</td>
-          <td>{{ dateOf(failed.failure.occurredAt) }}</td>
-          <td>
-            @if (relaunchableStages.includes(failed.stage)) {
-              <button matButton="outlined" type="button" [disabled]="relaunching() !== null"
-                      (click)="relaunch(failed)">Relancer</button>
+@if (listings() !== null) {
+  @for (group of groups(); track group.kind) {
+    <section class="card table-wrap failure-group" [id]="'failures-' + group.kind.toLowerCase().replace('_', '-')">
+      <h2>{{ group.title }} ({{ group.listings.length }})</h2>
+      @if (group.listings.length === 0) {
+        <p class="no-failure">Aucune annonce.</p>
+      } @else {
+        <table class="data">
+          <thead>
+          <tr>
+            <th scope="col">Annonce</th>
+            <th scope="col">Étape</th>
+            <th scope="col">Action</th>
+            <th scope="col">Issue</th>
+            <th scope="col">Cause</th>
+            <th scope="col">Date</th>
+            <th scope="col">Relance</th>
+          </tr>
+          </thead>
+          <tbody>
+            @for (failed of group.listings; track failed.listingId) {
+              <tr>
+                <td><a [href]="listingLink(failed.listingId)">{{ failed.listingTitle }}</a></td>
+                <td>{{ stageLabels[failed.stage] ?? failed.stage }}</td>
+                <td>{{ actionOf(failed.failure) }}</td>
+                <td><strong>{{ outcomeOf(failed.failure) }}</strong></td>
+                <td>{{ causeOf(failed.failure) }}</td>
+                <td>{{ dateOf(failed.failure.occurredAt) }}</td>
+                <td>
+                  @if (relaunchableStages.includes(failed.stage)) {
+                    <button matButton="outlined" type="button" [disabled]="relaunching() !== null"
+                            (click)="relaunch(failed)">Relancer</button>
+                  }
+                  @if (manuallyRepublishable(failed)) {
+                    <button matButton="outlined" type="button" [disabled]="relaunching() !== null"
+                            (click)="republishManually(failed)">Republier manuellement</button>
+                  }
+                </td>
+              </tr>
             }
-          </td>
-        </tr>
+          </tbody>
+        </table>
       }
-    </tbody>
-  </table>
-</section>
+    </section>
+  }
+}

@@ -284,7 +284,7 @@ class RelaunchListingAcceptanceTest {
                         cadence, republications, publisher, newListingSearch, listings, RepublicationMode.REAL, clock,
                         showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
-                        contents, noBackupPause(), clock, showRepublication));
+                        contents, noBackupPause(), clock, showRepublication, new JournalWriter(new InMemoryActionJournal(), clock)));
     }
 
     /** Present, backed up with two photos kept, and validated by the member. */

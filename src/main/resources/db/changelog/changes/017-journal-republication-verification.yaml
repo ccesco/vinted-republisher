@@ -1,0 +1,20 @@
+databaseChangeLog:
+  # Le journal accepte la vérification et la validation manuelle d'une republication (US-45).
+  - changeSet:
+      id: 017-journal-republication-verification
+      author: vinted-republisher
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry DROP CONSTRAINT action_journal_entry_action_check;
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'BACKUP_VERIFICATION', 'DELETION',
+                                  'DELETION_RECHECK', 'REPUBLICATION', 'REPUBLICATION_VERIFICATION',
+                                  'STATISTICS_REFRESH'));
+      rollback:
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry DROP CONSTRAINT action_journal_entry_action_check;
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'BACKUP_VERIFICATION', 'DELETION',
+                                  'DELETION_RECHECK', 'REPUBLICATION', 'STATISTICS_REFRESH'));

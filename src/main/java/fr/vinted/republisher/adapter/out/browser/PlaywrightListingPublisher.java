@@ -19,6 +19,7 @@ import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
 import fr.vinted.republisher.domain.republication.RepublicationVisit;
+import fr.vinted.republisher.domain.republication.UnfilledField;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.wardrobe.Price;
 
@@ -36,6 +37,7 @@ import java.util.function.Consumer;
 import java.util.function.LongFunction;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 /**
  * Puts a listing on sale through Vinted's listing form, as the member does, as observed with the member on
@@ -78,17 +80,14 @@ public class PlaywrightListingPublisher implements ListingPublisher {
 
     @Override
     public void publish(ListingContent content, List<DownloadedPhoto> photos, RepublicationVisit visit) {
-        requireObservedDetails(content.details());
+        unobservedDetails(content.details()).stream().findFirst().ifPresent(unobserved -> {
+            throw new FieldNotFillable(unobserved.field(), unobserved.optionId());
+        });
         tabs.workInNewTab(page -> {
             // The member watches the form being filled, as in the deletion.
             page.bringToFront();
-            ChromeTabs.open(page, listingFormUrl);
-            if (!URI.create(page.url()).getPath().equals(listingFormUrl.getPath())) {
-                throw new SessionDisconnected("redirected to " + page.url());
-            }
-            // Like the delete button, the form only reacts once its scripts have run, by the load event.
-            page.waitForLoadState(LoadState.LOAD);
-            List<Filled> filled = fill(page, content, photos);
+            openForm(page);
+            List<Filled> filled = fill(page, content, photos, Filling.refusing());
             requireStillFilled(page, filled, content.packageSize().id());
             Locator publish = page.locator(PUBLISH_BUTTON);
             if (publish.count() != 1) {
@@ -116,6 +115,73 @@ public class PlaywrightListingPublisher implements ListingPublisher {
         });
     }
 
+    /**
+     * Fills as {@link #publish} does, in a tab left to the member: what Vinted later suggests over a filled value is
+     * for the member to see, as the publish button is for the member to click. The details never observed come last:
+     * where the form shows them is unknown.
+     */
+    @Override
+    public List<UnfilledField> prepare(ListingContent content, List<DownloadedPhoto> photos) {
+        Filling filling = Filling.leavingToTheMember();
+        tabs.workInTabLeftOpen(page -> {
+            page.bringToFront();
+            openForm(page);
+            fill(page, content, photos, filling);
+        });
+        return Stream.concat(filling.unfilled().stream(), unobservedDetails(content.details()).stream()).toList();
+    }
+
+    private void openForm(Page page) {
+        ChromeTabs.open(page, listingFormUrl);
+        if (!URI.create(page.url()).getPath().equals(listingFormUrl.getPath())) {
+            throw new SessionDisconnected("redirected to " + page.url());
+        }
+        // Like the delete button, the form only reacts once its scripts have run, by the load event.
+        page.waitForLoadState(LoadState.LOAD);
+    }
+
+    /** What becomes of a field that cannot be filled: a republication is refused, a manual one leaves it empty. */
+    private static final class Filling {
+
+        private final boolean leftToTheMember;
+        private final List<UnfilledField> unfilled = new ArrayList<>();
+
+        private Filling(boolean leftToTheMember) {
+            this.leftToTheMember = leftToTheMember;
+        }
+
+        static Filling refusing() {
+            return new Filling(false);
+        }
+
+        static Filling leavingToTheMember() {
+            return new Filling(true);
+        }
+
+        /**
+         * A list or a search left open by the field would hide the next ones: Escape closes it. A field is told once,
+         * though both the wait for the category's fields and the condition itself may miss it. Colours and materials
+         * may stay partly ticked: the member sees them in the form.
+         */
+        void field(Page page, Runnable filling) {
+            try {
+                filling.run();
+            } catch (FieldNotFillable notFillable) {
+                if (!leftToTheMember) {
+                    throw notFillable;
+                }
+                if (!unfilled.contains(notFillable.unfilled())) {
+                    unfilled.add(notFillable.unfilled());
+                }
+                page.keyboard().press("Escape");
+            }
+        }
+
+        List<UnfilledField> unfilled() {
+            return List.copyOf(unfilled);
+        }
+    }
+
     /** What a field shows once filled: Vinted may still change it with a late suggestion. */
     private record Filled(ListingFormField field, Optional<Long> optionId, String input, String value) {
 
@@ -124,41 +190,45 @@ public class PlaywrightListingPublisher implements ListingPublisher {
         }
     }
 
-    private List<Filled> fill(Page page, ListingContent content, List<DownloadedPhoto> photos) {
+    private List<Filled> fill(Page page, ListingContent content, List<DownloadedPhoto> photos, Filling filling) {
         visible(page.locator("#title"), ListingFormField.TITLE, Optional.empty());
-        sendPhotos(page, photos);
+        filling.field(page, () -> sendPhotos(page, photos));
         List<Filled> filled = new ArrayList<>();
         page.locator("#title").fill(content.title());
         filled.add(Filled.read(page, ListingFormField.TITLE, Optional.empty(), "#title"));
         page.locator("#description").fill(content.description());
         filled.add(Filled.read(page, ListingFormField.DESCRIPTION, Optional.empty(), "#description"));
-        Optional<Long> category = Optional.of(content.category().id());
-        search(page, ListingFormField.CATEGORY, "#category", "#catalog-search-input", content.category(),
-                "catalog-search-" + content.category().id() + "-result");
-        filled.add(Filled.read(page, ListingFormField.CATEGORY, category, "#category"));
-        awaitCategoryFields(page, content.condition());
-        chooseBrand(page, content.brand()).ifPresent(filled::add);
-        content.size().ifPresent(size -> {
+        filling.field(page, () -> {
+            search(page, ListingFormField.CATEGORY, "#category", "#catalog-search-input", content.category(),
+                    "catalog-search-" + content.category().id() + "-result");
+            filled.add(Filled.read(page, ListingFormField.CATEGORY, Optional.of(content.category().id()), "#category"));
+        });
+        filling.field(page, () -> awaitCategoryFields(page, content.condition()));
+        filling.field(page, () -> chooseBrand(page, content.brand()).ifPresent(filled::add));
+        content.size().ifPresent(size -> filling.field(page, () -> {
             choose(page, ListingFormField.SIZE, "#size",
                     page.locator("[data-testid^='size-group-'][data-testid$='-grid-option-" + size.id() + "']"),
                     size.id());
             filled.add(Filled.read(page, ListingFormField.SIZE, Optional.of(size.id()), "#size"));
-        });
+        }));
         long condition = content.condition().id();
-        choose(page, ListingFormField.CONDITION, "#condition", page.locator(byKey("condition-" + condition)),
-                condition);
-        filled.add(Filled.read(page, ListingFormField.CONDITION, Optional.of(condition), "#condition"));
-        tick(page, ListingFormField.COLORS, "#color", CHECKED_COLORS, content.colors(),
-                id -> byKey("filter-grid-option-" + id)).ifPresent(filled::add);
-        tick(page, ListingFormField.MATERIALS, "#material", CHECKED_MATERIALS, content.materials(),
-                id -> byKey("material-" + id) + ", " + byKey("material-suggestion-" + id)).ifPresent(filled::add);
+        filling.field(page, () -> {
+            choose(page, ListingFormField.CONDITION, "#condition", page.locator(byKey("condition-" + condition)),
+                    condition);
+            filled.add(Filled.read(page, ListingFormField.CONDITION, Optional.of(condition), "#condition"));
+        });
+        filling.field(page, () -> tick(page, ListingFormField.COLORS, "#color", CHECKED_COLORS, content.colors(),
+                id -> byKey("filter-grid-option-" + id)).ifPresent(filled::add));
+        filling.field(page, () -> tick(page, ListingFormField.MATERIALS, "#material", CHECKED_MATERIALS,
+                content.materials(), id -> byKey("material-" + id) + ", " + byKey("material-suggestion-" + id))
+                .ifPresent(filled::add));
         Locator price = page.locator("#price");
         price.fill(asTyped(content.price()));
         price.press("Tab");
         filled.add(Filled.read(page, ListingFormField.PRICE, Optional.empty(), "#price"));
         long packageSize = content.packageSize().id();
-        visible(page.locator(byKey("package-size-" + packageSize)), ListingFormField.PACKAGE_SIZE,
-                Optional.of(packageSize)).click();
+        filling.field(page, () -> visible(page.locator(byKey("package-size-" + packageSize)),
+                ListingFormField.PACKAGE_SIZE, Optional.of(packageSize)).click());
         return filled;
     }
 
@@ -345,9 +415,9 @@ public class PlaywrightListingPublisher implements ListingPublisher {
 
     /**
      * The fields of books and objects were not shown during the observation: a listing needing them is not filled
-     * rather than filled blindly.
+     * rather than filled blindly, or they are left to the member.
      */
-    private static void requireObservedDetails(CategoryDetails details) {
+    private static List<UnfilledField> unobservedDetails(CategoryDetails details) {
         Map<ListingFormField, Optional<?>> unobserved = new LinkedHashMap<>();
         unobserved.put(ListingFormField.ISBN, details.isbn());
         unobserved.put(ListingFormField.BOOK_TITLE, details.bookTitle());
@@ -356,9 +426,8 @@ public class PlaywrightListingPublisher implements ListingPublisher {
         unobserved.put(ListingFormField.MODEL, details.model());
         unobserved.put(ListingFormField.MEASUREMENTS, details.measurementWidth().map(Object.class::cast)
                 .or(details::measurementLength).or(details::measurementUnit));
-        unobserved.entrySet().stream().filter(entry -> entry.getValue().isPresent()).findFirst().ifPresent(entry -> {
-            throw new FieldNotFillable(entry.getKey(), Optional.empty());
-        });
+        return unobserved.entrySet().stream().filter(entry -> entry.getValue().isPresent())
+                .map(entry -> new UnfilledField(entry.getKey(), Optional.empty())).toList();
     }
 
     private static Locator.WaitForOptions waitingFor(WaitForSelectorState state, Duration timeout) {

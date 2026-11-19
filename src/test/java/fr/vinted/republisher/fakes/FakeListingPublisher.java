@@ -7,6 +7,7 @@ import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
 import fr.vinted.republisher.domain.republication.RepublicationVisit;
+import fr.vinted.republisher.domain.republication.UnfilledField;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.session.VintedUnreachable;
@@ -28,6 +29,7 @@ public class FakeListingPublisher implements ListingPublisher {
     private List<DownloadedPhoto> sentPhotos = List.of();
     private int formsOpened;
     private int publishClicks;
+    private int tabsLeftOpen;
 
     /** Publishing changes what {@code wardrobe} holds. */
     public FakeListingPublisher(FakeWardrobeReader wardrobe) {
@@ -102,6 +104,28 @@ public class FakeListingPublisher implements ListingPublisher {
             throw failure.get();
         });
         wardrobe.holding(shownOncePublished.toArray(ScannedListing[]::new));
+    }
+
+    /** A field that cannot be filled is left empty; any other failure stops before the form is filled. */
+    @Override
+    public List<UnfilledField> prepare(ListingContent content, List<DownloadedPhoto> photos) {
+        formsOpened++;
+        List<UnfilledField> unfilled = new ArrayList<>();
+        try {
+            failureBeforePublishing.ifPresent(failure -> {
+                throw failure.get();
+            });
+        } catch (FieldNotFillable notFillable) {
+            unfilled.add(notFillable.unfilled());
+        }
+        sentPhotos = List.copyOf(photos);
+        filledContent = Optional.of(content);
+        tabsLeftOpen++;
+        return unfilled;
+    }
+
+    public int tabsLeftOpen() {
+        return tabsLeftOpen;
     }
 
     private FakeListingPublisher failingBeforePublishing(Supplier<RuntimeException> failure) {

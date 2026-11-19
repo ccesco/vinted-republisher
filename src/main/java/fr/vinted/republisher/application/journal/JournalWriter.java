@@ -3,6 +3,7 @@ package fr.vinted.republisher.application.journal;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
+import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
@@ -18,6 +19,10 @@ import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
+import fr.vinted.republisher.domain.republication.ManualRepublicationInDryRun;
+import fr.vinted.republisher.domain.republication.NewListingLinkInvalid;
+import fr.vinted.republisher.domain.republication.NewListingMismatch;
+import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.RepublicationInError;
 import fr.vinted.republisher.domain.republication.RepublicationTooEarly;
 import fr.vinted.republisher.domain.session.BrowserBusy;
@@ -57,7 +62,11 @@ public class JournalWriter {
             Map.entry(RepublicationInError.class, "REPUBLICATION_IN_ERROR"),
             Map.entry(FieldNotFillable.class, "FIELD_NOT_FILLABLE"),
             Map.entry(BrowserBusy.class, "BROWSER_BUSY"),
-            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"));
+            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"),
+            Map.entry(ManualRepublicationInDryRun.class, "MANUAL_REPUBLICATION_IN_DRY_RUN"),
+            Map.entry(NoRepublicationToVerify.class, "NO_REPUBLICATION_TO_VERIFY"),
+            Map.entry(NewListingLinkInvalid.class, "NEW_LISTING_LINK_INVALID"),
+            Map.entry(NewListingMismatch.class, "NEW_LISTING_MISMATCH"));
 
     /** A republication refuses a backup not verified with its own code, as its API answer does. */
     private static final Map<Class<?>, String> REPUBLICATION_REFUSAL_REASONS =
@@ -70,6 +79,10 @@ public class JournalWriter {
             SessionDisconnected.class, "SESSION_DISCONNECTED",
             ListingPageUnreadable.class, "LISTING_PAGE_UNREADABLE",
             ListingFormUnreadable.class, "FORM_UNREADABLE");
+
+    /** A verification of a republication fails on the new listing with its own code, as its API answer does. */
+    private static final Map<Class<?>, String> VERIFICATION_FAILURE_REASONS =
+            Map.of(ListingUnreadable.class, "LISTING_UNREADABLE");
 
     private final ActionJournal journal;
     private final Clock clock;
@@ -96,6 +109,13 @@ public class JournalWriter {
      */
     public <T> T journaled(JournaledAction action, VintedListingId listing, Supplier<T> work,
                            Function<T, ActionOutcome> outcomeOf, Optional<String> failureReason) {
+        return journaled(action, listing, work, outcomeOf, Optional.empty(), failureReason);
+    }
+
+    /** As above, the outcome of the answer being written with {@code outcomeReason}. */
+    public <T> T journaled(JournaledAction action, VintedListingId listing, Supplier<T> work,
+                           Function<T, ActionOutcome> outcomeOf, Optional<String> outcomeReason,
+                           Optional<String> failureReason) {
         T answer;
         try {
             answer = work.get();
@@ -109,12 +129,15 @@ public class JournalWriter {
                 write(action, Optional.of(listing), ActionOutcome.REFUSED, refusal);
             } else {
                 write(action, Optional.of(listing), ActionOutcome.FAILED,
-                        reasonOf(refusalOrFailure, FAILURE_REASONS).or(() -> failureReason));
+                        reasonOf(refusalOrFailure, FAILURE_REASONS)
+                                .or(() -> reasonOf(refusalOrFailure, action == JournaledAction.REPUBLICATION_VERIFICATION
+                                        ? VERIFICATION_FAILURE_REASONS : Map.of()))
+                                .or(() -> failureReason));
             }
             throw refusalOrFailure;
         }
         try {
-            write(action, Optional.of(listing), outcomeOf.apply(answer), Optional.empty());
+            write(action, Optional.of(listing), outcomeOf.apply(answer), outcomeReason);
         } catch (RuntimeException unknownOutcome) {
             LOG.error("Journal not written: outcome of {} on listing {} unknown", action, listing.value(),
                     unknownOutcome);

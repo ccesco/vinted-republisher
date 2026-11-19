@@ -30,11 +30,17 @@ En tant que membre, je veux voir mes annonces en échec groupées selon ce que j
    3. il **ne clique jamais sur « Publier »** : il laisse l'onglet ouvert, rend la main et enregistre une republication **en erreur** (`ListingRepublication`, issue `FAILED`, comme un clic sur « Publier » sans preuve, US-12) : l'annonce passe à l'étape `REPUBLICATION_TO_CHECK`, sans nouvel état ni changement de schéma ;
    4. la réponse liste les champs laissés vides, que le membre complète dans Chrome avant de publier lui-même.
 4. **Après la publication par le membre** : la fiche propose la validation manuelle existante (US-13) : « publiée » avec le lien de la nouvelle annonce, contrôlée (titre et prix de la sauvegarde) puis comparée et reliée à l'ancienne ; ou « non publiée », et l'annonce revient à `TO_REPUBLISH`. « Vérifier sur Vinted », « Relancer » et « Tout lancer » la traitent comme toute republication à vérifier (US-13, US-20) : une vérification lancée avant que le membre publie ne trouve rien et ne conclut jamais « non publiée » d'elle-même.
-5. **Journal** (US-23) : une ligne action `REPUBLICATION`, issue `IN_DOUBT`, raison `MANUAL_REPUBLICATION_PREPARED`, libellé « republication manuelle : publiez sur Vinted puis validez ». L'annonce reste donc sur la page « Échecs », section « Dans le doute », jusqu'à la vérification ou la validation manuelle, qui ajoutent leurs lignes comme aujourd'hui. Les champs laissés vides sont dans la réponse, pas dans le journal. Un refus ou un échec de la préparation est journalisé comme ceux d'une republication.
-6. **Dry-run** (US-10) : tant que le dry-run de republication est actif, la republication manuelle est refusée (`MANUAL_REPUBLICATION_IN_DRY_RUN`) sans ouvrir Chrome ; le bouton est désactivé, avec « Indisponible en dry-run ».
+5. **Journal** (US-23) : une ligne action `REPUBLICATION`, issue `IN_DOUBT`, raison `MANUAL_REPUBLICATION_PREPARED`, libellé « republication manuelle : publiez sur Vinted puis validez ». L'annonce reste donc sur la page « Échecs », section « Dans le doute », jusqu'à la vérification ou la validation manuelle. Les champs laissés vides sont dans la réponse, pas dans le journal. Un refus ou un échec de la préparation est journalisé comme ceux d'une republication.
+6. **Vérification et validation d'une republication journalisées** (US-13, dette d'US-23) : nouvelle action `REPUBLICATION_VERIFICATION` (« Vérification de la republication »), pour toute republication, manuelle ou non :
+   - vérification : retrouvée ou déjà publiée → réussie (`SUCCEEDED`) ; toujours en erreur → doute (`IN_DOUBT`) ;
+   - validation « publiée » → réussie ; « non publiée » → non faite (`NOT_DONE`, cause « republication non faite » : l'annonce passe dans « Autres échecs », « Relancer » republie) ;
+   - refus (`NO_REPUBLICATION_TO_VERIFY`, `NEW_LISTING_LINK_INVALID`, `NEW_LISTING_MISMATCH`, `BROWSER_BUSY`) et échecs (dont `LISTING_UNREADABLE`) avec leur raison, comme les autres actions.
+
+   Une annonce dont la republication est retrouvée ou validée « publiée » quitte ainsi la page « Échecs ». Changeset `017-journal-republication-verification` (contrainte `CHECK` de la colonne `action`).
+7. **Dry-run** (US-10) : tant que le dry-run de republication est actif, la republication manuelle est refusée (`MANUAL_REPUBLICATION_IN_DRY_RUN`) sans ouvrir Chrome ; le bouton est désactivé, avec « Indisponible en dry-run ».
 
 ## Contrat d'API
-À écrire dans `vinted-republisher.yaml` (rédigé dans le worktree, commité avec le code, car `kind` requis ne compile qu'avec son implémentation) :
+Dans `vinted-republisher.yaml`, commité avec le code (`kind` requis ne compile qu'avec son implémentation) :
 
 | Requête | Opération | Réponse |
 | --- | --- | --- |
@@ -42,17 +48,21 @@ En tant que membre, je veux voir mes annonces en échec groupées selon ce que j
 | `GET /api/failed-listings` | `showFailedListings` | `FailedListing` gagne `kind` (`FailureKind` : `IN_DOUBT`, `REFUSED`, `OTHER`), requis |
 
 - `RepublicationRefusal.reason` gagne `MANUAL_REPUBLICATION_IN_DRY_RUN`.
+- `JournaledAction` gagne `REPUBLICATION_VERIFICATION`.
+- La page « Échecs » lit la sauvegarde (`GET /api/listings/{listingId}/backup`) pour envoyer le `savedAt` vu : `FailedListing` ne le porte pas.
 - La fiche sait si le dry-run est actif par `ListingBackupView.republicationDryRun` (existant).
 
 ## Critères d'acceptation
-- [ ] La page « Échecs » sépare « Dans le doute », « Refusées » et « Autres échecs », chacune triée de la plus récente à la plus ancienne.
-- [ ] Une annonce à republier, refusée, propose « Republier manuellement » en plus de « Relancer ».
-- [ ] La republication manuelle passe par les mêmes contrôles que la republication.
-- [ ] Elle remplit le formulaire depuis la sauvegarde, laisse vides les champs impossibles à remplir, les liste, et ne publie jamais.
-- [ ] Le formulaire est ouvert dans un onglet que l'outil laisse ouvert et ne réutilise pas.
-- [ ] La préparation enregistre une republication en erreur et une ligne de journal en doute (`MANUAL_REPUBLICATION_PREPARED`) ; l'annonce est « Republication à vérifier » et dans « Dans le doute ».
-- [ ] Une republication manuelle se termine par la vérification ou la validation manuelle d'US-13 (« publiée » avec lien, ou « non publiée »).
-- [ ] Elle compte dans la limite de cadence et est refusée en dry-run.
+- [x] La page « Échecs » sépare « Dans le doute », « Refusées » et « Autres échecs », chacune triée de la plus récente à la plus ancienne.
+- [x] Une annonce à republier, refusée, propose « Republier manuellement » en plus de « Relancer ».
+- [x] La republication manuelle passe par les mêmes contrôles que la republication.
+- [x] Elle remplit le formulaire depuis la sauvegarde, laisse vides les champs impossibles à remplir, les liste, et ne publie jamais.
+- [x] Le formulaire est ouvert dans un onglet que l'outil laisse ouvert et ne réutilise pas.
+- [x] La préparation enregistre une republication en erreur et une ligne de journal en doute (`MANUAL_REPUBLICATION_PREPARED`) ; l'annonce est « Republication à vérifier » et dans « Dans le doute ».
+- [x] Une republication manuelle se termine par la vérification ou la validation manuelle d'US-13 (« publiée » avec lien, ou « non publiée »).
+- [x] Elle compte dans la limite de cadence et est refusée en dry-run.
+- [x] La vérification et la validation d'une republication sont journalisées ; retrouvée ou validée « publiée », l'annonce quitte la page « Échecs ».
+- [ ] AT-45-07 (vrai compte) vérifié par le membre.
 
 ## Tests d'acceptation
 ### AT-45-01 – Groupes de la page « Échecs »
@@ -99,7 +109,7 @@ Ou alors que le navigateur est occupé
 Quand le membre la republie manuellement
 Alors c'est refusé avec la raison de la republication et Chrome n'ouvre aucun formulaire
 ```
-Test : `PrepareManualRepublicationAcceptanceTest.refused_like_a_republication()`
+Test : `PrepareManualRepublicationAcceptanceTest.refused_like_a_republication()`, `refused_when_the_old_listing_is_not_deleted()`, `refused_while_the_browser_is_busy()`
 
 ### AT-45-04b – Cadence et dry-run
 ```gherkin
@@ -111,7 +121,7 @@ Quand le membre republie manuellement une annonce à republier
 Alors c'est refusé (MANUAL_REPUBLICATION_IN_DRY_RUN), rien n'est enregistré
 Et sur la fiche le bouton « Republier manuellement » est désactivé, « Indisponible en dry-run »
 ```
-Test : `PrepareManualRepublicationAcceptanceTest.counts_in_cadence_and_is_refused_in_dry_run()`, `ListingDetailPageTest.manual_republication_unavailable_in_dry_run()`
+Test : `PrepareManualRepublicationAcceptanceTest.counts_in_cadence()`, `refused_in_dry_run()`, `ListingDetailPageTest.Republication.manual_republication_unavailable_in_dry_run()`
 
 ### AT-45-04c – Fiche
 ```gherkin
@@ -131,7 +141,7 @@ Quand le membre publie sur Vinted puis valide « publiée » avec le lien de la 
 Alors la nouvelle annonce est contrôlée, comparée et reliée à l'ancienne
 Et l'annonce quitte la page « Échecs »
 ```
-Test : `ValidateListingRepublicationAcceptanceTest.validates_a_manual_republication()`
+Test : `ValidateListingRepublicationAcceptanceTest.validates_a_manual_republication()`, `validations_are_written()`, `VerifyListingRepublicationAcceptanceTest.verifications_are_written()`
 
 ### AT-45-06 – Contrat
 ```gherkin
@@ -153,7 +163,8 @@ Test : manuel (vrai compte Vinted, publication faite par le membre).
 ## Cas limites et erreurs
 - Le membre ferme l'onglet ou ne publie jamais : l'annonce reste « Republication à vérifier » ; « non publiée » la ramène à « À republier ».
 - Deuxième republication manuelle alors qu'une est à vérifier : refusée, l'étape n'est plus `TO_REPUBLISH`.
-- Page du formulaire illisible : refus `VINTED_PAGE_UNREADABLE`, comme la republication.
+- Page du formulaire illisible, session non connectée, Vinted inaccessible : échec comme la republication (`FORM_UNREADABLE`, `SESSION_DISCONNECTED`…), onglet refermé, rien d'enregistré (`PrepareManualRepublicationAcceptanceTest.failure_of_the_form_records_nothing()`).
+- Catégorie introuvable : ses champs dépendants sont listés à leur tour, chacun une fois ; couleurs ou matières peuvent rester en partie cochées.
 - Le membre modifie le titre ou le prix avant de publier : la validation « publiée » est refusée (`NEW_LISTING_MISMATCH`), comme en US-13.
 - Titres et noms de champs venant de Vinted : jamais d'`innerHTML`.
 
@@ -176,6 +187,11 @@ Test : manuel (vrai compte Vinted, publication faite par le membre).
 - Titre et prix, décidé par l'utilisateur (2026-11-19) : la validation « publiée » garde son contrôle (titre et prix de la sauvegarde), qui prouve que le lien est bien cette annonce ; les modifier reste hors périmètre.
 - Onglet, décidé par l'utilisateur (2026-11-19) : formulaire dans un onglet dédié, laissé ouvert, jamais réutilisé ; aucun verrou du navigateur après la préparation, les autres actions et « Tout lancer » continuent dans leurs propres onglets.
 - Proposé par Claude (2026-11-19) : `ListingRepublication.attemptedAt` d'une republication manuelle = date de la préparation ; réponse `ManualRepublicationReport` avec l'aperçu à jour, pour que la fiche montre la nouvelle étape sans relecture.
+- Journal de la vérification d'une republication, décidé par l'utilisateur (2026-11-19, relevé pendant l'implémentation : sans lui, une annonce dans le doute restait sur la page « Échecs » après une vérification réussie ou une validation « publiée », ce qui contredisait AT-45-05) : vérification et validation journalisées sous `REPUBLICATION_VERIFICATION`, changeset `017`.
+- Proposé par Claude pendant l'implémentation (2026-11-19) : validation « non publiée » journalisée `NOT_DONE`, comme une revérification de suppression non faite ; page « Échecs » qui lit la sauvegarde pour le `savedAt` ; message de refus « Republication manuelle refusée : <raison> », d'échec « Échec de la republication manuelle : voir la fiche ».
+- Annonce republiée, décidé par l'utilisateur (2026-11-19, relevé en revue : republication retrouvée puis comparaison en échec) : une annonce « Republiée » n'est jamais en échec, comme une annonce « Absente de Vinted » ; la comparaison se relance depuis la fiche.
+- Refus en dry-run, décidé par l'utilisateur (2026-11-19, relevé en revue) : `MANUAL_REPUBLICATION_IN_DRY_RUN` est un refus d'attente (rien n'est fait sur Vinted) : la page « Échecs » l'ignore et garde la cause d'origine.
+- Corrigé après revue (2026-11-19) : l'onglet est refermé si la préparation échoue (aucun formulaire laissé sans republication enregistrée) ; le dry-run est vérifié après la lecture de la sauvegarde (une annonce jamais sauvegardée reste un 404 non journalisé) ; un champ n'est listé qu'une fois ; les détails jamais observés viennent après les champs du formulaire ; `LISTING_UNREADABLE` n'est la raison d'un échec que pour la vérification d'une republication.
 - Constat (2026-11-19) : « Relancer » déduit l'action de l'étape (US-20) ; un doute lance déjà la vérification, un refus refait la même action automatique.
 
 ## Questions ouvertes
@@ -188,12 +204,13 @@ Aucune.
 - `UnfilledField` (champ laissé vide) : `ListingFormField` et identifiant d'option éventuel.
 - `ManualRepublicationReport` : aperçu à jour et champs laissés vides.
 - `ListingRepublication` existant, issue `FAILED` ; raison de journal `MANUAL_REPUBLICATION_PREPARED` ; raison de refus `MANUAL_REPUBLICATION_IN_DRY_RUN`.
-- Glossaire (`docs/glossary.md`) : `FailureKind` (type d'échec), `PrepareManualRepublication` (republication manuelle), `UnfilledField` (champ laissé vide), `ManualRepublicationReport`.
-- Aucun changement de schéma.
+- Glossaire (`docs/glossary.md`) : `FailureKind` (type d'échec), `PrepareManualRepublication` (republication manuelle), `UnfilledField` (champ laissé vide), `ManualRepublicationReport`, `JournaledAction.REPUBLICATION_VERIFICATION`.
+- Schéma : seule la contrainte `CHECK` du journal change (changeset `017`).
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : `FailureKind` de chaque issue ; remplissage tolérant (champ impossible → laissé vide, listé).
 - Application : `PrepareManualRepublication` (contrôles, jamais de publication, journal, cadence).
-- Adaptateur navigateur : remplissage sans clic sur « Publier », champs laissés vides (`@Tag("browser")`, page locale).
+- Adaptateur navigateur : remplissage sans clic sur « Publier », champs laissés vides (`@Tag("browser")`, page locale) : `PlaywrightListingPublisherTest.Manual_republication`.
+- Adaptateur persistance : `JpaActionJournalTest.every_journaled_action_can_be_written()` (`@Tag("docker")`).
 - Adaptateur web : contrôleurs (contrat).
 - Interface : Vitest pour le groupement ; `FailedListingsPageTest` et `ListingDetailPageTest` (Playwright, API simulée).

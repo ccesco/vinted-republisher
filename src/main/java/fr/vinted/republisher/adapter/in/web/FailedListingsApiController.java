@@ -3,6 +3,7 @@ package fr.vinted.republisher.adapter.in.web;
 import fr.vinted.republisher.adapter.in.web.api.FailedListingsApi;
 import fr.vinted.republisher.adapter.in.web.api.model.FailedListingDto;
 import fr.vinted.republisher.adapter.in.web.api.model.FailedListingsDto;
+import fr.vinted.republisher.adapter.in.web.api.model.FailureKindDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingStageDto;
 import fr.vinted.republisher.application.inventory.ShowFailedListings;
 import fr.vinted.republisher.domain.inventory.FailedListing;
@@ -31,6 +32,7 @@ public class FailedListingsApiController implements FailedListingsApi {
                 .listingId(failed.listing().id().value())
                 .listingTitle(failed.listing().title())
                 .stage(ListingStageDto.valueOf(failed.stage().name()))
+                .kind(FailureKindDto.valueOf(failed.kind().name()))
                 .failure(ActionJournalApiController.toDto(failed.failure(), Optional.of(failed.listing().title())));
     }
 }
