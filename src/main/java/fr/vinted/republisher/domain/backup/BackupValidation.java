@@ -21,7 +21,7 @@ public record BackupValidation(VintedListingId listingId, Instant backupSavedAt,
         return new BackupValidation(backup.id(), backup.savedAt(), validatedAt);
     }
 
-    public boolean holdsFor(BackupSummary backup) {
-        return listingId.equals(backup.id()) && backupSavedAt.equals(backup.savedAt());
+    public boolean holdsFor(BackupSummary summary) {
+        return listingId.equals(summary.id()) && backupSavedAt.equals(summary.savedAt());
     }
 }

@@ -28,12 +28,12 @@ public record VerificationResult(VintedListingId listingId, Instant backupSavedA
         return failures.isEmpty();
     }
 
-    public boolean holdsFor(BackupSummary backup) {
-        return listingId.equals(backup.id()) && backupSavedAt.equals(backup.savedAt());
+    public boolean holdsFor(BackupSummary summary) {
+        return listingId.equals(summary.id()) && backupSavedAt.equals(summary.savedAt());
     }
 
-    /** The current backup {@code backup} failed its last verification. */
-    public boolean failsFor(BackupSummary backup) {
-        return holdsFor(backup) && !passed();
+    /** The backup that {@code summary} sums up failed its last verification. */
+    public boolean failsFor(BackupSummary summary) {
+        return holdsFor(summary) && !passed();
     }
 }

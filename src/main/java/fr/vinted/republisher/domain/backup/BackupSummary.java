@@ -14,5 +14,8 @@ public record BackupSummary(VintedListingId id, Instant savedAt, int photoCount)
     public BackupSummary {
         Objects.requireNonNull(id);
         Objects.requireNonNull(savedAt);
+        if (photoCount < 0) {
+            throw new IllegalArgumentException("Negative photo count: " + photoCount);
+        }
     }
 }

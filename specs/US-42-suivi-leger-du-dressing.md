@@ -1,5 +1,5 @@
 # US-42 – Suivi léger du dressing
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-04 (scan), US-05 (sauvegarde), US-14 (inventaire et étapes), US-19 (série « Tout lancer »), US-37 (interface Angular), US-41 (file d'attente)
 
@@ -26,12 +26,12 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 Aucun changement de contrat : `GET /api/listings`, `WardrobeOverview` et `AutomaticRunOverview` restent tels quels.
 
 ## Critères d'acceptation
-- [ ] Pendant une série, la liste n'est relue que quand l'aperçu de la série diffère du précédent, puis une dernière fois à sa fin (AT-42-01, AT-42-02).
-- [ ] Le message d'une ligne relancée à la main pendant une série reste affiché tant que la série ne change pas (AT-42-07).
-- [ ] Pendant un scan, une sauvegarde ou un rafraîchissement, la liste reste relue à chaque période, puis une dernière fois à la fin (AT-42-03, AT-42-06).
-- [ ] Avec une série et un scan en cours ensemble, la liste n'est jamais relue plus d'une fois par période de suivi (AT-42-04).
-- [ ] L'inventaire donne la même réponse qu'avant (AT-42-05) sans charger ni description ni photos des sauvegardes (test de persistance des résumés).
-- [ ] La série, la file d'attente, les annonces en échec et la vérification en lot donnent les mêmes résultats qu'avant (tests d'acceptation existants d'US-19, US-39, US-40 et US-41, inchangés).
+- [x] Pendant une série, la liste n'est relue que quand l'aperçu de la série diffère du précédent, puis une dernière fois à sa fin (AT-42-01, AT-42-02).
+- [x] Le message d'une ligne relancée à la main pendant une série reste affiché tant que la série ne change pas (AT-42-07).
+- [x] Pendant un scan, une sauvegarde ou un rafraîchissement, la liste reste relue à chaque période, puis une dernière fois à la fin (AT-42-03, AT-42-06).
+- [x] Avec une série et un scan en cours ensemble, la liste n'est jamais relue plus d'une fois par période de suivi (AT-42-04).
+- [x] L'inventaire donne la même réponse qu'avant (AT-42-05) sans charger ni description ni photos des sauvegardes (test de persistance des résumés).
+- [x] La série, la file d'attente, les annonces en échec et la vérification en lot donnent les mêmes résultats qu'avant (tests d'acceptation existants d'US-19, US-39, US-40 et US-41, inchangés).
 
 ## Tests d'acceptation
 
@@ -114,6 +114,7 @@ Test : `WardrobePageTest.manual_relaunch_message_stays_while_run_unchanged()`
 - Actions à la main pendant une série : rien à ajouter. La relance depuis une ligne remplace la ligne par sa réponse, l'édition de tags relit la liste, la validation se fait sur la fiche (liste relue au retour), la vérification en lot n'est pas proposée pendant une série. Le message d'une ligne relancée reste affiché jusqu'au prochain changement de la série (aujourd'hui effacé toutes les 2 secondes).
 - Période de suivi inchangée, 2 secondes (`POLL_INTERVAL_MS`) : l'aperçu de la série est en mémoire, sans base ; seule la relecture de l'inventaire coûtait.
 - Mesure manuelle notée dans la spec (section « Mesure »), sans seuil bloquant ni test automatisé de temps (instable selon la machine) ; la garantie automatisée est le test de persistance des résumés.
+- Mise en œuvre (revue) : un seul limiteur (`OncePerPeriod`) sert toutes les relectures de suivi, fin de vérification en lot comprise ; une demande faite moins d'une période après la dernière relecture est différée à la fin de la période, jamais perdue. La dernière relecture d'une action peut donc arriver jusqu'à 2 secondes après sa fin. Le limiteur est fermé à la sortie de l'écran. Les relectures demandées par le membre (critères, tags) restent immédiates.
 
 ## Questions ouvertes
 - (aucune)
@@ -123,8 +124,10 @@ Manuelle, sur la base de dev, avant et après : médiane du temps de réponse de
 
 | | Médiane `GET /api/listings` | Requêtes SQL par appel |
 |---|---|---|
-| Avant | à mesurer | à mesurer |
-| Après | à mesurer | à mesurer |
+| Avant | 34,7 ms | 10 (dont les sauvegardes complètes et toutes les lignes de `listing_photo`) |
+| Après | 29,2 ms | 9 (résumés : une requête, photos comptées par la base) |
+
+Mesuré le 19/11/2026 sur la base de dev (142 annonces, 136 sauvegardes, 207 photos, 272 relevés), après un appel de chauffe ; réponse de 50 698 octets dans les deux cas. Le gain par lecture reste modeste à ce volume ; l'essentiel vient du suivi : pendant une série, la liste n'est plus relue toutes les 2 secondes (30 lectures par minute) mais seulement quand la série change (au plus une fois par minute avec la cadence).
 
 ## Modèle de domaine
 - Ajout : `BackupSummary` (Résumé de sauvegarde) : identifiant de l'annonce, date de sauvegarde, nombre de photos ; ce que l'inventaire sait d'une sauvegarde.

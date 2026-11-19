@@ -17,6 +17,7 @@ import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/rela
 import { republicationCellOf } from './republication-cell';
 import { runningSummaryOf } from './run-summary';
 import { verificationSummaryOf } from './verification-summary';
+import { OncePerPeriod, runChanged } from './wardrobe-follow';
 import {
   APPLICATION_DOWN_MESSAGE, ARCHIVE_PROBLEM_MESSAGES, ARCHIVE_UNREACHABLE_MESSAGE, BACKUP_PROBLEM_MESSAGES,
   PROBLEM_MESSAGES, RELAUNCHABLE_STAGES, RELAUNCH_FAILED_MESSAGE, RUN_STOP_MESSAGES, STAGES_TO_CHECK, STAGE_LABELS,
@@ -111,6 +112,9 @@ export class Wardrobe {
   private wardrobeBusy = false;
   private destroyed = false;
   private runInProgress = false;
+  private lastRun?: AutomaticRunOverview;
+  // Un seul suivi de la liste (US-42) : scan, sauvegarde et série la relisent au plus une fois par période.
+  private readonly listingReloads = new OncePerPeriod(POLL_INTERVAL_MS, () => this.loadListings());
   private verificationInProgress = false;
 
   constructor() {
@@ -119,6 +123,7 @@ export class Wardrobe {
       this.destroyed = true;
       this.timers.forEach(clearTimeout);
       clearTimeout(this.searchTimer);
+      this.listingReloads.close();
     });
     this.loadTags();
     this.refresh();
@@ -379,7 +384,7 @@ export class Wardrobe {
   // La liste est relue à chaque aperçu : pendant un scan elle se remplit, à sa fin elle est à jour.
   private follow(overview: WardrobeOverview): void {
     this.show(overview);
-    this.loadListings();
+    this.listingReloads.request();
     if (inProgress(overview)) {
       this.later(() => this.refresh());
     }
@@ -453,12 +458,14 @@ export class Wardrobe {
     this.stopShown.set(this.runInProgress && !run.stopRequested);
   }
 
-  // La liste est relue pendant la série, et une dernière fois quand elle s'achève.
+  // La liste est relue pendant la série quand son aperçu change (US-42), et une dernière fois quand elle s'achève.
   private followRun(run: AutomaticRunOverview): void {
     const wasInProgress = this.runInProgress;
+    const changed = runChanged(this.lastRun, run);
+    this.lastRun = run;
     this.showRun(run);
-    if (wasInProgress || this.runInProgress) {
-      this.loadListings();
+    if ((wasInProgress || this.runInProgress) && changed) {
+      this.listingReloads.request();
     }
     if (this.runInProgress) {
       this.later(() => this.refreshRun());
@@ -480,7 +487,7 @@ export class Wardrobe {
     this.verification.set(verification);
     this.showLaunches();
     if (wasInProgress && !this.verificationInProgress) {
-      this.loadListings();
+      this.listingReloads.request();
     }
     if (this.verificationInProgress) {
       this.later(() => this.refreshVerification());

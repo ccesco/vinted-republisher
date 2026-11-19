@@ -36,6 +36,12 @@ class ListingBackupTest {
     }
 
     @Test
+    void summary_cannot_count_fewer_than_no_photo() {
+        assertThatThrownBy(() -> new BackupSummary(new VintedListingId(1), NOW, -1))
+                .isInstanceOf(IllegalArgumentException.class).hasMessage("Negative photo count: -1");
+    }
+
+    @Test
     void reading_without_photo_is_unreadable() {
         assertThatThrownBy(() -> new ListingReading(aContent(1), List.of()))
                 .isInstanceOf(ListingUnreadable.class).hasMessageContaining("no photo on 1");
