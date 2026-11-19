@@ -8,8 +8,11 @@ export const STAGE_LABELS: Record<string, string> = {
 };
 // Étapes qui demandent de vérifier sur Vinted : mises en évidence.
 export const STAGES_TO_CHECK = ['DELETION_TO_CHECK', 'REPUBLICATION_TO_CHECK'];
-// Étapes qui se relancent (US-20) ; le serveur en déduit l'action.
-export const RELAUNCHABLE_STAGES = ['TO_DELETE', 'DELETION_TO_CHECK', 'TO_REPUBLISH', 'REPUBLICATION_TO_CHECK'];
+// Étapes qui se relancent (US-20) -> libellé du bouton : l'action que le serveur en déduit.
+export const RELAUNCH_LABELS: Record<string, string> = {
+  TO_DELETE: 'Supprimer de Vinted', DELETION_TO_CHECK: 'Revérifier la suppression',
+  TO_REPUBLISH: 'Republier sur Vinted', REPUBLICATION_TO_CHECK: 'Vérifier la republication'
+};
 // RelaunchAction -> message une fois l'action faite.
 export const RELAUNCH_DONE_MESSAGES: Record<string, string> = {
   DELETION: 'Suppression faite', DELETION_RECHECK: 'Revérification faite',

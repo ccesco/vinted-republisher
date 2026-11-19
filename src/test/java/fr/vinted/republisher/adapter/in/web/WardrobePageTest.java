@@ -535,8 +535,8 @@ class WardrobePageTest {
                              "url": "https://vinted.test/items/3", "present": false, "stage": "WAITING"}}""");
         // Quand le membre l'affiche
         open();
-        // Alors seule la première a un bouton « Relancer »
-        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        // Alors seule la première a un bouton « Supprimer de Vinted » (action de la relance)
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Supprimer de Vinted");
         assertThat(cell(1, ACTION).getByRole(AriaRole.BUTTON)).hasCount(0);
         // Quand il clique dessus
         cell(0, ACTION).getByRole(AriaRole.BUTTON).click();

@@ -187,8 +187,8 @@
               }
             </td>
             <td>
-              @if (relaunchableStages.includes(row.listing.stage)) {
-                <button matButton="outlined" type="button" [disabled]="row.relaunching" (click)="relaunch(row)">Relancer</button>
+              @if (relaunchLabels[row.listing.stage]; as label) {
+                <button matButton="outlined" type="button" [disabled]="row.relaunching" (click)="relaunch(row)">{{ label }}</button>
               }
               @if (row.message) {
                 <span class="relaunch-message">
