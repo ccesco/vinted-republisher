@@ -59,8 +59,10 @@ public class BackupConfiguration {
     @Bean
     ValidateListingBackup validateListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
                                                 PhotoStorage photos, BackupValidationRepository validations,
-                                                Clock clock, JournalWriter journal) {
-        return new ValidateListingBackup(listings, listingBackups, photos, validations, clock, journal);
+                                                BackupVerificationRepository verifications, Clock clock,
+                                                JournalWriter journal) {
+        return new ValidateListingBackup(listings, listingBackups, photos, validations, verifications, clock,
+                journal);
     }
 
     @Bean

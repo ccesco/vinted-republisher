@@ -37,6 +37,7 @@ En tant que membre, je veux faire relire sur Vinted toutes mes sauvegardes à va
 - [x] Chaque vérification est inscrite au journal des actions.
 - [x] Un autre site ne peut pas lancer la vérification (403).
 - [x] Aucun test automatisé ne contacte le vrai site Vinted.
+- [x] Une version dont la dernière vérification sur Vinted a échoué ne peut pas être validée depuis son aperçu.
 
 AT-40-14 (relecture réelle, manuel) reste à faire par l'utilisateur sur son vrai compte.
 
@@ -171,6 +172,15 @@ Et une annonce que je modifie sur Vinted avant de relancer passe en « vérifica
 ```
 Test : manuel (vrai compte, lecture seule ; lancé par l'utilisateur).
 
+### AT-40-15 – Pas de validation manuelle après un échec
+```gherkin
+Étant donné une annonce dont la dernière vérification de sa sauvegarde actuelle a échoué (taille changée sur Vinted)
+Quand je demande la validation depuis l'aperçu
+Alors la validation est refusée (422) avec les motifs de cet échec et rien n'est enregistré
+Mais une nouvelle sauvegarde, vue dans l'aperçu, se valide comme avant
+```
+Test : `ValidateListingBackupAcceptanceTest.version_failing_online_cannot_be_validated_from_its_preview()` et `failure_of_a_replaced_version_does_not_block_the_new_backup()`
+
 ## Cas limites et erreurs
 - Formulaire en 404 : l'annonce n'existe plus sur Vinted, échec « annonce absente », la vérification continue.
 - Autre réponse HTTP ≥ 400, redirection vers la connexion, formulaire illisible ou attribut inconnu (US-05) : la vérification s'arrête, les résultats déjà obtenus restent, les annonces non lues gardent leur étape.
@@ -191,6 +201,7 @@ Test : manuel (vrai compte, lecture seule ; lancé par l'utilisateur).
 - Une seule action, décidé par l'utilisateur (2026-11-18) : bouton « Vérifier et valider ». L'outil relit sur Vinted, une par une avec une pause aléatoire de 5 à 10 s, les annonces concernées. Il valide aussitôt celles dont la vérification réussit et garde l'échec des autres avec ses motifs. Raison : un résultat gardé puis validé plus tard pourrait être périmé.
 - Périmètre, décidé par l'utilisateur (2026-11-18) : toutes les annonces présentes à l'étape « à valider » (`TO_VALIDATE`), et aussi celles déjà validées (`TO_DELETE`), pour vérifier qu'elles n'ont pas changé sur Vinted depuis.
 - Validée puis changée, décidé par l'utilisateur (2026-11-18) : si la relecture d'une annonce validée échoue, sa validation est annulée, l'échec est gardé avec ses motifs et la série (US-19) ne la prend plus. Pour la reprendre : la resauvegarder, puis relancer « Vérifier et valider ». Revient sur « pas d'annulation de validation » d'US-08.
+- Pas de contournement par l'aperçu, décidé par l'utilisateur (2026-11-19, à la revue) : tant que la dernière vérification sur Vinted de la version actuelle a échoué, la validation depuis l'aperçu (US-08) est refusée avec les motifs de cet échec. Raison : sinon l'annonce redeviendrait « prête à supprimer » et la série la supprimerait avec une sauvegarde qu'on sait différente de Vinted.
 - Affichage, décidé par l'utilisateur (2026-11-18) : nouvelle étape de traitement « vérification en erreur » (`VERIFICATION_FAILED`), entre « prête à supprimer » et « à valider ». Elle apparaît dans la colonne Étape et le filtre de la liste, et ses motifs sur la fiche. La série l'ignore. Elle porte sur une version de la sauvegarde : une nouvelle sauvegarde ramène l'annonce à « à valider ».
 - Comparaison, décidé par l'utilisateur (2026-11-18) : tout le contenu gardé par la sauvegarde (US-05), lu avec les mêmes règles. Sont comparés à l'identique, par identifiants et textes : titre, description, prix et devise, catégorie, marque, taille, état, couleurs, matières, format du colis et champs propres à la catégorie. Les libellés affichés ne sont pas comparés. Les photos restent contrôlées par leur empreinte locale (US-08), sans nouveau téléchargement.
 - Déroulement, décidé par l'utilisateur (2026-11-18) : comme la sauvegarde du dressing (US-05). Arrière-plan dans le Chrome piloté, une annonce à la fois, ligne d'état « Vérification en cours : n / N ». Exclusif du scan, de la sauvegarde et de la série. Une annonce absente de Vinted échoue et la vérification continue ; une session expirée, une réponse HTTP ≥ 400 ou un formulaire illisible arrêtent tout, et les résultats déjà obtenus restent. Chaque vérification est inscrite au journal des actions.

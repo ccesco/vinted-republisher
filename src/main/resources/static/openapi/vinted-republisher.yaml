@@ -506,7 +506,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ValidationRefusal'
         '422':
-          description: La vérification échoue ; rien n'est validé.
+          description: La vérification échoue, ou la dernière vérification sur Vinted de cette version a échoué (US-40, motifs gardés) ; rien n'est validé.
           content:
             application/json:
               schema:

@@ -6,6 +6,9 @@ import fr.vinted.republisher.domain.backup.BackupVerification;
 import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
+import fr.vinted.republisher.domain.backup.ListingFormField;
+import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
 import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.backup.WardrobeBackup;
 import fr.vinted.republisher.domain.backup.WardrobeBackupRepository;
@@ -62,9 +65,12 @@ public final class DataInEveryTable {
         ListingBackupRepository backups = application.getBean(ListingBackupRepository.class);
         backups.save(aBackup(DELETED_LISTING, AT.plusSeconds(90)));
         ListingBackup backup = backups.find(new VintedListingId(DELETED_LISTING)).orElseThrow();
+        // A failure with accents and quotes, as Vinted may give them, so that the archive keeps its JSON as it is;
+        // written before the validation, which it would otherwise cancel.
+        application.getBean(BackupVerificationRepository.class).save(VerificationResult.of(backup,
+                new BackupVerification(List.of(new FieldChanged(new ListingFieldDifference(ListingFormField.DESCRIPTION,
+                        "Robe \"été\"", "Robe d'été\nneuve")))), AT.plusSeconds(170)));
         application.getBean(BackupValidationRepository.class).save(BackupValidation.of(backup, AT.plusSeconds(180)));
-        application.getBean(BackupVerificationRepository.class)
-                .save(VerificationResult.of(backup, new BackupVerification(List.of()), AT.plusSeconds(170)));
         application.getBean(ListingDeletionRepository.class)
                 .save(ListingDeletion.attempted(backup, AT.plusSeconds(240)).confirmed(AT.plusSeconds(245)));
         application.getBean(ListingRepublicationRepository.class).save(ListingRepublication

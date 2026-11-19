@@ -71,17 +71,18 @@ public class ShowListingDetail {
         List<StatisticsReading> history = statistics.historyOf(id);
         Instant now = clock.instant();
         Instant baselineAsOf = RepublicationAdvice.baselineAsOf(now);
+        Optional<VerificationResult> verification = verifications.find(id);
         ListingInventory inventory = ListingInventory.of(List.of(listing), history.stream().limit(1).toList(),
                 history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
                 backups.find(id).stream().toList(), validations.find(id).stream().toList(),
-                verifications.find(id).stream().toList(),
+                verification.stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
                 clock.instant());
         Set<VintedListingId> seen = new HashSet<>(Set.of(id));
         List<VintedListingId> previous = previousListings(id, seen);
         List<VintedListingId> next = nextListings(id, seen);
         InventoryEntry entry = inventory.entries().getFirst();
-        Optional<VerificationResult> lastVerification = verifications.find(id)
+        Optional<VerificationResult> lastVerification = verification
                 .filter(result -> entry.backup().filter(result::holdsFor).isPresent());
         return new ListingDetail(entry, history, journal.of(id),
                 comparison(id, previous, history.stream().findFirst()), listings.priceHistoryOf(id),

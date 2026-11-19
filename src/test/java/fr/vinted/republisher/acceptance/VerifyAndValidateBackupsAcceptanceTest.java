@@ -291,6 +291,8 @@ class VerifyAndValidateBackupsAcceptanceTest {
         aKeptBackupOf(103);
         aKeptBackupOf(101);
         listings.saveAll(List.of(Listing.seen(anActiveListing(102), SAVED_AT)));
+        aKeptBackupOf(104);
+        listings.saveAll(List.of(Listing.seen(anActiveListing(104), SAVED_AT).absent()));
         reader.showing(aContent(101), aContent(103));
 
         verifyAndValidate.launch();

@@ -6,6 +6,7 @@ import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.BackupVerification;
+import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupView;
@@ -22,7 +23,8 @@ import java.util.Optional;
 
 /**
  * The member confirms the backup they saw. It is verified again first: files or the wardrobe may have changed since
- * the preview. A backup replaced right after is harmless: the validation holds for the version seen only.
+ * the preview. A version whose last verification on Vinted failed stays refused until it is backed up again (US-40).
+ * A backup replaced right after is harmless: the validation holds for the version seen only.
  */
 public class ValidateListingBackup {
 
@@ -30,16 +32,18 @@ public class ValidateListingBackup {
     private final ListingBackupRepository listingBackups;
     private final PhotoStorage photos;
     private final BackupValidationRepository validations;
+    private final BackupVerificationRepository verifications;
     private final Clock clock;
     private final JournalWriter journal;
 
     public ValidateListingBackup(ListingRepository listings, ListingBackupRepository listingBackups,
-                                 PhotoStorage photos, BackupValidationRepository validations, Clock clock,
-                                 JournalWriter journal) {
+                                 PhotoStorage photos, BackupValidationRepository validations,
+                                 BackupVerificationRepository verifications, Clock clock, JournalWriter journal) {
         this.listings = listings;
         this.listingBackups = listingBackups;
         this.photos = photos;
         this.validations = validations;
+        this.verifications = verifications;
         this.clock = clock;
         this.journal = journal;
     }
@@ -63,6 +67,9 @@ public class ValidateListingBackup {
         if (!verification.passed()) {
             throw new BackupNotVerified(verification);
         }
+        verifications.find(listing).filter(online -> online.failsFor(backup)).ifPresent(failed -> {
+            throw new BackupNotVerified(new BackupVerification(failed.failures()));
+        });
         BackupValidation validation = validations.find(listing).filter(existing -> existing.holdsFor(backup))
                 .orElseGet(() -> {
                     BackupValidation newValidation = BackupValidation.of(backup, clock.instant());
