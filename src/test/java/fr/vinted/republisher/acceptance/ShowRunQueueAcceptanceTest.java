@@ -19,6 +19,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -178,7 +179,8 @@ class ShowRunQueueAcceptanceTest {
 
     private ShowRunQueue showRunQueue(WriteModes modes) {
         ShowListingInventory inventory = new ShowListingInventory(listings, new InMemoryListingStatisticsRepository(),
-                backups, validations, deletions, republications, delay, clock, new InMemoryListingTagRepository());
+                backups, validations, deletions, republications, delay, clock, new InMemoryListingTagRepository(),
+                new InMemoryBackupVerificationRepository());
         return new ShowRunQueue(inventory, deletions, delay, new CadenceCheck(deletions, republications, cadence, clock),
                 modes, () -> run, clock);
     }
