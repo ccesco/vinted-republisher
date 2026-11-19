@@ -16,6 +16,7 @@ import fr.vinted.republisher.domain.republication.NewListingLinkInvalid;
 import fr.vinted.republisher.domain.republication.NewListingMismatch;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
+import fr.vinted.republisher.domain.republication.ManualRepublicationInDryRun;
 import fr.vinted.republisher.domain.republication.RepublicationInError;
 import fr.vinted.republisher.domain.republication.RepublicationTooEarly;
 import fr.vinted.republisher.domain.session.BrowserBusy;
@@ -97,6 +98,11 @@ public class ListingRepublicationRefusals {
     @ExceptionHandler
     ResponseEntity<RepublicationRefusalDto> mismatch(NewListingMismatch refusal) {
         return refused(HttpStatus.CONFLICT, ReasonEnum.NEW_LISTING_MISMATCH);
+    }
+
+    @ExceptionHandler
+    ResponseEntity<RepublicationRefusalDto> manualInDryRun(ManualRepublicationInDryRun refusal) {
+        return refused(HttpStatus.CONFLICT, ReasonEnum.MANUAL_REPUBLICATION_IN_DRY_RUN);
     }
 
     @ExceptionHandler

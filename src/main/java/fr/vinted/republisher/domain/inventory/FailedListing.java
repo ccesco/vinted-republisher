@@ -24,6 +24,14 @@ public record FailedListing(Listing listing, ListingStage stage, JournalEntry fa
         Objects.requireNonNull(failure);
     }
 
+    public FailureKind kind() {
+        return switch (failure.record().outcome()) {
+            case IN_DOUBT -> FailureKind.IN_DOUBT;
+            case REFUSED -> FailureKind.REFUSED;
+            default -> FailureKind.OTHER;
+        };
+    }
+
     /** {@code lastEntries}: the last journal entry of each listing. Most recent failure first, in journal order. */
     public static List<FailedListing> among(List<InventoryEntry> inventory, List<JournalEntry> lastEntries) {
         Map<VintedListingId, InventoryEntry> byListing = inventory.stream()

@@ -55,7 +55,8 @@ export const REPUBLICATION_REFUSALS: Record<string, string> = {
   LISTING_UNREADABLE: "la page de la nouvelle annonce sur Vinted n'est pas celle attendue.",
   CADENCE_LIMIT_REACHED: 'limite de cadence atteinte',
   NEW_LISTING_LINK_INVALID: "ce lien n'est pas celui d'une nouvelle annonce sur Vinted.",
-  NEW_LISTING_MISMATCH: "la page de ce lien n'a pas le titre et le prix de la sauvegarde."
+  NEW_LISTING_MISMATCH: "la page de ce lien n'a pas le titre et le prix de la sauvegarde.",
+  MANUAL_REPUBLICATION_IN_DRY_RUN: 'indisponible en dry-run.'
 };
 export const VALIDATION_REFUSED_MESSAGE = "Validation refusée, rien n'a été enregistré : ";
 // Une levée du doute peut être enregistrée avant l'échec de la comparaison : l'aperçu relu fait foi.

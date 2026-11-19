@@ -19,6 +19,7 @@ import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
+import fr.vinted.republisher.domain.republication.ManualRepublicationInDryRun;
 import fr.vinted.republisher.domain.republication.NewListingLinkInvalid;
 import fr.vinted.republisher.domain.republication.NewListingMismatch;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
@@ -64,7 +65,8 @@ public class JournalWriter {
             Map.entry(NewListingLinkInvalid.class, "NEW_LISTING_LINK_INVALID"),
             Map.entry(NewListingMismatch.class, "NEW_LISTING_MISMATCH"),
             Map.entry(BrowserBusy.class, "BROWSER_BUSY"),
-            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"));
+            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"),
+            Map.entry(ManualRepublicationInDryRun.class, "MANUAL_REPUBLICATION_IN_DRY_RUN"));
 
     /** A republication refuses a backup not verified with its own code, as its API answer does. */
     private static final Map<Class<?>, String> REPUBLICATION_REFUSAL_REASONS =
@@ -104,6 +106,13 @@ public class JournalWriter {
      */
     public <T> T journaled(JournaledAction action, VintedListingId listing, Supplier<T> work,
                            Function<T, ActionOutcome> outcomeOf, Optional<String> failureReason) {
+        return journaled(action, listing, work, outcomeOf, Optional.empty(), failureReason);
+    }
+
+    /** As above, the outcome of the answer being written with {@code outcomeReason}. */
+    public <T> T journaled(JournaledAction action, VintedListingId listing, Supplier<T> work,
+                           Function<T, ActionOutcome> outcomeOf, Optional<String> outcomeReason,
+                           Optional<String> failureReason) {
         T answer;
         try {
             answer = work.get();
@@ -122,7 +131,7 @@ public class JournalWriter {
             throw refusalOrFailure;
         }
         try {
-            write(action, Optional.of(listing), outcomeOf.apply(answer), Optional.empty());
+            write(action, Optional.of(listing), outcomeOf.apply(answer), outcomeReason);
         } catch (RuntimeException unknownOutcome) {
             LOG.error("Journal not written: outcome of {} on listing {} unknown", action, listing.value(),
                     unknownOutcome);

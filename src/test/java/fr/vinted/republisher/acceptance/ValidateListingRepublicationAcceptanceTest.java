@@ -2,7 +2,12 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
+import fr.vinted.republisher.application.inventory.ShowFailedListings;
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -186,6 +191,30 @@ class ValidateListingRepublicationAcceptanceTest {
         assertThat(republications.findAll()).containsExactly(failed);
         assertThat(listings.find(NEW_LISTING)).isEmpty();
         assertThat(session.overview().currentAction()).isEmpty();
+    }
+
+    @Test
+    void validates_a_manual_republication() {
+        // AT-45-05. Étant donné une republication manuelle préparée
+        aFailedRepublication();
+        journal.write(new ActionRecord(CLICKED_AT, JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT,
+                Optional.of(LISTING), Optional.of("MANUAL_REPUBLICATION_PREPARED")));
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre publie sur Vinted puis valide « publiée » avec le lien de la nouvelle annonce
+        RepublicationReport report = validate().published(LISTING, Optional.of(NEW_LISTING_LINK));
+        // Alors la nouvelle annonce est contrôlée, comparée et reliée à l'ancienne
+        assertThat(contents.opened()).containsExactly(NEW_LISTING);
+        assertThat(report.lastRepublication()).map(ListingRepublication::newListingId).contains(Optional.of(NEW_LISTING));
+        assertThat(report.comparison()).contains(List.of());
+        // Et l'annonce quitte la page « Échecs »
+        assertThat(showFailedListings().show()).isEmpty();
+    }
+
+    private ShowFailedListings showFailedListings() {
+        return new ShowFailedListings(journal, new ShowListingInventory(listings,
+                new InMemoryListingStatisticsRepository(), listingBackups, validations, deletions, republications,
+                new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
+                new InMemoryBackupVerificationRepository()));
     }
 
     @Test

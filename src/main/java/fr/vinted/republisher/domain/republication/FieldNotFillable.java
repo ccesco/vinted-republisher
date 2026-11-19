@@ -23,4 +23,9 @@ public class FieldNotFillable extends RuntimeException {
     public Optional<Long> optionId() {
         return Optional.ofNullable(optionId);
     }
+
+    /** What a manual republication leaves for the member to complete instead of refusing. */
+    public UnfilledField unfilled() {
+        return new UnfilledField(field, optionId());
+    }
 }

@@ -31,7 +31,7 @@ class ActionRecordTest {
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"CADENCE_LIMIT_REACHED", "TOO_EARLY", "BROWSER_BUSY"})
+    @ValueSource(strings = {"CADENCE_LIMIT_REACHED", "TOO_EARLY", "BROWSER_BUSY", "MANUAL_REPUBLICATION_IN_DRY_RUN"})
     void refusal_asking_only_to_wait_is_not_a_failure(String reason) {
         assertThat(record(ActionOutcome.REFUSED, Optional.of(reason)).isFailure()).isFalse();
         assertThat(record(ActionOutcome.REFUSED, Optional.of(reason)).isWaitingRefusal()).isTrue();

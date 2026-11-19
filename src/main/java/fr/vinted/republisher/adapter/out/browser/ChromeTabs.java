@@ -63,12 +63,7 @@ public class ChromeTabs {
 
     /** The page only says the browser is unavailable: the reason goes to the logs. */
     <T> T inNewTab(Function<Page, T> action) {
-        try {
-            return inNewTab(chrome.ensureRunning(), action);
-        } catch (BrowserUnavailable unavailable) {
-            LOG.error("Browser unavailable", unavailable);
-            throw unavailable;
-        }
+        return inNewTab(action, true);
     }
 
     void workInNewTab(Consumer<Page> action) {
@@ -76,6 +71,31 @@ public class ChromeTabs {
             action.accept(page);
             return page;
         });
+    }
+
+    /**
+     * For the member to go on in this tab once the action is done: the tool never uses it again. A failed action
+     * closes it, leaving nothing the member could take for a done one.
+     */
+    void workInTabLeftOpen(Consumer<Page> action) {
+        inNewTab(page -> {
+            try {
+                action.accept(page);
+            } catch (RuntimeException failure) {
+                closeQuietly(page);
+                throw failure;
+            }
+            return page;
+        }, false);
+    }
+
+    private <T> T inNewTab(Function<Page, T> action, boolean closeAfterwards) {
+        try {
+            return inNewTab(chrome.ensureRunning(), action, closeAfterwards);
+        } catch (BrowserUnavailable unavailable) {
+            LOG.error("Browser unavailable", unavailable);
+            throw unavailable;
+        }
     }
 
     /** Waits inside Playwright, which keeps serving the page in the meantime. */
@@ -151,7 +171,7 @@ public class ChromeTabs {
     }
 
     /** Closing Playwright only detaches from Chrome, which stays open. */
-    private <T> T inNewTab(URI endpoint, Function<Page, T> action) {
+    private <T> T inNewTab(URI endpoint, Function<Page, T> action, boolean closeAfterwards) {
         try (Playwright playwright = Playwright.create(NO_BROWSER_DOWNLOAD)) {
             Browser browser = playwright.chromium().connectOverCDP(endpoint.toString());
             Page page = browser.contexts().getFirst().newPage();
@@ -159,7 +179,9 @@ public class ChromeTabs {
             try (ChromeLivePreviews.Watch _ = livePreviews.watch(chrome, page)) {
                 return action.apply(page);
             } finally {
-                closeQuietly(page);
+                if (closeAfterwards) {
+                    closeQuietly(page);
+                }
             }
         } catch (PlaywrightException failure) {
             throw new BrowserUnavailable("Chrome at " + endpoint + ": " + failure.getMessage(), failure);

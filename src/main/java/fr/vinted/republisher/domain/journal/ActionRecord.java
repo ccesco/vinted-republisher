@@ -14,9 +14,12 @@ import java.util.Set;
 public record ActionRecord(Instant occurredAt, JournaledAction action, ActionOutcome outcome,
                            Optional<VintedListingId> listingId, Optional<String> reason) {
 
-    /** Reasons of a refusal that only asks to wait: cadence, republication delay, browser busy. */
+    /**
+     * Reasons of a refusal that only asks to wait: cadence, republication delay, browser busy, or a manual
+     * republication asked in dry-run (US-45).
+     */
     public static final Set<String> WAITING_REASONS =
-            Set.of("CADENCE_LIMIT_REACHED", "TOO_EARLY", "BROWSER_BUSY");
+            Set.of("CADENCE_LIMIT_REACHED", "TOO_EARLY", "BROWSER_BUSY", "MANUAL_REPUBLICATION_IN_DRY_RUN");
 
     public ActionRecord {
         Objects.requireNonNull(occurredAt);

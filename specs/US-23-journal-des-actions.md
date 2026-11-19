@@ -194,7 +194,7 @@ Test : `JpaActionJournalTest.entries_survive_restart()` (`@Tag("docker")`)
 - Purge ou rotation (lignes gardées pour toujours).
 - Journal des changements d'étape (US-14) : l'étape se déduit, seules les actions sont journalisées.
 - Actions automatiques (US-19 à US-21) : elles réutiliseront ce journal.
-- Vérification de la republication (US-13, fusionnée pendant cette US) : pas journalisée ici, hors du périmètre validé ; à ajouter dans une US de suite.
+- Vérification de la republication (US-13, fusionnée pendant cette US) : pas journalisée ici, hors du périmètre validé ; ajoutée par US-44.
 
 ## Décisions
 - Source, décidé par l'utilisateur (2026-11-15) : table dédiée ; chaque action écrit sa ligne au moment où elle se produit, refus, dry-runs et erreurs compris.

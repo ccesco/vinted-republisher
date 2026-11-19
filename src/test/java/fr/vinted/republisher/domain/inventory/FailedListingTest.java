@@ -46,6 +46,18 @@ class FailedListingTest {
     }
 
     @Test
+    void kind_follows_the_outcome_of_the_failure() {
+        assertThat(kindOf(ActionOutcome.IN_DOUBT)).isEqualTo(FailureKind.IN_DOUBT);
+        assertThat(kindOf(ActionOutcome.REFUSED)).isEqualTo(FailureKind.REFUSED);
+        assertThat(kindOf(ActionOutcome.FAILED)).isEqualTo(FailureKind.OTHER);
+        assertThat(kindOf(ActionOutcome.NOT_DONE)).isEqualTo(FailureKind.OTHER);
+    }
+
+    private static FailureKind kindOf(ActionOutcome outcome) {
+        return new FailedListing(listing(101), ListingStage.TO_DELETE, journalEntry(1, 101, outcome)).kind();
+    }
+
+    @Test
     void ignores_entries_of_listings_unknown_to_the_tool() {
         assertThat(FailedListing.among(List.of(), List.of(journalEntry(1, 999, ActionOutcome.FAILED)))).isEmpty();
     }

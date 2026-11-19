@@ -9,6 +9,7 @@ import fr.vinted.republisher.adapter.out.browser.WardrobeProperties;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
+import fr.vinted.republisher.application.republication.PrepareManualRepublication;
 import fr.vinted.republisher.application.republication.RepublicationChecks;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
@@ -93,6 +94,22 @@ public class ListingRepublicationConfiguration {
         return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
                 new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()), new Random()), clock,
                 showListingRepublication, wardrobe.wardrobeUrl(), journal);
+    }
+
+    // A manual republication fills one form and leaves it to the member: it runs within the request.
+    @Bean
+    PrepareManualRepublication prepareManualRepublication(VintedSession session,
+                                                          ListingBackupRepository listingBackups, PhotoStorage photos,
+                                                          BackupValidationRepository validations,
+                                                          ListingDeletionRepository deletions,
+                                                          ListingRepublicationRepository republications,
+                                                          ListingPublisher publisher, RepublicationMode mode,
+                                                          RepublicationDelay delay, CadenceCheck cadence, Clock clock,
+                                                          ShowListingRepublication showListingRepublication,
+                                                          JournalWriter journal) {
+        return new PrepareManualRepublication(session,
+                new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
+                cadence, republications, publisher, mode, clock, showListingRepublication, journal);
     }
 
     // A verification only reads the newest listings of the wardrobe, and the new listing once: within the request.

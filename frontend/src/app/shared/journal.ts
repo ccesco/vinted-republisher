@@ -28,6 +28,9 @@ const JOURNAL_REASONS: Record<string, string> = {
   SESSION_DISCONNECTED: 'session non connectée', WARDROBE_UNREADABLE: 'dressing illisible',
   LISTING_UNREADABLE: 'annonce illisible', SCAN_FAILED: 'échec du scan', BACKUP_FAILED: 'échec de la sauvegarde',
   DELETION_FAILED: 'échec de la suppression', REPUBLICATION_FAILED: 'échec de la republication',
+  // Republication manuelle (US-45).
+  MANUAL_REPUBLICATION_PREPARED: 'republication manuelle : publiez sur Vinted puis validez',
+  MANUAL_REPUBLICATION_IN_DRY_RUN: 'republication manuelle indisponible en dry-run',
   // Refus d'une vérification ou d'une validation de la republication (US-44).
   NO_REPUBLICATION_TO_VERIFY: 'aucune republication à vérifier',
   NEW_LISTING_LINK_INVALID: 'lien de la nouvelle annonce invalide',

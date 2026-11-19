@@ -18,6 +18,17 @@ describe('journal line', () => {
   it('keeps an unknown reason as it is', () => {
     expect(journalLineOf(entry({ reason: 'SOMETHING_NEW' })).reason).toBe('SOMETHING_NEW');
   });
+
+  it('names a manual republication and the verification of a republication', () => {
+    const prepared = journalLineOf(entry({ action: 'REPUBLICATION', outcome: 'IN_DOUBT',
+      reason: 'MANUAL_REPUBLICATION_PREPARED' }));
+
+    expect(prepared.reason).toBe('republication manuelle : publiez sur Vinted puis validez');
+    expect(journalLineOf(entry({ action: 'REPUBLICATION_VERIFICATION' })).action)
+      .toBe('Vérification de la republication');
+    expect(journalLineOf(entry({ reason: 'MANUAL_REPUBLICATION_IN_DRY_RUN' })).reason)
+      .toBe('republication manuelle indisponible en dry-run');
+  });
 });
 
 function anEntry(outcome: JournalEntry['outcome'], reason?: string): JournalEntry {
@@ -36,6 +47,7 @@ describe('cause of a failure', () => {
   it('keeps an unknown code as it is', () => {
     expect(causeOf(anEntry('REFUSED', 'NEW_CODE'))).toBe('NEW_CODE');
   });
+
 });
 
 describe('proof of a republication (US-44)', () => {
