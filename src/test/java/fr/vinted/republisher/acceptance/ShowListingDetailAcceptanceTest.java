@@ -6,11 +6,11 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
+import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournalEntry;
 import fr.vinted.republisher.domain.journal.JournaledAction;
-import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
@@ -19,6 +19,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -53,7 +54,8 @@ class ShowListingDetailAcceptanceTest {
     private final AdjustableClock clock = new AdjustableClock(THIRD);
     private final ShowListingDetail showListingDetail =
             new ShowListingDetail(listings, statistics, backups, validations, deletions,
-                    new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)), clock, journal);
+                    new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)),
+                    clock, journal, new InMemoryBackupVerificationRepository());
 
     @Test
     void shows_listing_statistics_history_most_recent_first() {

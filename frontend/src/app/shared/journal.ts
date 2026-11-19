@@ -1,10 +1,12 @@
 import type { JournalEntry } from '../../generated/api';
+import { FORM_FIELDS } from '../listing/listing-messages';
 import { dateOf } from './format';
 
 // Journal des actions (US-23) : libellés des codes du contrat, partagés par l'écran du journal et la fiche.
 const JOURNAL_ACTIONS: Record<string, string> = {
   SCAN: 'Scan du dressing', WARDROBE_BACKUP: 'Sauvegarde du dressing', BACKUP_VALIDATION: 'Validation',
-  DELETION: 'Suppression', DELETION_RECHECK: 'Revérification', REPUBLICATION: 'Republication'
+  BACKUP_VERIFICATION: 'Vérification de la sauvegarde', DELETION: 'Suppression', DELETION_RECHECK: 'Revérification',
+  REPUBLICATION: 'Republication', STATISTICS_REFRESH: 'Rafraîchissement des vues et favoris'
 };
 const JOURNAL_OUTCOMES: Record<string, string> = {
   STARTED: 'lancée', SUCCEEDED: 'réussie', DRY_RUN: 'dry-run réussi', REFUSED: 'refusée',
@@ -24,8 +26,20 @@ const JOURNAL_REASONS: Record<string, string> = {
   BROWSER_UNAVAILABLE: 'navigateur indisponible', VINTED_UNREACHABLE: 'Vinted inaccessible',
   SESSION_DISCONNECTED: 'session non connectée', WARDROBE_UNREADABLE: 'dressing illisible',
   LISTING_UNREADABLE: 'annonce illisible', SCAN_FAILED: 'échec du scan', BACKUP_FAILED: 'échec de la sauvegarde',
-  DELETION_FAILED: 'échec de la suppression', REPUBLICATION_FAILED: 'échec de la republication'
+  DELETION_FAILED: 'échec de la suppression', REPUBLICATION_FAILED: 'échec de la republication',
+  // Motifs d'une vérification de la sauvegarde (US-40), séparés par des virgules ; un champ changé suit son code.
+  NO_PHOTO: 'aucune photo gardée', PHOTO_MISSING: 'photo manquante', PHOTO_ALTERED: 'photo modifiée',
+  LISTING_ABSENT: 'annonce absente', FIELD_CHANGED: 'champ changé'
 };
+
+// Une raison peut en réunir plusieurs (« FIELD_CHANGED:SIZE, PHOTO_MISSING ») ; un code inconnu reste tel quel.
+function labelsOf(reason: string): string {
+  return reason.split(', ').map(part => {
+    const [code, detail] = part.split(':');
+    const label = JOURNAL_REASONS[code] ?? code;
+    return detail ? `${label} (${(FORM_FIELDS[detail] ?? detail).toLowerCase()})` : label;
+  }).join(', ');
+}
 
 export interface JournalLine {
   date: string;
@@ -63,5 +77,5 @@ export function outcomeOf(entry: JournalEntry): string {
 }
 
 function reasonOf(entry: JournalEntry): string {
-  return entry.reason ? (JOURNAL_REASONS[entry.reason] ?? entry.reason) : '';
+  return entry.reason ? labelsOf(entry.reason) : '';
 }

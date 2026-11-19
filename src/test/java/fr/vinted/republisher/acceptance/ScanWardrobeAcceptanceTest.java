@@ -28,6 +28,7 @@ import fr.vinted.republisher.fakes.FakeVintedAccount;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -82,7 +83,7 @@ class ScanWardrobeAcceptanceTest {
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository());
+                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
 
     @Test
     void scan_records_every_active_listing() {

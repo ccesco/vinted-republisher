@@ -5,10 +5,11 @@ import com.microsoft.playwright.Playwright;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import fr.vinted.republisher.domain.backup.BackupPace;
+import fr.vinted.republisher.domain.backup.DownloadedPhoto;
 import fr.vinted.republisher.domain.backup.FormOption;
 import fr.vinted.republisher.domain.backup.FormOptions;
-import fr.vinted.republisher.domain.backup.DownloadedPhoto;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingFormReading;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
@@ -312,6 +313,51 @@ class PlaywrightListingContentReaderTest {
                     .isInstanceOf(VintedUnreachable.class).hasMessageContaining("HTTP 403");
             assertThat(read).containsExactly(new VintedListingId(10));
             assertThat(requests).noneMatch(request -> request.contains("/items/12/"));
+        }
+    }
+
+    /** US-40: the forms read again to verify the backups, without the photos. */
+    @Nested
+    class Forms_read_again {
+
+        @Test
+        void reads_each_form_once_with_a_pause_a_404_being_a_listing_gone_and_only_reads() {
+            Duration pause = Duration.ofMillis(600);
+            BackupPace steady = new BackupPace(new PauseRange(pause, pause), new Random(42));
+            formStatus.put(11L, 404);
+            List<ListingFormReading> read = new ArrayList<>();
+
+            reader().readForms(List.of(new VintedListingId(10), new VintedListingId(11), new VintedListingId(12)),
+                    steady, read::add);
+
+            assertThat(read).extracting(ListingFormReading::id).containsExactly(new VintedListingId(10),
+                    new VintedListingId(11), new VintedListingId(12));
+            assertThat(read).extracting(reading -> reading.content().isPresent()).containsExactly(true, false, true);
+            assertThat(read.getFirst().content().orElseThrow().category()).isEqualTo(new FormOption(1653,
+                    "Chaussures bébé"));
+            assertThat(requests).filteredOn(request -> request.contains("/items/") || request.contains("/photos/"))
+                    .containsExactly("GET /items/10/edit", "GET /items/11/edit", "GET /items/12/edit");
+            assertThat(requests).allMatch(request -> request.startsWith("GET "))
+                    .noneMatch(request -> request.contains("/interaction") || request.contains("/save"));
+            assertThat(elapsedBetween("GET /items/10/edit", "GET /items/11/edit")).isGreaterThanOrEqualTo(pause);
+            assertThat(elapsedBetween("GET /items/11/edit", "GET /items/12/edit")).isGreaterThanOrEqualTo(pause);
+            assertThat(tabsOnFakeVinted()).isZero();
+        }
+
+        @Test
+        void other_http_error_means_vinted_is_unreachable() {
+            formStatus.put(10L, 403);
+
+            assertThatThrownBy(() -> reader().readForms(List.of(new VintedListingId(10)), briskPace(), reading -> { }))
+                    .isInstanceOf(VintedUnreachable.class).hasMessageContaining("HTTP 403");
+        }
+
+        @Test
+        void login_page_means_the_session_is_disconnected() {
+            formStatus.put(10L, 302);
+
+            assertThatThrownBy(() -> reader().readForms(List.of(new VintedListingId(10)), briskPace(), reading -> { }))
+                    .isInstanceOf(SessionDisconnected.class);
         }
     }
 

@@ -53,6 +53,8 @@ class WardrobePageTest {
                "url": "https://vinted.test/items/1", "present": false}]}""";
 
     private static final byte[] ARCHIVE = {'P', 'K', 5, 6};
+    private static final String IDLE_VERIFICATION = """
+            {"status": "IDLE", "verifiedCount": 0, "totalCount": 0, "validatedCount": 0, "failedCount": 0}""";
 
     private static Playwright playwright;
     private static Browser chrome;
@@ -75,6 +77,8 @@ class WardrobePageTest {
     private final List<String> launchedRuns = new CopyOnWriteArrayList<>();
     private final List<String> runControls = new CopyOnWriteArrayList<>();
     private final AtomicReference<Integer> archiveStatus = new AtomicReference<>(200);
+    private final AtomicReference<String> verification = new AtomicReference<>(IDLE_VERIFICATION);
+    private final List<String> launchedVerifications = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -140,6 +144,11 @@ class WardrobePageTest {
                 respond(exchange, 202, "application/json", runOverview.get().getBytes(StandardCharsets.UTF_8));
             });
         }
+        fakeApi.createContext("/api/backup-verifications", exchange -> {
+            launchedVerifications.add(exchange.getRequestMethod());
+            respond(exchange, 202, "application/json", verification.get().getBytes(StandardCharsets.UTF_8));
+        });
+        fakeApi.createContext("/api/backup-verifications/current", exchange -> answer(exchange, verification.get()));
         fakeApi.createContext("/api/data-archive", exchange -> {
             int status = archiveStatus.get();
             if (status == 200) {
@@ -770,6 +779,91 @@ class WardrobePageTest {
         assertThat(runSummary()).hasText(
                 "Traitement arrêté : la session Vinted n'est pas connectée (connectez-vous, puis relancez).");
         assertThat(runButton()).isVisible();
+    }
+
+    @Test
+    void shows_the_verification_progress_and_outcome() {
+        // AT-40-12. Étant donné la page du dressing, sans vérification depuis le démarrage
+        inventory.set("""
+                {"listings": [
+                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                    "url": "https://vinted.test/items/3", "present": true, "stage": "TO_VALIDATE"},
+                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                    "url": "https://vinted.test/items/1", "present": true, "stage": "TO_VALIDATE"}]}""");
+        open();
+        assertThat(verifyButton()).isVisible();
+        assertThat(verificationSummary()).hasText("");
+        // Quand le membre clique sur « Vérifier et valider »
+        verification.set("""
+                {"status": "RUNNING", "verifiedCount": 1, "totalCount": 2, "validatedCount": 1, "failedCount": 0}""");
+        verifyButton().click();
+        // Alors la page suit l'avancement, sans proposer d'autre action
+        assertThat(verificationSummary()).hasText("Vérification en cours : 1 / 2");
+        assertThat(verifyButton()).isHidden();
+        assertThat(button()).isHidden();
+        assertThat(backupButton()).isHidden();
+        assertThat(runButton()).isHidden();
+        assertThat(launchedVerifications).containsExactly("POST");
+        // Puis le résultat, et la liste relue montre les étapes « prête à supprimer » et « vérification en erreur »
+        inventory.set("""
+                {"listings": [
+                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                    "url": "https://vinted.test/items/3", "present": true, "stage": "TO_DELETE"},
+                   {"vintedId": 1, "title": "Bonnet", "price": {"amount": 1, "currency": "EUR"},
+                    "url": "https://vinted.test/items/1", "present": true, "stage": "VERIFICATION_FAILED"}]}""");
+        verification.set("""
+                {"status": "FINISHED", "verifiedCount": 2, "totalCount": 2, "validatedCount": 1, "failedCount": 1}""");
+        assertThat(verificationSummary()).hasText("Vérification terminée : 1 validée, 1 en erreur");
+        assertThat(cell(1, STAGE)).hasText("Vérification en erreur");
+        assertThat(cell(0, STAGE)).hasText("Prête à supprimer");
+        assertThat(verifyButton()).isVisible();
+        assertThat(runButton()).isVisible();
+        // Et les annonces en erreur se filtrent
+        page.locator("#backup-filter").selectOption("VERIFICATION_FAILED");
+        page.waitForCondition(() -> listingQueries.getLast() != null
+                && listingQueries.getLast().contains("backup=VERIFICATION_FAILED"));
+    }
+
+    @Test
+    void shows_why_the_verification_stopped() {
+        verification.set("""
+                {"status": "STOPPED", "verifiedCount": 1, "totalCount": 3, "validatedCount": 1, "failedCount": 0,
+                 "stopReason": "SESSION_DISCONNECTED"}""");
+
+        open();
+
+        assertThat(verificationSummary()).hasText(
+                "Vérification arrêtée : session Vinted expirée (connectez-vous, puis relancez)");
+        assertThat(verifyButton()).isVisible();
+    }
+
+    @Test
+    void hides_verify_and_validate_while_a_run_is_in_progress() {
+        // AT-40-10. Étant donné une série « Tout lancer » en cours
+        runOverview.set(run("RUNNING", false, false, ""));
+        // Quand j'ouvre la page du dressing
+        open();
+        // Alors le bouton « Vérifier et valider » est masqué
+        assertThat(control("Pause")).isVisible();
+        assertThat(verifyButton()).isHidden();
+    }
+
+    @Test
+    void hides_verify_and_validate_while_a_backup_is_in_progress() {
+        overview.set("{\"scanInProgress\": false, \"backupInProgress\": true}");
+
+        open();
+
+        assertThat(backupProgress()).isVisible();
+        assertThat(verifyButton()).isHidden();
+    }
+
+    private Locator verifyButton() {
+        return page.locator("#verify-and-validate");
+    }
+
+    private Locator verificationSummary() {
+        return page.locator("#verification-summary");
     }
 
     @Test

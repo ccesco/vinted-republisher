@@ -10,7 +10,11 @@ import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupVerification;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupView;
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoAltered;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
@@ -28,6 +32,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -67,15 +72,17 @@ class ValidateListingBackupAcceptanceTest {
     private final InMemoryPhotoStorage photos = new InMemoryPhotoStorage();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final InMemoryBackupVerificationRepository verifications = new InMemoryBackupVerificationRepository();
     private final ShowListingBackup showListingBackup =
             new ShowListingBackup(listings, listingBackups, photos, validations);
     private final ValidateListingBackup validateListingBackup =
-            new ValidateListingBackup(listings, listingBackups, photos, validations, clock, new JournalWriter(journal, clock));
+            new ValidateListingBackup(listings, listingBackups, photos, validations, verifications, clock,
+                    new JournalWriter(journal, clock));
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), listingBackups, validations,
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository());
+                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
 
     @Test
     void preview_shows_a_verified_backup() {
@@ -167,6 +174,34 @@ class ValidateListingBackupAcceptanceTest {
     }
 
     @Test
+    void version_failing_online_cannot_be_validated_from_its_preview() {
+        // AT-40-15 : étant donné une sauvegarde dont la dernière vérification sur Vinted a échoué (taille changée)
+        aScannedListing();
+        aKeptBackup(SAVED_AT, "front");
+        FieldChanged sizeChanged = new FieldChanged(new ListingFieldDifference(ListingFormField.SIZE, "M (207)", "L (208)"));
+        verifications.save(new VerificationResult(LISTING, SAVED_AT, NOW.minusSeconds(60), List.of(sizeChanged)));
+        // Quand je demande sa validation depuis l'aperçu
+        Throwable refusal = catchThrowable(() -> validateListingBackup.validate(LISTING, SAVED_AT));
+        // Alors la validation est refusée avec les motifs de cet échec, rien n'est enregistré
+        assertThat(refusal).isInstanceOfSatisfying(BackupNotVerified.class,
+                notVerified -> assertThat(notVerified.verification().failures()).containsExactly(sizeChanged));
+        assertThat(validations.findAll()).isEmpty();
+    }
+
+    @Test
+    void failure_of_a_replaced_version_does_not_block_the_new_backup() {
+        // AT-40-15 : une nouvelle sauvegarde, vue dans l'aperçu, se valide malgré l'échec de la version précédente
+        aScannedListing();
+        verifications.save(new VerificationResult(LISTING, SAVED_AT.minusSeconds(3600), NOW.minusSeconds(60),
+                List.of(new ListingAbsent())));
+        aKeptBackup(SAVED_AT, "front");
+
+        ListingBackupView validated = validateListingBackup.validate(LISTING, SAVED_AT);
+
+        assertThat(validated.validatedAt()).contains(NOW);
+    }
+
+    @Test
     void replaced_backup_cannot_be_validated_from_a_stale_preview() {
         // Étant donné l'aperçu ouvert sur la sauvegarde du 10/11
         aScannedListing();
@@ -231,7 +266,8 @@ class ValidateListingBackupAcceptanceTest {
     void journal_failure_changes_nothing() {
         // US-23 AT-23-10. Étant donné un journal impossible à écrire
         ValidateListingBackup withJournalDown = new ValidateListingBackup(listings, listingBackups, photos,
-                validations, clock, new JournalWriter(new InMemoryActionJournal().whereDatabaseIsDown(), Clock.systemUTC()));
+                validations, verifications, clock,
+                new JournalWriter(new InMemoryActionJournal().whereDatabaseIsDown(), Clock.systemUTC()));
         aScannedListing();
         aKeptBackup(SAVED_AT, "front");
         // Quand le membre valide une sauvegarde

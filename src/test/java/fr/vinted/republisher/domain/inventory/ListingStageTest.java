@@ -1,6 +1,9 @@
 package fr.vinted.republisher.domain.inventory;
 
+import fr.vinted.republisher.domain.backup.BackupVerification;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.VerificationFailure;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -9,6 +12,7 @@ import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
@@ -24,11 +28,38 @@ class ListingStageTest {
     private static ListingStage stage(boolean present, boolean backedUp, boolean validated,
                                       Optional<ListingDeletion> deletion,
                                       Optional<ListingRepublication> republication, Instant now) {
-        return ListingStage.of(present, backedUp, validated, deletion, republication, DELAY, now);
+        return ListingStage.of(present, backedUp, validated, false, deletion, republication, DELAY, now);
     }
 
     private static ListingStage stage(boolean present, boolean backedUp, boolean validated) {
         return stage(present, backedUp, validated, Optional.empty(), Optional.empty(), DELETED_AT);
+    }
+
+    private static ListingStage stageAfterVerification(boolean present, boolean validated,
+                                                       boolean verificationFailed) {
+        return ListingStage.of(present, true, validated, verificationFailed, Optional.empty(), Optional.empty(),
+                DELAY, DELETED_AT);
+    }
+
+    @Test
+    void failed_verification_of_the_current_backup_is_verification_failed() {
+        assertThat(stageAfterVerification(true, false, true)).isEqualTo(ListingStage.VERIFICATION_FAILED);
+    }
+
+    @Test
+    void validation_and_absence_win_over_a_failed_verification() {
+        assertThat(stageAfterVerification(true, true, true)).isEqualTo(ListingStage.TO_DELETE);
+        assertThat(stageAfterVerification(false, false, true)).isEqualTo(ListingStage.GONE);
+    }
+
+    @Test
+    void new_backup_clears_the_verification_failure() {
+        VerificationResult failed = VerificationResult.of(BACKUP,
+                new BackupVerification(List.of(new VerificationFailure.ListingAbsent())), DELETED_AT);
+        ListingBackup newBackup = aBackup(1, DELETED_AT.plusSeconds(60));
+
+        assertThat(stageAfterVerification(true, false, failed.failsFor(newBackup)))
+                .isEqualTo(ListingStage.TO_VALIDATE);
     }
 
     private static Optional<ListingDeletion> unconfirmed() {

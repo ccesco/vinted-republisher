@@ -78,6 +78,18 @@ final class ListingEditForm {
     /** The form may take a while to display its labels: one still missing after the timeout is saved empty. */
     static ListingContent read(Page page, VintedListingId id, URI formUrl, Duration timeout) {
         ChromeTabs.open(page, formUrl);
+        return readOpened(page, id, formUrl, timeout);
+    }
+
+    /** Like {@link #read}, except that a form answering 404 is gone from Vinted: empty, rather than an error. */
+    static Optional<ListingContent> readUnlessGone(Page page, VintedListingId id, URI formUrl, Duration timeout) {
+        if (!ChromeTabs.openUnlessGone(page, formUrl)) {
+            return Optional.empty();
+        }
+        return Optional.of(readOpened(page, id, formUrl, timeout));
+    }
+
+    private static ListingContent readOpened(Page page, VintedListingId id, URI formUrl, Duration timeout) {
         awaitForm(page, id, formUrl, timeout);
         List<String> scripts = page.locator("script").allTextContents();
         awaitLabels(page, awaitedLabels(id, scripts), timeout);

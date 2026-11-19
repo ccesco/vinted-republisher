@@ -34,6 +34,7 @@ import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -221,7 +222,8 @@ class AutomaticRunApiControllerTest {
                     photos, validations, deletions, DeletionMode.REAL, delay), republications, listings,
                     RepublicationMode.REAL);
             RelaunchListing relaunch = new RelaunchListing(new ShowListingDetail(listings, statistics, backups,
-                    validations, deletions, republications, delay, clock, journal), deletions, delay,
+                    validations, deletions, republications, delay, clock, journal,
+                    new InMemoryBackupVerificationRepository()), deletions, delay,
                     new DeleteListing(session, listings, backups, photos, validations, deletions, deleter,
                             DeletionMode.REAL, delay, cadence, clock, journalWriter),
                     new RecheckListingDeletion(session, listings, backups, photos, validations, deletions, deleter,
@@ -233,7 +235,8 @@ class AutomaticRunApiControllerTest {
                     new VerifyListingRepublication(session, backups, republications, listings, search,
                             new FakeListingContentReader(), noBackupPause(), clock, show));
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
-                    deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch,
+                    deletions, republications, delay, clock, new InMemoryListingTagRepository(),
+                    new InMemoryBackupVerificationRepository()), relaunch,
                     (until, interrupted) -> {
                     }, clock, launched::add, 1, Runnable::run);
         }

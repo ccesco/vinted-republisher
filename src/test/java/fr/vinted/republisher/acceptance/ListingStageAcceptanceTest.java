@@ -16,6 +16,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -50,7 +51,8 @@ class ListingStageAcceptanceTest {
     private final AdjustableClock clock = new AdjustableClock(DELETED_AT);
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), backups, validations, deletions, republications,
-            new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository());
+            new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
+            new InMemoryBackupVerificationRepository());
 
     @Test
     void listing_without_backup_is_to_back_up() {

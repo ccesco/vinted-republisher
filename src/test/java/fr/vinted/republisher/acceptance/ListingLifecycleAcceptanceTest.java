@@ -16,6 +16,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -53,7 +54,8 @@ class ListingLifecycleAcceptanceTest {
     private final ShowListingDetail showListingDetail = new ShowListingDetail(listings,
             new InMemoryListingStatisticsRepository(), new InMemoryListingBackupRepository(),
             new InMemoryBackupValidationRepository(), deletions, republications,
-            new RepublicationDelay(Duration.ofMinutes(5)), new AdjustableClock(NOV_25), new InMemoryActionJournal());
+            new RepublicationDelay(Duration.ofMinutes(5)), new AdjustableClock(NOV_25), new InMemoryActionJournal(),
+            new InMemoryBackupVerificationRepository());
 
     @Test
     void keeps_the_first_seen_date() {

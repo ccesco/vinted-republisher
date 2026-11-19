@@ -14,6 +14,7 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -227,6 +228,7 @@ class ListingBackupApiControllerTest {
                                                     InMemoryPhotoStorage photos,
                                                     InMemoryBackupValidationRepository validations) {
             return new ValidateListingBackup(listings, listingBackups, photos, validations,
+                    new InMemoryBackupVerificationRepository(),
                     Clock.fixed(NOW, ZoneOffset.UTC), new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
 

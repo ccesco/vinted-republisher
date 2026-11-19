@@ -27,4 +27,9 @@ public class InMemoryBackupValidationRepository implements BackupValidationRepos
     public void save(BackupValidation validation) {
         validations.put(validation.listingId(), validation);
     }
+
+    /** Test only: the store a failed verification cancels a validation in. */
+    void cancel(VintedListingId listing) {
+        validations.remove(listing);
+    }
 }

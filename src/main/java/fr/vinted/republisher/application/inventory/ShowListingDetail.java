@@ -1,8 +1,11 @@
 package fr.vinted.republisher.application.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
+import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
 import fr.vinted.republisher.domain.inventory.ListingLifecycle;
@@ -44,11 +47,13 @@ public class ShowListingDetail {
     private final RepublicationDelay delay;
     private final Clock clock;
     private final ActionJournal journal;
+    private final BackupVerificationRepository verifications;
 
     public ShowListingDetail(ListingRepository listings, ListingStatisticsRepository statistics,
                              ListingBackupRepository backups, BackupValidationRepository validations,
                              ListingDeletionRepository deletions, ListingRepublicationRepository republications,
-                             RepublicationDelay delay, Clock clock, ActionJournal journal) {
+                             RepublicationDelay delay, Clock clock, ActionJournal journal,
+                             BackupVerificationRepository verifications) {
         this.listings = listings;
         this.statistics = statistics;
         this.backups = backups;
@@ -58,6 +63,7 @@ public class ShowListingDetail {
         this.delay = delay;
         this.clock = clock;
         this.journal = journal;
+        this.verifications = verifications;
     }
 
     public ListingDetail show(VintedListingId id) {
@@ -65,17 +71,22 @@ public class ShowListingDetail {
         List<StatisticsReading> history = statistics.historyOf(id);
         Instant now = clock.instant();
         Instant baselineAsOf = RepublicationAdvice.baselineAsOf(now);
+        Optional<VerificationResult> verification = verifications.find(id);
         ListingInventory inventory = ListingInventory.of(List.of(listing), history.stream().limit(1).toList(),
                 history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
                 backups.find(id).stream().toList(), validations.find(id).stream().toList(),
+                verification.stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
                 clock.instant());
         Set<VintedListingId> seen = new HashSet<>(Set.of(id));
         List<VintedListingId> previous = previousListings(id, seen);
         List<VintedListingId> next = nextListings(id, seen);
-        return new ListingDetail(inventory.entries().getFirst(), history, journal.of(id),
+        InventoryEntry entry = inventory.entries().getFirst();
+        Optional<VerificationResult> lastVerification = verification
+                .filter(result -> entry.backup().filter(result::holdsFor).isPresent());
+        return new ListingDetail(entry, history, journal.of(id),
                 comparison(id, previous, history.stream().findFirst()), listings.priceHistoryOf(id),
-                lifecycle(previous, id, next));
+                lifecycle(previous, id, next), lastVerification);
     }
 
     /** Walks back the published republications that led to this listing, the one replaced directly first. */

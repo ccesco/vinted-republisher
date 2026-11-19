@@ -13,6 +13,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -46,7 +47,7 @@ class CompareRepublicationStatisticsAcceptanceTest {
     private final ShowListingDetail showListingDetail = new ShowListingDetail(listings, statistics,
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
             new InMemoryListingDeletionRepository(), republications, new RepublicationDelay(Duration.ofMinutes(5)),
-            new AdjustableClock(NOV_17), new InMemoryActionJournal());
+            new AdjustableClock(NOV_17), new InMemoryActionJournal(), new InMemoryBackupVerificationRepository());
 
     @Test
     void compares_before_and_after_a_republication() {

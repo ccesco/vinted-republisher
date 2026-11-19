@@ -18,7 +18,15 @@ public sealed interface VerificationFailure {
     record PhotoAltered(int rank) implements VerificationFailure {
     }
 
-    /** No longer in the wardrobe: there is nothing to delete on Vinted. */
+    /** A field of the form, read again on Vinted, is no longer the saved one (US-40). */
+    record FieldChanged(ListingFieldDifference difference) implements VerificationFailure {
+
+        public FieldChanged {
+            Objects.requireNonNull(difference);
+        }
+    }
+
+    /** No longer in the wardrobe, or gone from Vinted: there is nothing to delete on Vinted. */
     record ListingAbsent() implements VerificationFailure {
     }
 

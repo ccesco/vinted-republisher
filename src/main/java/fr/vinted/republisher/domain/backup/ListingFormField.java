@@ -1,4 +1,4 @@
-package fr.vinted.republisher.domain.republication;
+package fr.vinted.republisher.domain.backup;
 
 /** A field of Vinted's listing form, as named when it cannot be filled. */
 public enum ListingFormField {

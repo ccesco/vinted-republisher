@@ -1,6 +1,7 @@
 package fr.vinted.republisher.domain.relaunch;
 
 import fr.vinted.republisher.domain.backup.BackupReplaced;
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
@@ -15,7 +16,6 @@ import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.relaunch.FailureHandling.Conduct;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
-import fr.vinted.republisher.domain.republication.ListingFormField;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;

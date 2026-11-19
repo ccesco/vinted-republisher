@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.republication;
 
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import java.util.Objects;
 import java.util.Optional;
 

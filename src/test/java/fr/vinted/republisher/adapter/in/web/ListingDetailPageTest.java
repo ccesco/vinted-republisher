@@ -1021,6 +1021,32 @@ class ListingDetailPageTest {
     }
 
     /** The page reads the listing, then its backup: both are read once it returns. */
+    @Test
+    void shows_the_verification_failure() {
+        // AT-40-12. Étant donné une annonce dont la vérification sur Vinted a échoué
+        detail.set(DETAIL.replace("\"present\": true}", "\"present\": true, \"stage\": \"VERIFICATION_FAILED\"}")
+                .replace("\"journal\": [],", """
+                        "journal": [],
+                        "lastVerification": {"verifiedAt": "2026-11-18T10:00:00Z", "passed": false, "failures": [
+                          {"kind": "FIELD_CHANGED", "difference": {"field": "SIZE", "saved": "M (207)", "read": "L (208)"}},
+                          {"kind": "LISTING_ABSENT"}]},"""));
+        // Quand le membre ouvre sa fiche
+        open();
+        // Alors la fiche affiche l'étape, la date et les motifs de l'échec
+        assertThat(page.locator("#stage")).hasText("Étape : Vérification en erreur");
+        assertThat(page.locator("#last-verification")).containsText("Vérification sur Vinted en erreur le "
+                + page.evaluate("new Date('2026-11-18T10:00:00Z').toLocaleString('fr-FR')"));
+        assertThat(page.locator("#last-verification li")).containsText(new String[] {
+                "taille « M (207) » sauvegardé, « L (208) » sur Vinted", "annonce absente de Vinted"});
+    }
+
+    @Test
+    void shows_no_verification_failure_without_one() {
+        open();
+
+        assertThat(page.locator("#last-verification")).hasCount(0);
+    }
+
     private void open() {
         BuiltFrontend.open(page, fakeApi, "listings/3",
                 new Page.NavigateOptions().setWaitUntil(WaitUntilState.NETWORKIDLE));

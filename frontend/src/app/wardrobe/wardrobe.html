@@ -57,6 +57,11 @@
     <p id="statistics-problem" role="alert" [hidden]="!statisticsProblem()">{{ statisticsProblem() }}</p>
     <button id="statistics-refresh" matButton="tonal" type="button" [hidden]="!launchesShown()" (click)="refreshStatistics()">Rafraîchir les vues et favoris</button>
   </div>
+  <div>
+    <h3>Vérification des sauvegardes</h3>
+    <p id="verification-summary">{{ verificationSummary() }}</p>
+    <button id="verify-and-validate" matButton="tonal" type="button" [hidden]="!verifyShown()" (click)="verifyAndValidate()">Vérifier et valider</button>
+  </div>
 </section>
 
 <section class="card">
@@ -77,6 +82,7 @@
         <option value="NOT_BACKED_UP">Non sauvegardées</option>
         <option value="NOT_VALIDATED">Sauvegardées non validées</option>
         <option value="VALIDATED">Validées</option>
+        <option value="VERIFICATION_FAILED">En erreur de vérification</option>
       </select>
     </mat-form-field>
     <mat-form-field appearance="outline">

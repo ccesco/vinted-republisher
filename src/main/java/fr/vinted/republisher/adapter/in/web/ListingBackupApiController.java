@@ -4,10 +4,10 @@ import fr.vinted.republisher.adapter.in.web.api.ListingBackupApi;
 import fr.vinted.republisher.adapter.in.web.api.model.BackupValidationRequestDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BackupVerificationDto;
 import fr.vinted.republisher.adapter.in.web.api.model.DeletionOutcomeDto;
-import fr.vinted.republisher.adapter.in.web.api.model.ListingDeletionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.KeptPhotoDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupContentDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupViewDto;
+import fr.vinted.republisher.adapter.in.web.api.model.ListingDeletionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingFieldDifferenceDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingFormFieldDto;
 import fr.vinted.republisher.adapter.in.web.api.model.ListingRepublicationDto;
@@ -25,12 +25,12 @@ import fr.vinted.republisher.domain.backup.FormOption;
 import fr.vinted.republisher.domain.backup.FormOptions;
 import fr.vinted.republisher.domain.backup.ListingBackupView;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingPhoto;
 import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
-import fr.vinted.republisher.domain.republication.ListingFieldDifference;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationReport;
@@ -140,7 +140,7 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .failures(verification.failures().stream().map(ListingBackupApiController::toDto).toList());
     }
 
-    private static VerificationFailureDto toDto(VerificationFailure failure) {
+    static VerificationFailureDto toDto(VerificationFailure failure) {
         return switch (failure) {
             case VerificationFailure.NoPhoto noPhoto -> failureOf(VerificationFailureKindDto.NO_PHOTO);
             case VerificationFailure.PhotoMissing missing ->
@@ -152,6 +152,8 @@ public class ListingBackupApiController implements ListingBackupApi {
                     .savedTitle(changed.saved()).scannedTitle(changed.scanned());
             case VerificationFailure.PriceChanged changed -> failureOf(VerificationFailureKindDto.PRICE_CHANGED)
                     .savedPrice(toDto(changed.saved())).scannedPrice(toDto(changed.scanned()));
+            case VerificationFailure.FieldChanged changed -> failureOf(VerificationFailureKindDto.FIELD_CHANGED)
+                    .difference(toDto(changed.difference()));
         };
     }
 

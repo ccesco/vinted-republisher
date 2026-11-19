@@ -16,6 +16,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -76,6 +77,19 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
         List.of(first, other, second).forEach(journal::write);
 
         assertThat(journal.of(LISTING)).extracting(JournalEntry::record).containsExactly(second, first);
+    }
+
+    @Test
+    void every_journaled_action_can_be_written() {
+        // US-40 AT-40-11 : la vérification d'une sauvegarde est inscrite au journal, avec ses motifs
+        List<ActionRecord> records = Stream.of(JournaledAction.values())
+                .map(action -> new ActionRecord(AT, action, ActionOutcome.FAILED, Optional.of(LISTING),
+                        Optional.of("FIELD_CHANGED:SIZE, PHOTO_MISSING")))
+                .toList();
+
+        records.forEach(journal::write);
+
+        assertThat(journal.of(LISTING)).extracting(JournalEntry::record).containsExactlyInAnyOrderElementsOf(records);
     }
 
     @Test

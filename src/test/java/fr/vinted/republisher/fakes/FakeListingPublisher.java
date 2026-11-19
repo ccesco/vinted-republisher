@@ -2,8 +2,8 @@ package fr.vinted.republisher.fakes;
 
 import fr.vinted.republisher.domain.backup.DownloadedPhoto;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
-import fr.vinted.republisher.domain.republication.ListingFormField;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
 import fr.vinted.republisher.domain.republication.RepublicationVisit;

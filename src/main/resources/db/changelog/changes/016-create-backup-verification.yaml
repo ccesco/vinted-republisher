@@ -1,0 +1,50 @@
+# US-40 : dernier résultat de la vérification sur Vinted de la sauvegarde de chaque annonce, remplacé à chaque
+# vérification ; il ne vaut que pour la version de la sauvegarde dont il garde la date.
+databaseChangeLog:
+  - changeSet:
+      id: 016-create-backup-verification
+      author: vinted-republisher
+      changes:
+        - createTable:
+            tableName: backup_verification
+            columns:
+              - column: {name: listing_id, type: bigint, constraints: {primaryKey: true, nullable: false}}
+              - column: {name: backup_saved_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: verified_at, type: timestamptz, constraints: {nullable: false}}
+              - column: {name: passed, type: boolean, constraints: {nullable: false}}
+              # Motifs de l'échec, dans l'ordre ; tableau vide pour une vérification réussie.
+              - column: {name: failures, type: jsonb, constraints: {nullable: false}}
+        # Un résultat sans sauvegarde n'a pas de sens ; remplacer la sauvegarde ne le supprime pas (date différente).
+        - addForeignKeyConstraint:
+            baseTableName: backup_verification
+            baseColumnNames: listing_id
+            constraintName: backup_verification_listing_content_fk
+            referencedTableName: listing_content
+            referencedColumnNames: listing_id
+            onDelete: CASCADE
+        - sql:
+            sql: >
+              ALTER TABLE backup_verification ADD CONSTRAINT backup_verification_passed_check
+                CHECK (passed = (jsonb_array_length(failures) = 0));
+      rollback:
+        - dropTable:
+            tableName: backup_verification
+  # Le journal accepte la vérification d'une sauvegarde (US-40), et le rafraîchissement des vues et favoris (US-25),
+  # absent jusqu'ici de la contrainte.
+  - changeSet:
+      id: 016-journal-backup-verification
+      author: vinted-republisher
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry DROP CONSTRAINT action_journal_entry_action_check;
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'BACKUP_VERIFICATION', 'DELETION',
+                                  'DELETION_RECHECK', 'REPUBLICATION', 'STATISTICS_REFRESH'));
+      rollback:
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry DROP CONSTRAINT action_journal_entry_action_check;
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'DELETION', 'DELETION_RECHECK',
+                                  'REPUBLICATION'));

@@ -143,6 +143,18 @@
     <div class="card wide">
       <h2>Sauvegarde</h2>
       <p id="not-backed-up" [hidden]="!notBackedUp()">Non sauvegardée</p>
+      @if (detail.lastVerification; as last) {
+        @if (!last.passed) {
+          <div id="last-verification" role="alert">
+            <p>Vérification sur Vinted en erreur le {{ dateOf(last.verifiedAt) }} :</p>
+            <ul>
+              @for (failure of last.failures; track $index) {
+                <li>{{ onlineFailureOf(failure) }}</li>
+              }
+            </ul>
+          </div>
+        }
+      }
     </div>
   </section>
 }

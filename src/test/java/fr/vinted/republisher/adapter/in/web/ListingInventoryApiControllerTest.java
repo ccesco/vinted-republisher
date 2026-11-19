@@ -20,6 +20,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -264,7 +265,8 @@ class ListingInventoryApiControllerTest {
                                                   InMemoryListingRepublicationRepository republications) {
             return new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), republications,
-                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC), tags);
+                    new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC), tags,
+                    new InMemoryBackupVerificationRepository());
         }
 
         @Bean

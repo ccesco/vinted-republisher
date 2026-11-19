@@ -24,6 +24,7 @@ import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.DeletionVisit;
 import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
@@ -45,6 +46,7 @@ import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
@@ -700,7 +702,7 @@ class AutomaticRunAcceptanceTest {
         InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
         RelaunchListing relaunch = new RelaunchListing(
                 new ShowListingDetail(listings, statistics, listingBackups, validations, deletions, republications,
-                        delay, clock, journal),
+                        delay, clock, journal, new InMemoryBackupVerificationRepository()),
                 deletions, delay,
                 new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter,
                         deletionMode, delay, cadence, clock, journalWriter),
@@ -714,7 +716,8 @@ class AutomaticRunAcceptanceTest {
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
                         contents, noBackupPause(), clock, showRepublication));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
-                deletions, republications, delay, clock, new InMemoryListingTagRepository()), relaunch, waiting, clock,
+                deletions, republications, delay, clock, new InMemoryListingTagRepository(),
+                new InMemoryBackupVerificationRepository()), relaunch, waiting, clock,
                 Runnable::run, parallelism, relaunchers == null ? Runnable::run : relaunchers);
     }
 

@@ -30,3 +30,5 @@ databaseChangeLog:
       file: db/changelog/changes/014-listing-first-seen-at.yaml
   - include:
       file: db/changelog/changes/015-create-listing-sale.yaml
+  - include:
+      file: db/changelog/changes/016-create-backup-verification.yaml
