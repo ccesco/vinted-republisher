@@ -199,7 +199,7 @@ class WardrobePageTest {
         //   et le titre affiché tel quel
         assertThat(page.locator("#listings thead th")).hasText(new String[]{
                 "Titre", "Prix", "Vues", "Favoris", "Conseil", "Présence", "Sauvegarde", "Validation", "Étape",
-                "Republication", "Action", "Tags", ""});
+                "Republication", "Republications", "Action", "Tags", ""});
         assertThat(rows()).hasCount(2);
         assertThat(listingCount()).hasText("2 annonces");
         assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
@@ -258,6 +258,35 @@ class WardrobePageTest {
         // Quand il revient à toutes les étapes, la présence reste « Toutes »
         page.locator("#stage-filter").selectOption("");
         assertThat(page.locator("#presence")).hasValue("ALL");
+    }
+
+    /** AT-44-05 */
+    @Test
+    void shows_republication_tally() {
+        // Étant donné la page Annonces
+        // Et une annonce avec 2 réussies et 1 échec, une avec 1 réussie, une avec 3 échecs, une sans republication
+        overview.set(SCANNED);
+        inventory.set("""
+                {"listings": [%s, %s, %s, %s]}""".formatted(tallied(1, 2, 1), tallied(2, 1, 0), tallied(3, 0, 3),
+                tallied(4, 0, 0)));
+
+        // Quand la liste s'affiche
+        open();
+
+        // Alors la colonne « Republications » affiche « 2 réussies, 1 échec », « 1 réussie », « 3 échecs » et rien
+        assertThat(page.locator("thead th").nth(REPUBLICATIONS)).hasText("Republications");
+        assertThat(cell(0, REPUBLICATIONS)).hasText("2 réussies, 1 échec");
+        assertThat(cell(1, REPUBLICATIONS)).hasText("1 réussie");
+        assertThat(cell(2, REPUBLICATIONS)).hasText("3 échecs");
+        assertThat(cell(3, REPUBLICATIONS)).hasText("");
+    }
+
+    private static String tallied(int id, int published, int notPublished) {
+        return """
+                {"vintedId": %d, "title": "Pull %d", "price": {"amount": 10, "currency": "EUR"},
+                 "url": "https://vinted.test/items/%d", "present": true, "stage": "TO_DELETE",
+                 "republicationTally": {"published": %d, "notPublished": %d}}"""
+                .formatted(id, id, id, published, notPublished);
     }
 
     @Test
@@ -1073,7 +1102,8 @@ class WardrobePageTest {
     private static final int VALIDATION = 7;
     private static final int STAGE = 8;
     private static final int REPUBLICATION = 9;
-    private static final int ACTION = 10;
+    private static final int REPUBLICATIONS = 10;
+    private static final int ACTION = 11;
     private static final String TO_DELETE_AND_TO_VALIDATE = """
             {"listings": [
                {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},

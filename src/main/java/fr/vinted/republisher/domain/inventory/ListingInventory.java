@@ -83,7 +83,8 @@ public record ListingInventory(List<InventoryEntry> entries) {
             Optional<ListingRepublication> borne = republication.filter(_ -> REPUBLICATION_STAGES.contains(stage));
             return new InventoryEntry(listing, latest, backup, validation.map(BackupValidation::validatedAt), stage,
                     RepublicationAdvice.of(stage, latest, Optional.ofNullable(baselineOf.get(listing.id())), now),
-                    borne, borne.flatMap(ListingRepublication::newListingId).map(listingOf::get), List.of());
+                    borne, borne.flatMap(ListingRepublication::newListingId).map(listingOf::get), List.of(),
+                    RepublicationTally.NONE);
         }).toList());
     }
 
@@ -93,6 +94,19 @@ public record ListingInventory(List<InventoryEntry> entries) {
                 Collectors.mapping(ListingTag::tag, Collectors.toList())));
         return new ListingInventory(entries.stream()
                 .map(entry -> entry.withTags(tagsOf.getOrDefault(entry.listing().id(), List.of())))
+                .toList());
+    }
+
+    /**
+     * The same inventory, each listing bearing the tally of its article: {@code latest} is the last attempt of every
+     * listing (the published ones link the chain), {@code notPublished} the number of attempts found not published,
+     * per listing.
+     */
+    public ListingInventory withRepublicationTallies(List<ListingRepublication> latest,
+                                                     Map<VintedListingId, Integer> notPublished) {
+        RepublicationChains chains = new RepublicationChains(latest, notPublished);
+        return new ListingInventory(entries.stream()
+                .map(entry -> entry.withRepublicationTally(chains.tallyOf(entry.listing().id())))
                 .toList());
     }
 

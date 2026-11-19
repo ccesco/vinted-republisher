@@ -15,6 +15,7 @@ import { type InventoryCriteria, inventoryCriteriaOf } from './inventory-criteri
 import { coversWholeWardrobe, keyFiguresOf } from './key-figures';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
 import { republicationCellOf } from './republication-cell';
+import { republicationTallyTextOf } from './republication-tally';
 import { runningSummaryOf } from './run-summary';
 import { verificationSummaryOf } from './verification-summary';
 import { OncePerPeriod, runChanged } from './wardrobe-follow';
@@ -46,6 +47,7 @@ export class Wardrobe {
   protected readonly stageLabels = STAGE_LABELS;
   protected readonly stages = Object.entries(STAGE_LABELS);
   protected readonly republicationCellOf = republicationCellOf;
+  protected readonly republicationTallyTextOf = republicationTallyTextOf;
   protected readonly stagesToCheck = STAGES_TO_CHECK;
   protected readonly relaunchLabels = RELAUNCH_LABELS;
 

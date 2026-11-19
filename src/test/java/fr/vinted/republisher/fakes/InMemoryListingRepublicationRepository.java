@@ -3,6 +3,7 @@ package fr.vinted.republisher.fakes;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.time.Instant;
@@ -18,6 +19,7 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
 
     private final Map<ListingRepublicationId, ListingRepublication> republications = new LinkedHashMap<>();
     private int savesBeforeTheDatabaseGoesDown = Integer.MAX_VALUE;
+    private int notPublishedCountReads;
 
     public InMemoryListingRepublicationRepository whereDatabaseIsDown() {
         savesBeforeTheDatabaseGoesDown = 0;
@@ -38,6 +40,19 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
     public Optional<ListingRepublication> findLatest(VintedListingId listing) {
         return republications.values().stream().filter(republication -> republication.listingId().equals(listing))
                 .max(Comparator.comparing(ListingRepublication::attemptedAt));
+    }
+
+    @Override
+    public Map<VintedListingId, Integer> findNotPublishedCounts() {
+        notPublishedCountReads++;
+        return republications.values().stream()
+                .filter(republication -> republication.outcome() == RepublicationOutcome.NOT_PUBLISHED)
+                .collect(Collectors.groupingBy(ListingRepublication::listingId,
+                        Collectors.collectingAndThen(Collectors.counting(), Long::intValue)));
+    }
+
+    public int notPublishedCountReads() {
+        return notPublishedCountReads;
     }
 
     @Override
