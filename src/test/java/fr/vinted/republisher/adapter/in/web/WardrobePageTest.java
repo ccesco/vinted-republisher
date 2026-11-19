@@ -67,6 +67,7 @@ class WardrobePageTest {
     private HttpServer fakeApi;
     private final AtomicReference<String> overview = new AtomicReference<>(IDLE);
     private final AtomicReference<String> inventory = new AtomicReference<>(NO_LISTING);
+    private final AtomicReference<String> searchedInventory = new AtomicReference<>();
     private final AtomicReference<Integer> inventoryStatus = new AtomicReference<>(200);
     private final AtomicReference<String> launchAnswer = new AtomicReference<>(IDLE);
     private final AtomicBoolean applicationDown = new AtomicBoolean();
@@ -109,9 +110,11 @@ class WardrobePageTest {
             answer(exchange, overview.get());
         });
         fakeApi.createContext("/api/listings", exchange -> {
-            listingQueries.add(exchange.getRequestURI().getRawQuery());
+            String query = exchange.getRequestURI().getRawQuery();
+            listingQueries.add(query);
             if (inventoryStatus.get() == 200) {
-                answer(exchange, inventory.get());
+                boolean searched = query != null && query.contains("search=") && searchedInventory.get() != null;
+                answer(exchange, searched ? searchedInventory.get() : inventory.get());
             } else {
                 exchange.sendResponseHeaders(inventoryStatus.get(), -1);
                 exchange.close();
@@ -302,6 +305,74 @@ class WardrobePageTest {
         assertThat(page.locator("#key-validated")).hasText("2 / 3");
         assertThat(page.locator("#key-views")).hasText("120");
         assertThat(page.locator("#key-favourites")).hasText("9");
+    }
+
+    @Test
+    void keepsKeyFiguresOfTheWholeWardrobeWhenTheListIsFiltered() {
+        // AT-37-07. Étant donné que le dressing compte 3 annonces présentes, dont 2 avec une sauvegarde validée,
+        //   totalisant 120 vues et 9 favoris
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-10T10:00:00Z",
+                   "statistics": {"viewCount": 100, "favouriteCount": 5, "readAt": "2026-11-17T10:00:00Z"}},
+                  {"vintedId": 2, "title": "Bonnet", "price": {"amount": 5, "currency": "EUR"}, "url": "https://vinted.test/items/2",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-11T10:00:00Z",
+                   "statistics": {"viewCount": 20, "favouriteCount": 4, "readAt": "2026-11-17T10:00:00Z"}},
+                  {"vintedId": 3, "title": "Écharpe", "price": {"amount": 8, "currency": "EUR"}, "url": "https://vinted.test/items/3",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+        // Et que la recherche « pull » ne renvoie qu'une de ces annonces
+        searchedInventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-10T10:00:00Z",
+                   "statistics": {"viewCount": 100, "favouriteCount": 5, "readAt": "2026-11-17T10:00:00Z"}}]}""");
+
+        // Quand j'ouvre le Dressing et que je cherche « pull »
+        open();
+        page.locator("#search").fill("pull");
+
+        // Alors la liste n'affiche qu'une annonce
+        assertThat(page.locator("#listings tbody tr")).hasCount(1);
+        // Et je vois toujours « 3 » annonces en ligne, « 2 / 3 » sauvegardes validées, « 120 » vues et « 9 » favoris
+        assertThat(page.locator("#key-online")).hasText("3");
+        assertThat(page.locator("#key-validated")).hasText("2 / 3");
+        assertThat(page.locator("#key-views")).hasText("120");
+        assertThat(page.locator("#key-favourites")).hasText("9");
+        // Et changer un filtre ne relit pas tout le dressing
+        settle();
+        assertThat(listingQueries).doesNotContainNull();
+    }
+
+    @Test
+    void readsKeyFiguresOfTheWholeWardrobeAtEachFollowUpWhenTheListIsFiltered() {
+        // AT-37-08. Étant donné un scan en cours et une recherche « pull » qui ne renvoie qu'une annonce
+        overview.set(SCANNING);
+        searchedInventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+        openFollowing();
+        page.locator("#search").fill("pull");
+        page.clock().runFor(PERIOD_MS);
+        assertThat(page.locator("#listings tbody tr")).hasCount(1);
+        // Quand le scan trouve 4 annonces présentes et qu'une période de suivi passe
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_BACK_UP"},
+                  {"vintedId": 2, "title": "Bonnet", "price": {"amount": 5, "currency": "EUR"}, "url": "https://vinted.test/items/2",
+                   "present": true, "stage": "TO_BACK_UP"},
+                  {"vintedId": 3, "title": "Écharpe", "price": {"amount": 8, "currency": "EUR"}, "url": "https://vinted.test/items/3",
+                   "present": true, "stage": "TO_BACK_UP"},
+                  {"vintedId": 4, "title": "Gants", "price": {"amount": 6, "currency": "EUR"}, "url": "https://vinted.test/items/4",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+        followPeriods(1, "/api/wardrobe");
+        // Alors la page relit tout le dressing, sans critère, et je vois « 4 » annonces en ligne
+        assertThat(page.locator("#key-online")).hasText("4");
+        assertThat(listingQueries).containsNull();
+        // Et la liste n'affiche toujours qu'une annonce
+        assertThat(page.locator("#listings tbody tr")).hasCount(1);
     }
 
     @Test
