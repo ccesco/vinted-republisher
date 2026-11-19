@@ -1,15 +1,20 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.NewListingLinkInvalid;
 import fr.vinted.republisher.domain.republication.NewListingMismatch;
@@ -25,6 +30,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -46,6 +52,7 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 class ValidateListingRepublicationAcceptanceTest {
 
@@ -66,6 +73,7 @@ class ValidateListingRepublicationAcceptanceTest {
     private final FakeListingContentReader contents = new FakeListingContentReader();
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
 
     @Test
     void published_with_the_link_of_the_new_listing() {
@@ -180,13 +188,93 @@ class ValidateListingRepublicationAcceptanceTest {
         assertThat(session.overview().currentAction()).isEmpty();
     }
 
+    @Test
+    void published_and_not_published_validations_are_written() {
+        // US-44 AT-44-04. Étant donné une republication en erreur
+        aFailedRepublication();
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre la valide « publiée » avec le lien d'une nouvelle annonce de même titre et prix
+        validate().published(LISTING, Optional.of(NEW_LISTING_LINK));
+        // Alors le journal contient « Validation de la republication : réussie »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::listingId,
+                ActionRecord::reason).containsExactly(tuple(JournaledAction.REPUBLICATION_VALIDATION,
+                ActionOutcome.SUCCEEDED, Optional.of(LISTING), Optional.empty()));
+        // Et une autre republication en erreur validée « non publiée » écrit « non faite »
+        ValidateListingRepublicationAcceptanceTest notPublished = new ValidateListingRepublicationAcceptanceTest();
+        notPublished.aFailedRepublication();
+        notPublished.validate().notPublished(LISTING);
+        assertThat(notPublished.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome,
+                ActionRecord::reason).containsExactly(tuple(JournaledAction.REPUBLICATION_VALIDATION,
+                ActionOutcome.NOT_DONE, Optional.empty()));
+    }
+
+    @Test
+    void refused_validation_is_written() {
+        // US-44 AT-44-05. Étant donné une republication en erreur
+        aFailedRepublication();
+        // Quand le membre la valide « publiée » avec le lien d'une annonce d'un autre prix
+        contents.showing(new ListingReading(aContent(2, "Robe bleue", "Portée une fois", "15.00"),
+                List.of(aPhoto("a"))));
+        assertThatThrownBy(() -> validate().published(LISTING, Optional.of(NEW_LISTING_LINK)))
+                .isInstanceOf(NewListingMismatch.class);
+        // Puis avec un lien invalide, puis sans republication à valider
+        assertThatThrownBy(() -> validate().published(LISTING, Optional.empty()))
+                .isInstanceOf(NewListingLinkInvalid.class);
+        validate().notPublished(LISTING);
+        assertThatThrownBy(() -> validate().notPublished(LISTING)).isInstanceOf(NoRepublicationToVerify.class);
+        // Alors le journal contient chaque refus avec le code de la réponse de l'API
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(
+                        tuple(JournaledAction.REPUBLICATION_VALIDATION, ActionOutcome.REFUSED,
+                                Optional.of("NEW_LISTING_MISMATCH")),
+                        tuple(JournaledAction.REPUBLICATION_VALIDATION, ActionOutcome.REFUSED,
+                                Optional.of("NEW_LISTING_LINK_INVALID")),
+                        tuple(JournaledAction.REPUBLICATION_VALIDATION, ActionOutcome.NOT_DONE, Optional.empty()),
+                        tuple(JournaledAction.REPUBLICATION_VALIDATION, ActionOutcome.REFUSED,
+                                Optional.of("NO_REPUBLICATION_TO_VERIFY")));
+    }
+
+    @Test
+    void unreadable_new_listing_is_written_as_a_failure() {
+        aFailedRepublication();
+        contents.whereFormIsUnreadable(2, "no title");
+
+        assertThatThrownBy(() -> validate().published(LISTING, Optional.of(NEW_LISTING_LINK)))
+                .isInstanceOf(ListingUnreadable.class);
+
+        assertThat(journal.records()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(tuple(ActionOutcome.FAILED, Optional.of("LISTING_UNREADABLE")));
+    }
+
+    @Test
+    void listing_never_backed_up_writes_nothing() {
+        assertThatThrownBy(() -> validate().notPublished(LISTING)).isInstanceOf(ListingNotBackedUp.class);
+        assertThat(journal.records()).isEmpty();
+    }
+
+    @Test
+    void journal_failure_changes_nothing() {
+        // US-44 AT-44-08, pour la validation. Étant donné un journal impossible à écrire
+        journal.whereDatabaseIsDown();
+        aFailedRepublication();
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre valide la republication « publiée »
+        RepublicationReport report = validate().published(LISTING, Optional.of(NEW_LISTING_LINK));
+        // Alors la réponse et la republication sont celles d'un journal qui marche
+        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.PUBLISHED);
+        assertThat(republications.findLatest(LISTING)).map(ListingRepublication::newListingId)
+                .contains(Optional.of(NEW_LISTING));
+    }
+
     private ValidateListingRepublication validate() {
         RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
         ShowListingRepublication show = new ShowListingRepublication(new ShowListingDeletion(listings,
                 listingBackups, photos, validations, deletions, DeletionMode.REAL, delay), republications, listings,
                 RepublicationMode.REAL);
         return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
-                noBackupPause(), clock, show, URI.create("https://www.vinted.fr/member/42-cyril"));
+                noBackupPause(), clock, show, URI.create("https://www.vinted.fr/member/42-cyril"),
+                new JournalWriter(journal, clock));
     }
 
     private static ListingContent sameContentAs(VintedListingId id) {

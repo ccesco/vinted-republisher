@@ -1,5 +1,5 @@
 # US-44 – Journal de la preuve d'une republication
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-13 (vérifier la republication), US-20 (relancer), US-23 (journal), US-39 (annonces en échec)
 
@@ -16,7 +16,7 @@ En tant que membre, je veux que le journal montre quand une republication en dou
 
 | Action | Issues possibles |
 |---|---|
-| Vérification de la republication (`REPUBLICATION_VERIFICATION`) | publiée : erreur levée ou republication déjà publiée comparée (`SUCCEEDED`) ; reste en erreur, aucune ou plusieurs annonces correspondantes (`IN_DOUBT`) ; refusée (`REFUSED`, `NO_REPUBLICATION_TO_VERIFY`, `BROWSER_BUSY`) ; en échec côté navigateur ou Vinted (`FAILED`, code 502 : `BROWSER_UNAVAILABLE`, `VINTED_UNREACHABLE`, `SESSION_DISCONNECTED`, `LISTING_UNREADABLE`) ; échec inattendu (`FAILED`, `REPUBLICATION_FAILED`) |
+| Vérification de la republication (`REPUBLICATION_VERIFICATION`) | publiée : erreur levée (même si la comparaison qui suit échoue ; la réponse reste alors cet échec) ou republication déjà publiée comparée (`SUCCEEDED`) ; reste en erreur, aucune ou plusieurs annonces correspondantes (`IN_DOUBT`) ; refusée (`REFUSED`, `NO_REPUBLICATION_TO_VERIFY`, `BROWSER_BUSY`) ; en échec côté navigateur ou Vinted (`FAILED`, code 502 : `BROWSER_UNAVAILABLE`, `VINTED_UNREACHABLE`, `SESSION_DISCONNECTED`, `LISTING_UNREADABLE`) ; échec inattendu (`FAILED`, `REPUBLICATION_FAILED`) |
 | Validation manuelle de la republication (`REPUBLICATION_VALIDATION`) | « publiée » acceptée (`SUCCEEDED`) ; « non publiée » (`NOT_DONE`) ; refusée (`REFUSED`, `NO_REPUBLICATION_TO_VERIFY`, `NEW_LISTING_LINK_INVALID`, `NEW_LISTING_MISMATCH`, `BROWSER_BUSY`) ; en échec comme la vérification (`FAILED`, code 502 ou `REPUBLICATION_FAILED`) |
 
 2. La vérification lancée par une relance (US-20) ou par la série « Tout lancer » passe par le même cas d'utilisation : elle est journalisée de la même façon.
@@ -28,12 +28,12 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - `JournaledAction` gagne `REPUBLICATION_VERIFICATION` et `REPUBLICATION_VALIDATION` (description mise à jour). Aucun autre changement : les réponses de vérification et de validation sont inchangées.
 
 ## Critères d'acceptation
-- [ ] Chaque issue du tableau écrit une ligne avec l'action, l'issue et la raison attendues.
-- [ ] Une vérification lancée par une relance est journalisée.
-- [ ] Un journal en panne ne change ni la vérification ni la validation, ni leur réponse.
-- [ ] La base accepte les deux nouvelles actions (contrainte du journal).
-- [ ] Une annonce dont la dernière ligne est une vérification ou validation « publiée » ne figure plus dans les annonces en échec.
-- [ ] Le journal et la fiche affichent les deux actions et les trois nouvelles raisons en clair.
+- [x] Chaque issue du tableau écrit une ligne avec l'action, l'issue et la raison attendues.
+- [x] Une vérification lancée par une relance est journalisée.
+- [x] Un journal en panne ne change ni la vérification ni la validation, ni leur réponse.
+- [x] La base accepte les deux nouvelles actions (contrainte du journal).
+- [x] Une annonce dont la dernière ligne est une vérification ou validation « publiée » ne figure plus dans les annonces en échec.
+- [x] Le journal et la fiche affichent les deux actions et les trois nouvelles raisons en clair.
 
 ## Tests d'acceptation
 
@@ -91,7 +91,7 @@ Test : `ValidateListingRepublicationAcceptanceTest.refused_validation_is_written
 Quand le membre la relance et la vérification la trouve publiée
 Alors le journal contient « Vérification de la republication : réussie » pour l'annonce 101
 ```
-Test : `RelaunchListingAcceptanceTest.relaunched_verification_is_written()`
+Test : `RelaunchListingAcceptanceTest.relaunching_a_republication_to_check_verifies_it()`
 
 ### AT-44-07 – Sortie des annonces en échec
 ```gherkin
@@ -108,7 +108,7 @@ Quand le membre vérifie une republication en erreur qui se trouve publiée
 Alors la réponse et la republication sont celles d'un journal qui marche
 Et l'échec du journal est écrit dans les logs
 ```
-Test : `VerifyListingRepublicationAcceptanceTest.journal_failure_changes_nothing()`
+Test : `VerifyListingRepublicationAcceptanceTest.journal_failure_changes_nothing()`, `JournalWriterTest.journal_down_changes_nothing_and_is_logged()` (logs)
 
 ### AT-44-09 – Affichage
 ```gherkin
@@ -116,7 +116,7 @@ Test : `VerifyListingRepublicationAcceptanceTest.journal_failure_changes_nothing
 Quand le membre ouvre le journal
 Alors il lit ces libellés et « lien de la nouvelle annonce invalide », la première ligne et la seconde mises en évidence
 ```
-Test : `journal.spec.ts` (Vitest, `journalLineOf`)
+Test : `journal.spec.ts` (Vitest, `journalLineOf` et `causeOf`)
 
 ### AT-44-10 – Contrainte de la base
 ```gherkin
@@ -124,7 +124,20 @@ Test : `journal.spec.ts` (Vitest, `journalLineOf`)
 Quand une ligne de chaque nouvelle action est écrite
 Alors elle est relue telle quelle
 ```
-Test : `JpaActionJournalTest.new_republication_actions_are_kept()` (`@Tag("docker")`)
+Test : `JpaActionJournalTest.every_journaled_action_can_be_written()` (`@Tag("docker")`)
+
+### AT-44-11 – Preuve enregistrée, comparaison en échec
+```gherkin
+Étant donné l'annonce 101 dont la republication est en erreur et la nouvelle annonce retrouvée dans le dressing
+Et Vinted inaccessible au moment de comparer la nouvelle annonce
+Quand le membre la vérifie
+Alors la réponse est « Vinted inaccessible » et la republication est enregistrée réussie
+Et le journal contient « Vérification de la republication : réussie »
+Étant donné une republication déjà réussie et Vinted inaccessible à la comparaison
+Quand le membre la vérifie
+Alors le journal contient « Vérification de la republication : en échec », raison « Vinted inaccessible »
+```
+Test : `VerifyListingRepublicationAcceptanceTest.proof_recorded_before_a_failed_comparison_is_written_succeeded()`
 
 ## Cas limites et erreurs
 - Annonce jamais sauvegardée (`ListingNotBackedUp`, 404) : rien d'écrit, comme les autres actions.
@@ -138,8 +151,9 @@ Test : `JpaActionJournalTest.new_republication_actions_are_kept()` (`@Tag("docke
 ## Décisions
 - Deux actions séparées plutôt qu'une ligne « Republication : réussie » tardive : le journal dit qui a prouvé (outil ou membre) et à quel moment, sur le modèle de `DELETION_RECHECK` (choix de l'utilisateur, 19/11/2026).
 - La vérification d'une republication déjà réussie (comparaison seule) écrit « réussie » : le journal garde trace de toute ouverture de Vinted.
-- « Non publiée » de la validation manuelle écrit `NOT_DONE` : l'annonce reste dans les annonces en échec, cause « non faite », pour être relancée.
+- « Non publiée » de la validation manuelle écrit `NOT_DONE` : l'annonce reste dans les annonces en échec, cause « non faite », pour être relancée ; sa cause s'affiche « republication non faite » (une revérification non faite reste « suppression non faite »).
 - Pas de rattrapage des lignes « dans le doute » déjà écrites.
+- Une vérification qui enregistre la preuve écrit « réussie » même si la comparaison qui suit échoue : l'annonce sort des annonces en échec ; la réponse de l'API reste l'échec de la comparaison (choix de l'utilisateur, 19/11/2026, après la revue). Le libellé « republication non faite » est validé par l'utilisateur le même jour.
 
 ## Questions ouvertes
 - Aucune.
@@ -150,7 +164,7 @@ Test : `JpaActionJournalTest.new_republication_actions_are_kept()` (`@Tag("docke
 - `JournalWriter` : refus `NoRepublicationToVerify` → `NO_REPUBLICATION_TO_VERIFY`, `NewListingLinkInvalid` → `NEW_LISTING_LINK_INVALID`, `NewListingMismatch` → `NEW_LISTING_MISMATCH` ; échec `ListingUnreadable` → `LISTING_UNREADABLE`.
 
 ## Tests unitaires et d'intégration attendus
-- `application/journal` : `JournalWriterTest` (nouveaux codes de refus et d'échec).
+- `application/journal` : nouveaux codes de refus et d'échec couverts par les tests d'acceptation de la vérification et de la validation.
 - `application/republication` : issues de la vérification et de la validation (tests d'acceptation ci-dessus).
 - `adapter/out/persistence` : changeset Liquibase `017` qui ajoute les deux actions à la contrainte `action` du journal ; `JpaActionJournalTest`.
 - `frontend` : `journal.spec.ts` (libellés et raisons).

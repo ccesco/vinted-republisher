@@ -96,6 +96,24 @@ class ShowFailedListingsAcceptanceTest {
     }
 
     @Test
+    void verified_republication_leaves_the_failed_listings() {
+        // US-44 AT-44-07. Étant donné une annonce dont la republication est restée dans le doute
+        // Et une annonce validée « non publiée » par le membre
+        listings.saveAll(List.of(present(101), present(102)));
+        write(101, JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, null, NOV_17);
+        write(102, JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, null, NOV_17);
+        // Quand la vérification trouve la première publiée et que la seconde est validée « non publiée »
+        write(101, JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED, null, NOV_18);
+        write(102, JournaledAction.REPUBLICATION_VALIDATION, ActionOutcome.NOT_DONE, null, NOV_18);
+
+        // Alors seule la seconde reste dans les annonces en échec
+        assertThat(showFailedListings.show()).singleElement().satisfies(listing -> {
+            assertThat(listing.listing().id().value()).isEqualTo(102L);
+            assertThat(listing.failure().record().action()).isEqualTo(JournaledAction.REPUBLICATION_VALIDATION);
+        });
+    }
+
+    @Test
     void ignores_listings_absent_from_vinted() {
         // Étant donné une annonce dont la republication a échoué, puis vue absente de Vinted
         listings.saveAll(List.of(present(101).absent()));

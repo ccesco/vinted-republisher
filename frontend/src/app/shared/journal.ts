@@ -6,7 +6,8 @@ import { dateOf } from './format';
 const JOURNAL_ACTIONS: Record<string, string> = {
   SCAN: 'Scan du dressing', WARDROBE_BACKUP: 'Sauvegarde du dressing', BACKUP_VALIDATION: 'Validation',
   BACKUP_VERIFICATION: 'Vérification de la sauvegarde', DELETION: 'Suppression', DELETION_RECHECK: 'Revérification',
-  REPUBLICATION: 'Republication', STATISTICS_REFRESH: 'Rafraîchissement des vues et favoris'
+  REPUBLICATION: 'Republication', REPUBLICATION_VERIFICATION: 'Vérification de la republication',
+  REPUBLICATION_VALIDATION: 'Validation de la republication', STATISTICS_REFRESH: 'Rafraîchissement des vues et favoris'
 };
 const JOURNAL_OUTCOMES: Record<string, string> = {
   STARTED: 'lancée', SUCCEEDED: 'réussie', DRY_RUN: 'dry-run réussi', REFUSED: 'refusée',
@@ -27,6 +28,10 @@ const JOURNAL_REASONS: Record<string, string> = {
   SESSION_DISCONNECTED: 'session non connectée', WARDROBE_UNREADABLE: 'dressing illisible',
   LISTING_UNREADABLE: 'annonce illisible', SCAN_FAILED: 'échec du scan', BACKUP_FAILED: 'échec de la sauvegarde',
   DELETION_FAILED: 'échec de la suppression', REPUBLICATION_FAILED: 'échec de la republication',
+  // Refus d'une vérification ou d'une validation de la republication (US-44).
+  NO_REPUBLICATION_TO_VERIFY: 'aucune republication à vérifier',
+  NEW_LISTING_LINK_INVALID: 'lien de la nouvelle annonce invalide',
+  NEW_LISTING_MISMATCH: 'nouvelle annonce différente de la sauvegarde',
   // Motifs d'une vérification de la sauvegarde (US-40), séparés par des virgules ; un champ changé suit son code.
   NO_PHOTO: 'aucune photo gardée', PHOTO_MISSING: 'photo manquante', PHOTO_ALTERED: 'photo modifiée',
   LISTING_ABSENT: 'annonce absente', FIELD_CHANGED: 'champ changé'
@@ -63,9 +68,13 @@ export function journalLineOf(entry: JournalEntry): JournalLine {
   };
 }
 
-// Annonces en échec (US-39) : la raison en clair ; une revérification « non faite » n'en a pas.
+// Annonces en échec (US-39) : la raison en clair. Une ligne « non faite » sans raison dit ce qui n'est pas fait :
+// la suppression pour une revérification, la republication pour une validation « non publiée » (US-44).
 export function causeOf(entry: JournalEntry): string {
-  return entry.outcome === 'NOT_DONE' && !entry.reason ? 'suppression non faite' : reasonOf(entry);
+  if (entry.outcome === 'NOT_DONE' && !entry.reason) {
+    return entry.action === 'REPUBLICATION_VALIDATION' ? 'republication non faite' : 'suppression non faite';
+  }
+  return reasonOf(entry);
 }
 
 export function actionOf(entry: JournalEntry): string {

@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.republication;
 
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
@@ -8,6 +9,8 @@ import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.NewListingLink;
@@ -47,11 +50,13 @@ public class ValidateListingRepublication {
     private final Clock clock;
     private final ShowListingRepublication showListingRepublication;
     private final URI vintedSite;
+    private final JournalWriter journal;
 
     public ValidateListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
                                         ListingRepublicationRepository republications, ListingRepository listings,
                                         ListingContentReader contents, BackupPace backupPace, Clock clock,
-                                        ShowListingRepublication showListingRepublication, URI vintedSite) {
+                                        ShowListingRepublication showListingRepublication, URI vintedSite,
+                                        JournalWriter journal) {
         this.session = session;
         this.listingBackups = listingBackups;
         this.republications = republications;
@@ -61,6 +66,7 @@ public class ValidateListingRepublication {
         this.clock = clock;
         this.showListingRepublication = showListingRepublication;
         this.vintedSite = vintedSite;
+        this.journal = journal;
     }
 
     /**
@@ -68,6 +74,11 @@ public class ValidateListingRepublication {
      * {@link BrowserBusy} before opening Chrome, {@link NewListingMismatch} when the page has another title or price.
      */
     public RepublicationReport published(VintedListingId id, Optional<String> link) {
+        return journal.journaled(JournaledAction.REPUBLICATION_VALIDATION, id, () -> publishedNow(id, link),
+                report -> ActionOutcome.SUCCEEDED, Optional.of("REPUBLICATION_FAILED"));
+    }
+
+    private RepublicationReport publishedNow(VintedListingId id, Optional<String> link) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestInError(id);
         NewListingLink newListing = NewListingLink.parse(link, vintedSite);
@@ -92,6 +103,11 @@ public class ValidateListingRepublication {
 
     /** Throws {@link ListingNotBackedUp}, {@link NoRepublicationToVerify} or {@link BrowserBusy}. */
     public RepublicationReport notPublished(VintedListingId id) {
+        return journal.journaled(JournaledAction.REPUBLICATION_VALIDATION, id, () -> notPublishedNow(id),
+                report -> ActionOutcome.NOT_DONE, Optional.of("REPUBLICATION_FAILED"));
+    }
+
+    private RepublicationReport notPublishedNow(VintedListingId id) {
         listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestInError(id);
         // The lock keeps a verification running meanwhile from settling it the other way.
