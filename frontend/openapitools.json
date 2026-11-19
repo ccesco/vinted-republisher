@@ -1,0 +1,19 @@
+{
+  "$schema": "./node_modules/@openapitools/openapi-generator-cli/config.schema.json",
+  "spaces": 2,
+  "generator-cli": {
+    "version": "7.25.0",
+    "generators": {
+      "api": {
+        "generatorName": "typescript-angular",
+        "inputSpec": "../src/main/resources/static/openapi/vinted-republisher.yaml",
+        "output": "src/generated/api",
+        "additionalProperties": {
+          "ngVersion": "22.0.0",
+          "fileNaming": "kebab-case",
+          "stringEnums": false
+        }
+      }
+    }
+  }
+}

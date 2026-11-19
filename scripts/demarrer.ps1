@@ -7,10 +7,7 @@ Set-Location $root
 docker compose up -d
 if ($LASTEXITCODE -ne 0) { throw 'docker compose a échoué (Docker est-il lancé ?)' }
 
-# Régénère le client TypeScript depuis le contrat OpenAPI
-mvn -q generate-sources
-if ($LASTEXITCODE -ne 0) { throw 'mvn generate-sources a échoué' }
-
+# Chaque côté génère son code depuis le contrat OpenAPI : Maven les interfaces Spring, npm start le client TypeScript
 Start-Process powershell -WorkingDirectory $root -ArgumentList '-NoExit', '-Command', 'mvn spring-boot:run'
 
 $frontend = Join-Path $root 'frontend'
