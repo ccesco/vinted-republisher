@@ -860,6 +860,24 @@ paths:
                 $ref: '#/components/schemas/AutomaticRunOverview'
         '403':
           description: Demande venue d'un autre site que l'application, refusée.
+  /api/automatic-run/queue:
+    get:
+      tags: [automatic-run]
+      operationId: showRunQueue
+      summary: File d'attente de la série
+      description: >
+        Prévoit, à l'heure du serveur, les actions que la série lancerait, dans leur ordre de passage, avec leur heure
+        au plus tôt : cadence d'écriture (écritures faites, en cours et prévues avant), délai de republication (une
+        suppression réelle est suivie de la republication de son annonce), dry-run (sans cadence ni suite). Chaque
+        action est supposée instantanée. Hors annonces écartées par la série en cours. Lit les données conservées,
+        sans accéder à Vinted ni rien enregistrer.
+      responses:
+        '200':
+          description: La file prévue, vide si la série n'a rien à faire.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RunQueue'
   /api/automatic-run/pause:
     post:
       tags: [automatic-run]
@@ -1105,6 +1123,51 @@ components:
         listingId: 90000000001
         listingTitle: Pull rayé
         reason: NOT_VALIDATED
+    RunQueue:
+      type: object
+      description: File d'attente prévue de la série, dans l'ordre de passage.
+      required: [computedAt, actions]
+      properties:
+        computedAt:
+          type: string
+          format: date-time
+          description: Heure du serveur à laquelle la file a été prévue.
+        actions:
+          type: array
+          items:
+            $ref: '#/components/schemas/QueuedAction'
+      example:
+        computedAt: '2026-11-19T10:00:00Z'
+        actions:
+          - listingId: 10208778166
+            listingTitle: Chaussons bébé
+            action: DELETION
+            earliestAt: '2026-11-19T10:00:00Z'
+            dryRun: false
+          - listingId: 10208778166
+            listingTitle: Chaussons bébé
+            action: REPUBLICATION
+            earliestAt: '2026-11-19T10:05:00Z'
+            dryRun: false
+    QueuedAction:
+      type: object
+      description: Action que la série lancerait, avec son heure au plus tôt.
+      required: [listingId, listingTitle, action, earliestAt, dryRun]
+      properties:
+        listingId:
+          type: integer
+          format: int64
+        listingTitle:
+          type: string
+        action:
+          $ref: '#/components/schemas/RelaunchAction'
+        earliestAt:
+          type: string
+          format: date-time
+          description: Heure au plus tôt ; au plus la date du calcul si l'action peut partir tout de suite.
+        dryRun:
+          type: boolean
+          description: Écriture en dry-run (rien n'est écrit sur Vinted, la série écartera ensuite l'annonce).
     FailedListings:
       type: object
       description: Les annonces en échec, de l'échec le plus récent au plus ancien.

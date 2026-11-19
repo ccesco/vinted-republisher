@@ -14,6 +14,11 @@ import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.application.republication.VerifyListingRepublication;
 import fr.vinted.republisher.application.run.LaunchAutomaticRun;
+import fr.vinted.republisher.application.run.ShowRunQueue;
+import fr.vinted.republisher.domain.backup.BackupValidation;
+import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.run.WriteModes;
+import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -49,7 +54,10 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -147,8 +155,42 @@ class AutomaticRunApiControllerTest {
         });
     }
 
+    @Test
+    void shows_the_queue() {
+        // AT-41-06: listing 1 ready to delete, real writes: its deletion now, then its republication after the delay
+        assertThat(mvc.get().uri("/api/automatic-run/queue"))
+                .hasStatusOk()
+                .bodyJson().isStrictlyEqualTo("""
+                        {"computedAt": "2026-11-17T10:00:00Z", "actions": [
+                          {"listingId": 1, "listingTitle": "Robe bleue", "action": "DELETION",
+                           "earliestAt": "2026-11-17T10:00:00Z", "dryRun": false},
+                          {"listingId": 1, "listingTitle": "Robe bleue", "action": "REPUBLICATION",
+                           "earliestAt": "2026-11-17T10:05:00Z", "dryRun": false}]}""");
+    }
+
     @TestConfiguration
     static class Fakes {
+
+        /** Listing 1 backed up and validated, real writes, no write yet. */
+        @Bean
+        ShowRunQueue showRunQueue() {
+            InMemoryListingRepository listings = new InMemoryListingRepository();
+            InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
+            InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
+            InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
+            InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
+            AdjustableClock clock = new AdjustableClock(NOW);
+            RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
+            listings.saveAll(List.of(Listing.seen(aListing(1, "Robe bleue", "12.00", ACTIVE), NOW)));
+            ListingBackup backup = aBackup(1, NOW);
+            backups.save(backup);
+            validations.save(BackupValidation.of(backup, NOW));
+            return new ShowRunQueue(new ShowListingInventory(listings, new InMemoryListingStatisticsRepository(),
+                    backups, validations, deletions, republications, delay, clock, new InMemoryListingTagRepository()),
+                    deletions, delay, new CadenceCheck(deletions, republications,
+                    new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 20, 20), clock),
+                    new WriteModes(DeletionMode.REAL, RepublicationMode.REAL), AutomaticRun::idle, clock);
+        }
 
         @Bean
         List<Runnable> launched() {

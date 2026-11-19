@@ -1,5 +1,6 @@
 package fr.vinted.republisher.application.cadence;
 
+import fr.vinted.republisher.domain.cadence.CadenceForecast;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
@@ -50,10 +51,19 @@ public class CadenceCheck {
         return allowedAt(write, clock.instant());
     }
 
+    /** The cadence with the writes it counts now, those in progress included, to foresee the next writes. */
+    public synchronized CadenceForecast forecast() {
+        return forecast(clock.instant());
+    }
+
     private Instant allowedAt(VintedWrite write, Instant now) {
+        return forecast(now).allowedAt(write, now);
+    }
+
+    private CadenceForecast forecast(Instant now) {
         Instant since = cadence.windowStart(now);
-        return cadence.allowedAt(write, withReserved(VintedWrite.DELETION, deletions.findAttemptedSince(since)),
-                withReserved(VintedWrite.REPUBLICATION, republications.findAttemptedSince(since)), now);
+        return new CadenceForecast(cadence, withReserved(VintedWrite.DELETION, deletions.findAttemptedSince(since)),
+                withReserved(VintedWrite.REPUBLICATION, republications.findAttemptedSince(since)));
     }
 
     /** Once its action is over, a write only counts by its attempt, if recorded. */
