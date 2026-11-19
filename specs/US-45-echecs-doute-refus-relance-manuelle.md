@@ -61,7 +61,7 @@ Dans `vinted-republisher.yaml`, commité avec le code (`kind` requis ne compile 
 - [x] La vérification et la validation d'une republication sont journalisées ; retrouvée ou validée « publiée », l'annonce quitte la page « Échecs ».
 - [ ] AT-45-07 (vrai compte) : non joué, l'utilisateur a décidé de s'en passer (2026-11-19).
 
-Vérifié (2026-11-19, après la révision « aucun minuteur ») : `mvn test "-Pbrowser,docker"` vert (1339 tests), `npm test` vert (41 tests) ; AT-45-07 (manuel, vrai compte) non joué sur décision de l'utilisateur.
+Vérifié (2026-11-19, après la révision « aucun minuteur ») : `mvn test "-Pbrowser,docker"` vert (1365 tests), `npm test` vert (50 tests) ; AT-45-07 (manuel, vrai compte) non joué sur décision de l'utilisateur.
 
 ## Tests d'acceptation
 ### AT-45-01 – Groupes de la page « Échecs »
