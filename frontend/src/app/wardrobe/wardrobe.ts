@@ -20,7 +20,7 @@ import { verificationSummaryOf } from './verification-summary';
 import { OncePerPeriod, runChanged } from './wardrobe-follow';
 import {
   APPLICATION_DOWN_MESSAGE, ARCHIVE_PROBLEM_MESSAGES, ARCHIVE_UNREACHABLE_MESSAGE, BACKUP_PROBLEM_MESSAGES,
-  PROBLEM_MESSAGES, RELAUNCHABLE_STAGES, RELAUNCH_FAILED_MESSAGE, RUN_STOP_MESSAGES, STAGES_TO_CHECK, STAGE_LABELS,
+  PROBLEM_MESSAGES, RELAUNCH_LABELS, RELAUNCH_FAILED_MESSAGE, RUN_STOP_MESSAGES, STAGES_TO_CHECK, STAGE_LABELS,
   STATISTICS_PROBLEM_MESSAGES, TAG_EDIT_FAILED_MESSAGE, TAG_EDIT_REFUSALS
 } from './wardrobe-messages';
 
@@ -47,7 +47,7 @@ export class Wardrobe {
   protected readonly stages = Object.entries(STAGE_LABELS);
   protected readonly republicationCellOf = republicationCellOf;
   protected readonly stagesToCheck = STAGES_TO_CHECK;
-  protected readonly relaunchableStages = RELAUNCHABLE_STAGES;
+  protected readonly relaunchLabels = RELAUNCH_LABELS;
 
   protected readonly overview = signal<WardrobeOverview | null>(null);
   protected readonly wardrobeProblem = signal('');

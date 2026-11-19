@@ -23,7 +23,7 @@ En tant que membre, je veux une page qui récapitule les annonces en échec, ave
    Un refus d'attente ne fait rien sur Vinted : il est ignoré, il ne crée ni n'efface un échec. Une annonce sort de la page dès qu'une ligne plus récente la concernant, hors refus d'attente, n'est pas un échec (réussite, dry-run). Une annonce à l'étape « Absente de Vinted » n'y figure pas : il n'y a plus rien à faire.
 2. **Cause** : la raison de cette dernière ligne, en clair, avec les mêmes libellés que le journal ; pour un `NOT_DONE` sans raison, « suppression non faite ».
 3. **Page « Échecs »** (route `/failures`) : lien « Échecs » dans la navigation. Une ligne par annonce en échec, la plus récente d'abord : annonce (titre, lien vers sa fiche), étape actuelle, action, issue, cause, date de la ligne. Sans annonce en échec : « Aucune annonce en échec. ». Toutes les annonces en une fois, sans pagination ni filtre.
-4. **Relancer** : bouton « Relancer » sur les lignes dont l'étape se relance (comme dans la liste, US-20), même appel (`POST /api/listings/{listingId}/relaunch`) et mêmes messages, affichés au-dessus du tableau sous la forme « <titre> : <message> ». Après la relance, la page relit les annonces en échec : une annonce relancée avec succès disparaît.
+4. **Relancer** : bouton de relance, libellé par son action comme dans la liste (US-20), sur les lignes dont l'étape se relance (comme dans la liste, US-20), même appel (`POST /api/listings/{listingId}/relaunch`) et mêmes messages, affichés au-dessus du tableau sous la forme « <titre> : <message> ». Après la relance, la page relit les annonces en échec : une annonce relancée avec succès disparaît.
 5. **Depuis la page du dressing** : dans « Traitement terminé : <n> relances, <m> annonces écartées », « <m> annonces écartées » (quand il y en a au moins une) est un lien vers la page « Échecs ». « Traitement arrêté : <raison> » ne compte pas les annonces écartées et ne change pas.
 6. Rien n'est lu sur Vinted : seuls le journal et les faits en base sont lus.
 
@@ -40,7 +40,7 @@ En tant que membre, je veux une page qui récapitule les annonces en échec, ave
 - [x] Une annonce absente de Vinted n'est pas en échec.
 - [x] Les annonces en échec sont triées de la plus récente à la plus ancienne.
 - [x] La page « Échecs » affiche titre (lien vers la fiche), étape, action, issue, cause en clair et date ; un message quand il n'y en a aucune.
-- [x] Le bouton « Relancer » n'apparaît que pour une étape qui se relance ; après la relance, la page relit la liste.
+- [x] Le bouton de relance n'apparaît que pour une étape qui se relance ; après la relance, la page relit la liste.
 - [x] « annonces écartées » de la ligne d'état de la série est un lien vers la page « Échecs ».
 
 ## Tests d'acceptation
@@ -97,7 +97,7 @@ Test : `FailedListingsApiControllerTest`
 Et une annonce « Robe » à sauvegarder, dont la validation a été refusée (sauvegarde remplacée)
 Quand le membre ouvre la page « Échecs »
 Alors il voit « Pull bleu », lien vers sa fiche, « Prête à supprimer », la cause « suppression non faite » et la date
-Et « Pull bleu » a un bouton « Relancer », « Robe » n'en a pas
+Et « Pull bleu » a un bouton « Supprimer de Vinted », « Robe » n'en a pas
 Quand il relance « Pull bleu » et que la suppression réussit
 Alors la page relit la liste, qui ne contient plus « Pull bleu »
 Et sans annonce en échec, la page affiche « Aucune annonce en échec. »

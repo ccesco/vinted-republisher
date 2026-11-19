@@ -122,8 +122,8 @@ class FailedListingsPageTest {
         assertThat(rows().nth(0)).containsText("18/11/2026 11:00:00");
         assertThat(rows().nth(1)).containsText("À sauvegarder");
         assertThat(rows().nth(1)).containsText("sauvegarde remplacée");
-        // Et « Pull bleu » a un bouton « Relancer », « Robe » n'en a pas
-        assertThat(rows().nth(0).getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        // Et « Pull bleu » a un bouton « Supprimer de Vinted » (action de la relance), « Robe » n'en a pas
+        assertThat(rows().nth(0).getByRole(AriaRole.BUTTON)).hasText("Supprimer de Vinted");
         assertThat(rows().nth(1).getByRole(AriaRole.BUTTON)).hasCount(0);
         // Quand il relance « Pull bleu » et que la suppression réussit
         rows().nth(0).getByRole(AriaRole.BUTTON).click();
