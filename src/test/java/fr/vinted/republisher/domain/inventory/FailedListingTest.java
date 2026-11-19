@@ -40,14 +40,9 @@ class FailedListingTest {
     }
 
     @Test
-    void ignores_republished_listings() {
+    void ignores_listings_republished_since() {
         assertThat(FailedListing.among(List.of(entry(101, ListingStage.REPUBLISHED)),
                 List.of(journalEntry(1, 101, ActionOutcome.FAILED)))).isEmpty();
-    }
-
-    @Test
-    void ignores_entries_of_listings_unknown_to_the_tool() {
-        assertThat(FailedListing.among(List.of(), List.of(journalEntry(1, 999, ActionOutcome.FAILED)))).isEmpty();
     }
 
     @Test
@@ -60,6 +55,11 @@ class FailedListingTest {
 
     private static FailureKind kindOf(ActionOutcome outcome) {
         return new FailedListing(listing(101), ListingStage.TO_DELETE, journalEntry(1, 101, outcome)).kind();
+    }
+
+    @Test
+    void ignores_entries_of_listings_unknown_to_the_tool() {
+        assertThat(FailedListing.among(List.of(), List.of(journalEntry(1, 999, ActionOutcome.FAILED)))).isEmpty();
     }
 
     private static InventoryEntry entry(long id, ListingStage stage) {
