@@ -11,8 +11,8 @@ import {
 } from '../../generated/api';
 import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import { dateOf, dayOf, listingLink, plural, priceOf } from '../shared/format';
-import { inventoryCriteriaOf } from './inventory-criteria';
-import { keyFiguresOf } from './key-figures';
+import { type InventoryCriteria, inventoryCriteriaOf } from './inventory-criteria';
+import { coversWholeWardrobe, keyFiguresOf } from './key-figures';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
 import { republicationCellOf } from './republication-cell';
 import { runningSummaryOf } from './run-summary';
@@ -84,7 +84,8 @@ export class Wardrobe {
 
   protected readonly rows = signal<Row[] | null>(null);
   protected readonly listingsProblem = signal(false);
-  protected readonly keyFigures = computed(() => keyFiguresOf((this.rows() ?? []).map(row => row.listing)));
+  // Chiffres clés de tout le dressing : ils ne suivent pas les filtres de la liste.
+  protected readonly keyFigures = signal(keyFiguresOf([]));
 
   // Édition en masse des tags (US-34) : identifiants cochés.
   protected readonly selection = signal(new Set<number>());
@@ -109,12 +110,14 @@ export class Wardrobe {
   private searchTimer?: ReturnType<typeof setTimeout>;
   // Seule la réponse à la dernière demande s'affiche : une réponse lente ne remplace pas une plus récente.
   private lastRequest = 0;
+  // De même pour les chiffres clés, qu'ils viennent de la liste non filtrée ou d'une lecture de tout le dressing.
+  private lastKeyFiguresRequest = 0;
   private wardrobeBusy = false;
   private destroyed = false;
   private runInProgress = false;
   private lastRun?: AutomaticRunOverview;
   // Un seul suivi de la liste (US-42) : scan, sauvegarde et série la relisent au plus une fois par période.
-  private readonly listingReloads = new OncePerPeriod(POLL_INTERVAL_MS, () => this.loadListings());
+  private readonly listingReloads = new OncePerPeriod(POLL_INTERVAL_MS, () => this.reloadListings());
   private verificationInProgress = false;
 
   constructor() {
@@ -402,13 +405,14 @@ export class Wardrobe {
 
   private async loadListings(): Promise<void> {
     const request = ++this.lastRequest;
-    const criteria = inventoryCriteriaOf({
-      presence: this.presence(), backup: this.backup(), search: this.search(), sort: this.sort(),
-      direction: this.direction(), tag: this.tag(), stage: this.stage()
-    });
+    const criteria = this.criteria();
+    const figuresRequest = coversWholeWardrobe(criteria) ? ++this.lastKeyFiguresRequest : 0;
     try {
       const inventory = await answerOf(this.inventory.showListingInventory(criteria.presence, criteria.backup,
         criteria.search, criteria.sort, criteria.direction, criteria.tag, criteria.stage));
+      if (coversWholeWardrobe(criteria) && figuresRequest === this.lastKeyFiguresRequest) {
+        this.keyFigures.set(keyFiguresOf(inventory.listings));
+      }
       if (request === this.lastRequest) {
         this.showListings(inventory.listings);
       }
@@ -417,6 +421,33 @@ export class Wardrobe {
         this.listingsProblem.set(true);
       }
     }
+  }
+
+  // Relecture périodique : une liste filtrée ne donne pas les chiffres clés, relus alors sur tout le dressing.
+  private reloadListings(): void {
+    this.loadListings();
+    if (!coversWholeWardrobe(this.criteria())) {
+      this.loadKeyFigures();
+    }
+  }
+
+  private async loadKeyFigures(): Promise<void> {
+    const request = ++this.lastKeyFiguresRequest;
+    try {
+      const listings = (await answerOf(this.inventory.showListingInventory())).listings;
+      if (request === this.lastKeyFiguresRequest) {
+        this.keyFigures.set(keyFiguresOf(listings));
+      }
+    } catch {
+      // Les derniers chiffres restent affichés, sans message : seule la liste signale une API en erreur.
+    }
+  }
+
+  private criteria(): InventoryCriteria {
+    return inventoryCriteriaOf({
+      presence: this.presence(), backup: this.backup(), search: this.search(), sort: this.sort(),
+      direction: this.direction(), tag: this.tag(), stage: this.stage()
+    });
   }
 
   private showListings(listings: Listing[]): void {
