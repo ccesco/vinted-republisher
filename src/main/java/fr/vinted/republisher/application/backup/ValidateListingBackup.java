@@ -67,10 +67,10 @@ public class ValidateListingBackup {
         if (!verification.passed()) {
             throw new BackupNotVerified(verification);
         }
-        verifications.find(listing).filter(online -> online.failsFor(backup)).ifPresent(failed -> {
+        verifications.find(listing).filter(online -> online.failsFor(backup.summary())).ifPresent(failed -> {
             throw new BackupNotVerified(new BackupVerification(failed.failures()));
         });
-        BackupValidation validation = validations.find(listing).filter(existing -> existing.holdsFor(backup))
+        BackupValidation validation = validations.find(listing).filter(existing -> existing.holdsFor(backup.summary()))
                 .orElseGet(() -> {
                     BackupValidation newValidation = BackupValidation.of(backup, clock.instant());
                     validations.save(newValidation);

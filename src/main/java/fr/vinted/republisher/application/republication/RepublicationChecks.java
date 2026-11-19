@@ -56,7 +56,7 @@ public class RepublicationChecks {
         }
         republications.findLatest(id).ifPresent(ListingRepublication::allowNewAttempt);
         checkDeleted(backup);
-        validations.find(id).filter(validation -> validation.holdsFor(backup))
+        validations.find(id).filter(validation -> validation.holdsFor(backup.summary()))
                 .orElseThrow(() -> new BackupNotValidated(id));
         BackupVerification verification = BackupVerification.ofPhotos(backup, photos);
         if (!verification.passed()) {

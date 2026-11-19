@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.ApplicationWithDatabaseTest;
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.CategoryDetails;
 import fr.vinted.republisher.domain.backup.FormOption;
 import fr.vinted.republisher.domain.backup.FormOptions;
@@ -12,6 +13,9 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import jakarta.persistence.EntityManagerFactory;
+import org.hibernate.SessionFactory;
+import org.hibernate.stat.Statistics;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,6 +47,9 @@ class JpaListingBackupRepositoryTest extends ApplicationWithDatabaseTest {
     @Autowired
     private JdbcTemplate database;
 
+    @Autowired
+    private EntityManagerFactory entityManagerFactory;
+
     @BeforeEach
     void startWithTwoListingsNeverBackedUp() {
         listings.saveAll(List.of(Listing.seen(anActiveListing(1), SAVED_AT), Listing.seen(anActiveListing(2), SAVED_AT)));
@@ -60,6 +67,27 @@ class JpaListingBackupRepositoryTest extends ApplicationWithDatabaseTest {
         // Alors le contenu sauvegardé de chaque annonce est relu à l'identique, colonne par colonne
         // Et le rang et l'empreinte de chaque photo sont relus à l'identique (AT-06-10)
         assertThat(backups.findAll()).containsExactlyInAnyOrder(full, minimal);
+    }
+
+    /** US-42: the inventory reads the summaries often, without the content nor the photos. */
+    @Test
+    void find_all_summaries_counts_photos_without_loading_them() {
+        backups.save(ListingBackup.of(new ListingReading(aFullContent(1),
+                List.of(aPhoto("front"), aPhoto("back"), aPhoto("label"))), SAVED_AT));
+        backups.save(new ListingBackup(aMinimalContent(2), List.of(), SAVED_AT.plusSeconds(60)));
+        Statistics statistics = entityManagerFactory.unwrap(SessionFactory.class).getStatistics();
+        statistics.clear();
+        statistics.setStatisticsEnabled(true);
+        try {
+            assertThat(backups.findAllSummaries()).containsExactlyInAnyOrder(
+                    new BackupSummary(new VintedListingId(1), SAVED_AT, 3),
+                    new BackupSummary(new VintedListingId(2), SAVED_AT.plusSeconds(60), 0));
+            assertThat(statistics.getPrepareStatementCount()).isEqualTo(1);
+            assertThat(statistics.getEntityLoadCount()).isZero();
+            assertThat(statistics.getCollectionLoadCount()).isZero();
+        } finally {
+            statistics.setStatisticsEnabled(false);
+        }
     }
 
     @Test

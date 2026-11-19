@@ -31,7 +31,7 @@ public class ShowListingBackup {
     public ListingBackupView show(VintedListingId listing) {
         ListingBackup backup = listingBackups.find(listing).orElseThrow(() -> new ListingNotBackedUp(listing));
         return new ListingBackupView(backup, BackupVerification.of(backup, listings.find(listing), photos),
-                validations.find(listing).filter(validation -> validation.holdsFor(backup))
+                validations.find(listing).filter(validation -> validation.holdsFor(backup.summary()))
                         .map(BackupValidation::validatedAt));
     }
 }

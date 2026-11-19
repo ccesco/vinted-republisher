@@ -77,7 +77,7 @@ class ShowListingDetailAcceptanceTest {
         assertThat(detail.entry().listing()).isEqualTo(listing);
         assertThat(detail.history()).containsExactly(reading(101, 12, 3, SECOND), reading(101, 5, 1, FIRST));
         assertThat(detail.entry().statistics()).contains(reading(101, 12, 3, SECOND));
-        assertThat(detail.entry().backup()).contains(backup);
+        assertThat(detail.entry().backup()).contains(backup.summary());
         assertThat(detail.entry().validatedAt()).contains(THIRD);
     }
 

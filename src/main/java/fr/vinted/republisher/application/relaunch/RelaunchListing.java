@@ -5,7 +5,7 @@ import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.VerifyListingRepublication;
-import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingStage;
@@ -84,6 +84,6 @@ public class RelaunchListing {
 
     /** The validation that lets the listing be deleted or republished only holds for its current backup. */
     private static Instant currentBackupOf(InventoryEntry entry) {
-        return entry.backup().map(ListingBackup::savedAt).orElseThrow();
+        return entry.backup().map(BackupSummary::savedAt).orElseThrow();
     }
 }

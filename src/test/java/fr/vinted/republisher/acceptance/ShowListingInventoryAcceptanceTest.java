@@ -1,9 +1,12 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
+import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
@@ -54,11 +57,38 @@ class ShowListingInventoryAcceptanceTest {
     private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
+    private final InMemoryBackupVerificationRepository verifications = new InMemoryBackupVerificationRepository();
     private final ShowListingInventory showListingInventory =
             new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
+                    new InMemoryListingTagRepository(), verifications);
+
+    /** AT-42-05 */
+    @Test
+    void inventory_shows_backup_summaries() {
+        // Étant donné une annonce sauvegardée avec 5 photos et validée, une annonce sauvegardée dont la dernière
+        //   vérification a échoué, et une annonce sans sauvegarde
+        listings.saveAll(List.of(present(101, "a", "1"), present(102, "b", "1"), present(103, "c", "1")));
+        ListingBackup validated = aBackupWithPhotos(101, 5);
+        backups.save(validated);
+        Instant validatedAt = SAVED_AT.plusSeconds(60);
+        validations.save(BackupValidation.of(validated, validatedAt));
+        backups.save(aBackupWithPhotos(102, 1));
+        verifications.save(new VerificationResult(new VintedListingId(102), SAVED_AT, SAVED_AT.plusSeconds(30),
+                List.of(new PhotoMissing(0))));
+
+        // Quand le membre affiche l'inventaire
+        List<InventoryEntry> entries = showListingInventory.show(InventoryCriteria.defaults());
+
+        // Alors la première a sa date de sauvegarde, 5 photos et sa date de validation
+        assertThat(entryOf(entries, 101).backup()).contains(new BackupSummary(new VintedListingId(101), SAVED_AT, 5));
+        assertThat(entryOf(entries, 101).validatedAt()).contains(validatedAt);
+        // Et la deuxième est à l'étape « vérification échouée »
+        assertThat(entryOf(entries, 102).stage()).isEqualTo(ListingStage.VERIFICATION_FAILED);
+        // Et la troisième n'a pas de sauvegarde
+        assertThat(entryOf(entries, 103).backup()).isEmpty();
+    }
 
     @Test
     void present_listings_most_recent_first_by_default() {
@@ -176,7 +206,7 @@ class ShowListingInventoryAcceptanceTest {
         // Alors la ligne montre son titre, son prix, 12 vues, 3 favoris, la date du relevé, la date de sauvegarde,
         //   3 photos et la date de validation
         assertThat(showListingInventory.show(InventoryCriteria.defaults())).containsExactly(
-                new InventoryEntry(listing, Optional.of(reading), Optional.of(backup), Optional.of(validatedAt),
+                new InventoryEntry(listing, Optional.of(reading), Optional.of(backup.summary()), Optional.of(validatedAt),
                         ListingStage.TO_DELETE, Optional.empty()));
         assertThat(backup.photos()).hasSize(3);
     }

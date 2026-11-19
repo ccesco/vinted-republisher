@@ -43,7 +43,12 @@ class WardrobePageTest {
     private static final String IDLE = "{\"scanInProgress\": false, \"backupInProgress\": false}";
     private static final String SCANNED = """
             {"scanInProgress": false, "backupInProgress": false, "lastScanAt": "2026-11-06T10:15:30Z"}""";
+    private static final String SCANNING = "{\"scanInProgress\": true, \"backupInProgress\": false}";
     private static final String NO_LISTING = "{\"listings\": []}";
+    /** The follow-up period of the page (US-42). */
+    private static final int PERIOD_MS = 2000;
+    /** Real time left to the page to ask what an answer led to, for what must not happen. */
+    private static final int SETTLE_MS = 500;
     private static final String IDLE_RUN = "{\"status\": \"IDLE\", \"relaunchCount\": 0, \"skippedListingIds\": []}";
     private static final String TWO_LISTINGS = """
             {"listings": [
@@ -79,6 +84,8 @@ class WardrobePageTest {
     private final AtomicReference<Integer> archiveStatus = new AtomicReference<>(200);
     private final AtomicReference<String> verification = new AtomicReference<>(IDLE_VERIFICATION);
     private final List<String> launchedVerifications = new CopyOnWriteArrayList<>();
+    private final List<String> wardrobeReadings = new CopyOnWriteArrayList<>();
+    private final List<String> runReadings = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -97,7 +104,10 @@ class WardrobePageTest {
     void startFakeApi() throws IOException {
         fakeApi = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         BuiltFrontend.serveFrom(fakeApi);
-        fakeApi.createContext("/api/wardrobe", exchange -> answer(exchange, overview.get()));
+        fakeApi.createContext("/api/wardrobe", exchange -> {
+            wardrobeReadings.add("GET");
+            answer(exchange, overview.get());
+        });
         fakeApi.createContext("/api/listings", exchange -> {
             listingQueries.add(exchange.getRequestURI().getRawQuery());
             if (inventoryStatus.get() == 200) {
@@ -135,6 +145,7 @@ class WardrobePageTest {
                 launchedRuns.add("POST");
                 respond(exchange, 202, "application/json", runOverview.get().getBytes(StandardCharsets.UTF_8));
             } else {
+                runReadings.add("GET");
                 answer(exchange, runOverview.get());
             }
         });
@@ -1059,6 +1070,139 @@ class WardrobePageTest {
         archiveStatus.set(200);
         page.waitForDownload(() -> archiveButton().click());
         assertThat(archiveProblem()).isHidden();
+    }
+
+    private static String runningWith(int relaunchCount) {
+        return """
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [1],
+                 "relaunchCount": %d, "skippedListingIds": []}""".formatted(relaunchCount);
+    }
+
+    /** AT-42-01 */
+    @Test
+    void run_overview_unchanged_does_not_reload_listings() {
+        // Étant donné une série en cours dont l'aperçu ne change pas pendant trois périodes de suivi
+        runOverview.set(runningWith(3));
+        int listingReadings = openFollowing();
+        // Quand le membre reste sur la page « Dressing »
+        followPeriods(3, "/api/automatic-run");
+        settle();
+        // Alors la liste n'est pas relue pendant ces trois périodes
+        assertThat(listingQueries).hasSize(listingReadings);
+    }
+
+    /** AT-42-02 */
+    @Test
+    void run_progress_reloads_listings() {
+        // Étant donné une série en cours
+        runOverview.set(runningWith(3));
+        int listingReadings = openFollowing();
+        // Quand son nombre d'annonces relancées passe de 3 à 4
+        runOverview.set(runningWith(4));
+        followPeriods(2, "/api/automatic-run");
+        // Alors la liste est relue une fois
+        assertListingReadings(listingReadings + 1);
+    }
+
+    /** AT-42-03 */
+    @Test
+    void scan_end_reloads_listings_once_more() {
+        // Étant donné un scan en cours
+        overview.set(SCANNING);
+        int listingReadings = openFollowing();
+        // Quand le scan se termine
+        overview.set(SCANNED);
+        followPeriods(1, "/api/wardrobe");
+        // Alors la liste est relue une dernière fois et le suivi s'arrête
+        assertListingReadings(listingReadings + 1);
+        int wardrobeFollowUps = wardrobeReadings.size();
+        page.clock().runFor(3 * PERIOD_MS);
+        settle();
+        assertThat(listingQueries).hasSize(listingReadings + 1);
+        assertThat(wardrobeReadings).hasSize(wardrobeFollowUps);
+    }
+
+    /** AT-42-04 */
+    @Test
+    void run_and_scan_share_one_follow_up() {
+        // Étant donné une série en cours
+        runOverview.set(runningWith(0));
+        // Quand le membre lance un scan
+        overview.set(SCANNING);
+        int listingReadings = openFollowing();
+        for (int period = 1; period <= 3; period++) {
+            runOverview.set(runningWith(period));
+            followPeriods(1, "/api/automatic-run");
+        }
+        // Alors la liste n'est relue qu'une fois par période de suivi au plus
+        assertListingReadings(listingReadings + 3);
+    }
+
+    /** AT-42-06 */
+    @Test
+    void scan_in_progress_reloads_listings_every_period() {
+        // Étant donné un scan en cours
+        overview.set(SCANNING);
+        int listingReadings = openFollowing();
+        // Quand trois périodes de suivi passent sans que l'aperçu du dressing change
+        followPeriods(3, "/api/wardrobe");
+        // Alors la liste est relue à chacune des trois périodes
+        assertListingReadings(listingReadings + 3);
+    }
+
+    /** AT-42-07 */
+    @Test
+    void manual_relaunch_message_stays_while_run_unchanged() {
+        // Étant donné une série en cours
+        inventory.set(TO_DELETE_AND_TO_VALIDATE);
+        runOverview.set(runningWith(3));
+        relaunchAnswer.set("""
+                {"action": "DELETION", "dryRun": false,
+                 "listing": {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                             "url": "https://vinted.test/items/3", "present": false, "stage": "WAITING"}}""");
+        openFollowing();
+        // Quand le membre relance une annonce depuis sa ligne et que l'aperçu de la série ne change pas pendant deux
+        //   périodes
+        relaunchAnswered.countDown();
+        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
+        assertThat(cell(0, ACTION)).hasText("Suppression faite");
+        followPeriods(2, "/api/automatic-run");
+        settle();
+        // Alors le message de la relance reste affiché sous la ligne
+        assertThat(cell(0, ACTION)).hasText("Suppression faite");
+    }
+
+    /**
+     * Opens the page on a fake clock and lets its first period pass, the readings asked at opening being done by then:
+     * how many times the list was read.
+     */
+    private int openFollowing() {
+        page.clock().install();
+        open();
+        page.waitForCondition(() -> !runReadings.isEmpty() && !wardrobeReadings.isEmpty()
+                && !listingQueries.isEmpty());
+        page.clock().runFor(PERIOD_MS);
+        settle();
+        return listingQueries.size();
+    }
+
+    /** Lets {@code count} follow-up periods pass, each until the page has the reading of {@code path} it waited for. */
+    private void followPeriods(int count, String path) {
+        for (int period = 0; period < count; period++) {
+            page.waitForResponse(response -> response.url().endsWith(path), () -> page.clock().runFor(PERIOD_MS));
+        }
+    }
+
+    /** Waits for the list to be read {@code expected} times in all, then checks that no other reading follows. */
+    private void assertListingReadings(int expected) {
+        page.waitForCondition(() -> listingQueries.size() >= expected);
+        settle();
+        assertThat(listingQueries).hasSize(expected);
+    }
+
+    /** Leaves the page the time to ask what the last answers led to: nothing is expected to come later. */
+    private void settle() {
+        page.waitForTimeout(SETTLE_MS);
     }
 
     private Locator archiveButton() {

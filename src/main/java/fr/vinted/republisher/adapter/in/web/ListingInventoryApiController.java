@@ -12,7 +12,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.PriceDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RepublicationAdviceDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SortDirectionDto;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
-import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
@@ -27,7 +27,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.time.ZoneOffset;
-import java.util.List;
 import java.util.Optional;
 
 /** Implements the contract-first API: the inventory as the member filters, sorts and searches it. */
@@ -72,8 +71,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .present(listing.present())
                 .stage(ListingStageDto.valueOf(entry.stage().name()))
                 .savedAt(entry.backup().map(backup -> backup.savedAt().atOffset(ZoneOffset.UTC)).orElse(null))
-                .photoCount(entry.backup().map(ListingBackup::photos).filter(photos -> !photos.isEmpty())
-                        .map(List::size).orElse(null))
+                .photoCount(entry.backup().map(BackupSummary::photoCount).filter(count -> count > 0).orElse(null))
                 .validatedAt(entry.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .statistics(entry.statistics().map(ListingInventoryApiController::statisticsOf).orElse(null))
                 .republicationAdvice(entry.advice().map(advice -> new RepublicationAdviceDto()

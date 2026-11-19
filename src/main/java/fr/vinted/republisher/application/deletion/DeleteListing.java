@@ -108,7 +108,7 @@ public class DeleteListing {
         if (!backup.savedAt().equals(seen)) {
             throw new BackupReplaced(id, seen);
         }
-        validations.find(id).filter(validation -> validation.holdsFor(backup))
+        validations.find(id).filter(validation -> validation.holdsFor(backup.summary()))
                 .orElseThrow(() -> new BackupNotValidated(id));
         // Before the verification: a deleted listing is absent, which must not hide why it cannot be deleted again.
         deletions.findLatest(id).ifPresent(ListingDeletion::allowNewAttempt);

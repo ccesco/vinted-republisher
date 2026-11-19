@@ -58,7 +58,7 @@ class ListingStageTest {
                 new BackupVerification(List.of(new VerificationFailure.ListingAbsent())), DELETED_AT);
         ListingBackup newBackup = aBackup(1, DELETED_AT.plusSeconds(60));
 
-        assertThat(stageAfterVerification(true, false, failed.failsFor(newBackup)))
+        assertThat(stageAfterVerification(true, false, failed.failsFor(newBackup.summary())))
                 .isEqualTo(ListingStage.TO_VALIDATE);
     }
 

@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -20,6 +21,11 @@ class JpaListingBackupRepository implements ListingBackupRepository {
     @Override
     public List<ListingBackup> findAll() {
         return repository.findAll().stream().map(ListingBackupJpaEntity::toListingBackup).toList();
+    }
+
+    @Override
+    public List<BackupSummary> findAllSummaries() {
+        return repository.findAllSummaries().stream().map(BackupSummaryRow::toBackupSummary).toList();
     }
 
     @Override
