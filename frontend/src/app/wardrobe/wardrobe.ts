@@ -16,7 +16,7 @@ import { coversWholeWardrobe, keyFiguresOf } from './key-figures';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
 import { republicationCellOf } from './republication-cell';
 import { republicationTallyTextOf } from './republication-tally';
-import { runningSummaryOf } from './run-summary';
+import { runningSummaryOf, workerLinesOf } from './run-summary';
 import { verificationSummaryOf } from './verification-summary';
 import { OncePerPeriod, runChanged } from './wardrobe-follow';
 import {
@@ -61,6 +61,12 @@ export class Wardrobe {
   protected readonly runSummary = computed(() => {
     const run = this.run();
     return run ? [...runSummaryOf(run, (this.rows() ?? []).map(row => row.listing)), { text: requestOf(run) }] : [];
+  });
+  // Une ligne par worker (US-46), tant que la série tourne ou attend.
+  protected readonly workerLines = computed(() => {
+    const run = this.run();
+    return run && (run.status === 'RUNNING' || run.status === 'WAITING')
+      ? workerLinesOf(run.workers, (this.rows() ?? []).map(row => row.listing), dateOf) : [];
   });
   protected readonly runButtonShown = signal(false);
   protected readonly pauseShown = signal(false);
@@ -577,7 +583,7 @@ function finishedSummaryOf(run: AutomaticRunOverview): SummaryPart[] {
 function runStateOf(run: AutomaticRunOverview, listings: Listing[]): string {
   switch (run.status) {
     case 'RUNNING':
-      return runningSummaryOf(run.currentListingIds, listings);
+      return runningSummaryOf(run.workers, listings);
     case 'WAITING':
       return `En attente jusqu'au ${dateOf(run.waitingUntil ?? '')}.`;
     case 'PAUSED':

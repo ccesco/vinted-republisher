@@ -29,7 +29,13 @@ import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
+import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.run.AutomaticRun;
+import fr.vinted.republisher.domain.run.ParallelismMode;
+import fr.vinted.republisher.domain.run.RunWaitingReason;
+import fr.vinted.republisher.domain.run.RunWorker;
+import fr.vinted.republisher.domain.run.RunWorkerKind;
+import fr.vinted.republisher.domain.run.RunWorkerState;
 import fr.vinted.republisher.domain.run.RunStatus;
 import fr.vinted.republisher.domain.run.RunStopReason;
 import fr.vinted.republisher.domain.run.RunWaiting;
@@ -62,17 +68,18 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BooleanSupplier;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
@@ -83,6 +90,7 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.tuple;
 
 /** US-19: one click relaunches every ready listing in turn, waiting when it must and stopping on a problem. */
 class AutomaticRunAcceptanceTest {
@@ -108,7 +116,7 @@ class AutomaticRunAcceptanceTest {
     private final RepublicationDelay delay = new RepublicationDelay(Duration.ofMinutes(5));
     private final ClockWaiting waiting = new ClockWaiting();
     private VintedSession session = new VintedSession();
-    private int parallelism = 1;
+    private ParallelismMode mode = ParallelismMode.SEQUENTIAL;
     private ExecutorService relaunchers;
     private DeletionMode deletionMode = DeletionMode.REAL;
     private LaunchAutomaticRun launchAutomaticRun;
@@ -120,178 +128,317 @@ class AutomaticRunAcceptanceTest {
         }
     }
 
-    /** US-15: up to {@code listingActions} relaunches at once, each on its own thread as in its own tab. */
-    private void inParallel(int listingActions) {
-        parallelism = listingActions;
-        session = new VintedSession(listingActions);
-        relaunchers = Executors.newFixedThreadPool(listingActions);
+    /** US-46: three workers, each relaunching on its own thread as in its own tab. */
+    private void withWorkers() {
+        mode = ParallelismMode.WORKERS;
+        session = new VintedSession(mode.listingActions());
+        relaunchers = Executors.newFixedThreadPool(mode.listingActions());
+    }
+
+    private final AtomicReference<AutomaticRun> whenTheyMet = new AtomicReference<>();
+
+    /**
+     * Holds the calling action until the given workers relaunch at the same time, once, keeping the run as it was
+     * then; afterwards, lets every action through.
+     */
+    private void meet(RunWorkerKind... kinds) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (whenTheyMet.get() == null) {
+            AutomaticRun run = launchAutomaticRun.overview();
+            if (Arrays.stream(kinds).allMatch(kind -> run.worker(kind).state() == RunWorkerState.WORKING)) {
+                whenTheyMet.compareAndSet(null, run);
+                return;
+            }
+            if (System.nanoTime() > deadline) {
+                throw new IllegalStateException("the workers did not relaunch at the same time: " + run.workers());
+            }
+            Thread.yield();
+        }
+    }
+
+    private ListingBackup aRepublicationToCheck(VintedListingId id, String title, String price, long newId) {
+        ListingBackup backup = aDeletedListing(id, title, price);
+        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600)));
+        wardrobe.holding(aListing(newId, title, price, ACTIVE));
+        contents.showing(new ListingReading(sameAs(backup.content(), newId), List.of(aPhoto("front"))));
+        return backup;
+    }
+
+    /** Its deletion was tried and is done on Vinted: a recheck confirms it. */
+    private void aDeletionToCheck(VintedListingId id, String title, String price) {
+        deletions.save(ListingDeletion.attempted(aValidatedListing(id, title, price), NOW.minusSeconds(600)));
+        deleter.gone(id);
     }
 
     @Nested
-    class Parallel {
+    class Workers {
 
         @Test
-        void relaunches_two_listings_at_the_same_time() {
-            // Étant donné deux annonces « Prête à supprimer », suppression en dry-run, parallélisme 2
-            inParallel(2);
-            deletionMode = DeletionMode.DRY_RUN;
-            aValidatedListing(ROBE, "Robe bleue", "12.00");
-            aValidatedListing(PULL, "Pull rayé", "15.00");
-            CyclicBarrier bothOpened = new CyclicBarrier(2);
-            List<AutomaticRun> seenDuringTheRound = Collections.synchronizedList(new ArrayList<>());
-            deleter.onOpening(() -> {
-                await(bothOpened);
-                seenDuringTheRound.add(launchAutomaticRun.overview());
-            });
+        void each_worker_relaunches_its_own_steps_at_the_same_time() {
+            // AT-46-02
+            // Étant donné une annonce « À republier », une « Prête à supprimer » validée et une « Republication à
+            // vérifier », en mode réel
+            withWorkers();
+            aDeletedListing(PULL, "Pull rayé", "15.00");
+            publisher.showingOncePublished(aListing(12, "Pull rayé", "15.00", ACTIVE));
+            aValidatedListing(JUPE, "Jupe plissée", "9.00");
+            aRepublicationToCheck(ROBE, "Robe bleue", "12.00", 11);
+            Runnable allThree = () -> meet(RunWorkerKind.REPUBLICATION, RunWorkerKind.DELETION,
+                    RunWorkerKind.VERIFICATION);
+            deleter.onOpening(allThree);
+            wardrobe.during(allThree);
             // Quand la série tourne
             launch();
-            // Alors les deux dry-runs sont en cours en même temps, chacun sur son annonce
-            assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL);
-            // Et l'aperçu montre les deux annonces de la tournée
-            assertThat(seenDuringTheRound).allSatisfy(run ->
-                    assertThat(run.currentListings()).containsExactly(ROBE, PULL));
-            // Et la série est terminée avec 2 relances, les deux annonces écartées
-            AutomaticRun run = launchAutomaticRun.overview();
-            assertThat(run.status()).isEqualTo(RunStatus.FINISHED);
-            assertThat(run.relaunchCount()).isEqualTo(2);
-            assertThat(run.skippedListings()).containsExactly(ROBE, PULL);
-            assertThat(run.currentListings()).isEmpty();
+            // Alors la republication, la suppression et la vérification sont en cours en même temps, chacune par son
+            // worker et dans son onglet
+            // Et l'aperçu montre chaque worker en action avec son annonce et son action
+            assertThat(whenTheyMet.get().workers()).extracting(RunWorker::kind, RunWorker::listing, RunWorker::action)
+                    .containsExactly(
+                            tuple(RunWorkerKind.REPUBLICATION, Optional.of(PULL),
+                                    Optional.of(RelaunchAction.REPUBLICATION)),
+                            tuple(RunWorkerKind.DELETION, Optional.of(JUPE), Optional.of(RelaunchAction.DELETION)),
+                            tuple(RunWorkerKind.VERIFICATION, Optional.of(ROBE),
+                                    Optional.of(RelaunchAction.REPUBLICATION_VERIFICATION)));
+            assertThat(launchAutomaticRun.overview().status()).isEqualTo(RunStatus.FINISHED);
         }
 
         @Test
-        void cadence_stays_global_to_the_account() {
-            // Étant donné deux annonces validées, en mode réel, parallélisme 2
-            inParallel(2);
+        void a_slow_action_does_not_hold_the_other_workers() {
+            // AT-46-03
+            // Étant donné une vérification de republication lente et deux annonces « Prêtes à supprimer » en dry-run
+            withWorkers();
+            deletionMode = DeletionMode.DRY_RUN;
+            aRepublicationToCheck(ROBE, "Robe bleue", "12.00", 11);
+            aValidatedListing(PULL, "Pull rayé", "15.00");
+            aValidatedListing(JUPE, "Jupe plissée", "9.00");
+            CountDownLatch bothDeletionsOpened = new CountDownLatch(2);
+            deleter.onOpening(bothDeletionsOpened::countDown);
+            List<Boolean> verificationSawBothDeletions = Collections.synchronizedList(new ArrayList<>());
+            wardrobe.during(() -> verificationSawBothDeletions.add(awaits(bothDeletionsOpened)));
+            // Quand la série tourne
+            launch();
+            // Alors le worker suppression relance les deux annonces l'une après l'autre pendant que la vérification
+            // est encore en cours
+            assertThat(deleter.opened()).containsExactly(PULL, JUPE);
+            assertThat(verificationSawBothDeletions).first().isEqualTo(true);
+            assertThat(launchAutomaticRun.overview().status()).isEqualTo(RunStatus.FINISHED);
+        }
+
+        @Test
+        void the_verification_worker_helps_with_deletion_rechecks() {
+            // AT-46-04
+            // Étant donné deux annonces « Suppression à vérifier » et aucune republication à vérifier
+            withWorkers();
+            aDeletionToCheck(ROBE, "Robe bleue", "12.00");
+            aDeletionToCheck(PULL, "Pull rayé", "15.00");
+            deleter.onOpening(() -> meet(RunWorkerKind.DELETION, RunWorkerKind.VERIFICATION));
+            // Quand la série tourne
+            launch();
+            // Alors le worker suppression et le worker vérification revérifient chacun une des deux annonces, jamais
+            // la même
+            AutomaticRun met = whenTheyMet.get();
+            assertThat(List.of(met.worker(RunWorkerKind.DELETION).listing().orElseThrow(),
+                    met.worker(RunWorkerKind.VERIFICATION).listing().orElseThrow()))
+                    .containsExactlyInAnyOrder(ROBE, PULL);
+            assertThat(met.workers()).extracting(RunWorker::action).filteredOn(Optional::isPresent)
+                    .containsOnly(Optional.of(RelaunchAction.DELETION_RECHECK));
+        }
+
+        @Test
+        void writes_stay_with_their_own_worker() {
+            // AT-46-04
+            // Étant donné une annonce « Prête à supprimer » et un worker republication sans annonce
+            withWorkers();
+            deletionMode = DeletionMode.DRY_RUN;
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            List<AutomaticRun> whileDeleting = Collections.synchronizedList(new ArrayList<>());
+            deleter.onOpening(() -> whileDeleting.add(launchAutomaticRun.overview()));
+            // Quand la série tourne
+            launch();
+            // Alors seul le worker suppression la supprime
+            assertThat(whileDeleting).singleElement().satisfies(run -> {
+                assertThat(run.worker(RunWorkerKind.DELETION).worksOn(ROBE)).isTrue();
+                assertThat(run.worker(RunWorkerKind.REPUBLICATION).state()).isNotEqualTo(RunWorkerState.WORKING);
+                assertThat(run.worker(RunWorkerKind.VERIFICATION).state()).isNotEqualTo(RunWorkerState.WORKING);
+            });
+            assertThat(launchAutomaticRun.overview().worker(RunWorkerKind.DELETION).relaunchCount()).isEqualTo(1);
+        }
+
+        @Test
+        void a_wait_only_holds_its_own_worker() {
+            // AT-46-06
+            // Étant donné deux annonces « Prêtes à supprimer » validées, en mode réel, et une annonce « À republier »
+            withWorkers();
             aValidatedListing(ROBE, "Robe bleue", "12.00");
             aValidatedListing(PULL, "Pull rayé", "15.00");
-            List<List<VintedListingId>> rounds = Collections.synchronizedList(new ArrayList<>());
-            deleter.onOpening(() -> rounds.add(launchAutomaticRun.overview().currentListings()));
-            deleter.beforeDeleting(() -> {
-                if (!deletions.findAll().isEmpty()) {
-                    launchAutomaticRun.stop();
+            aDeletedListing(JUPE, "Jupe plissée", "9.00");
+            publisher.showingOncePublished(aListing(13, "Jupe plissée", "9.00", ACTIVE),
+                    aListing(11, "Robe bleue", "12.00", ACTIVE));
+            CountDownLatch republished = new CountDownLatch(1);
+            wardrobe.during(republished::countDown);
+            List<RunWorker> deletionWorkerWaiting = Collections.synchronizedList(new ArrayList<>());
+            List<Boolean> republishedDuringTheWait = Collections.synchronizedList(new ArrayList<>());
+            waiting.during(() -> {
+                RunWorker deletion = launchAutomaticRun.overview().worker(RunWorkerKind.DELETION);
+                if (deletion.state() == RunWorkerState.WAITING && deletionWorkerWaiting.isEmpty()) {
+                    deletionWorkerWaiting.add(deletion);
+                    republishedDuringTheWait.add(awaits(republished));
                 }
             });
             // Quand la série tourne
             launch();
-            // Alors la première tournée ne supprime que la première, la seconde n'est pas tentée
-            assertThat(rounds).first().isEqualTo(List.of(ROBE));
-            // Et la série attend 2 minutes, puis supprime la seconde
-            assertThat(deletions.findAll()).extracting(ListingDeletion::attemptedAt)
-                    .containsExactly(NOW, NOW.plusSeconds(120));
-            assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(120));
-            // Et le journal n'a aucun refus « limite de cadence atteinte »
+            // Alors le worker suppression supprime la première puis attend 2 minutes pour la seconde
+            assertThat(deletions.findLatest(ROBE)).map(ListingDeletion::attemptedAt).contains(NOW);
+            assertThat(deletions.findLatest(PULL)).map(ListingDeletion::attemptedAt).get()
+                    .satisfies(attemptedAt -> assertThat(attemptedAt).isAfterOrEqualTo(NOW.plusSeconds(120)));
+            // Et pendant cette attente le worker republication remet en vente l'annonce « À republier »
+            assertThat(republishedDuringTheWait).containsExactly(true);
+            assertThat(republications.findLatest(JUPE)).map(ListingRepublication::outcome)
+                    .contains(RepublicationOutcome.PUBLISHED);
+            // Et l'aperçu montre le worker suppression en attente (cadence) avec sa date
+            assertThat(deletionWorkerWaiting).singleElement().satisfies(worker -> {
+                assertThat(worker.waitingUntil()).contains(NOW.plusSeconds(120));
+                assertThat(worker.waitingReason()).contains(RunWaitingReason.CADENCE);
+            });
             assertNoCadenceRefusal();
         }
 
         @Test
-        void a_check_goes_without_the_write_the_cadence_does_not_allow_yet() {
-            // Étant donné une annonce « Suppression à vérifier » tentée il y a une minute, et une « Prête à supprimer »
-            inParallel(2);
-            ListingBackup robe = aValidatedListing(ROBE, "Robe bleue", "12.00");
-            deletions.save(ListingDeletion.attempted(robe, NOW.minusSeconds(60)));
-            aValidatedListing(PULL, "Pull rayé", "15.00");
-            List<List<VintedListingId>> roundsBeforeWaiting = new ArrayList<>();
-            waiting.during(() -> {
-                roundsBeforeWaiting.add(launchAutomaticRun.overview().currentListings());
-                launchAutomaticRun.stop();
-            });
+        void an_idle_worker_picks_up_the_work_another_one_left() {
+            // AT-46-07
+            // Étant donné une annonce « Prête à supprimer » validée et aucune autre candidate
+            withWorkers();
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            publisher.showingOncePublished(aListing(11, "Robe bleue", "12.00", ACTIVE));
+            // Quand la série tourne et que la suppression aboutit (annonce « En attente »)
+            launch();
+            // Alors le worker republication, jusque-là inactif, la remet en vente une fois le délai passé
+            AutomaticRun run = launchAutomaticRun.overview();
+            assertThat(run.worker(RunWorkerKind.DELETION).relaunchCount()).isEqualTo(1);
+            assertThat(run.worker(RunWorkerKind.REPUBLICATION).relaunchCount()).isEqualTo(1);
+            assertThat(republications.findLatest(ROBE)).map(ListingRepublication::outcome)
+                    .contains(RepublicationOutcome.PUBLISHED);
+            // Et la série est terminée quand les trois workers sont inactifs
+            assertThat(run.status()).isEqualTo(RunStatus.FINISHED);
+            assertThat(run.relaunchCount()).isEqualTo(2);
+        }
+
+        @Test
+        void never_two_workers_on_the_same_listing() {
+            // AT-46-08
+            // Étant donné une seule annonce « Suppression à vérifier »
+            withWorkers();
+            aDeletionToCheck(ROBE, "Robe bleue", "12.00");
+            List<AutomaticRun> whileRechecking = Collections.synchronizedList(new ArrayList<>());
+            deleter.onOpening(() -> whileRechecking.add(launchAutomaticRun.overview()));
             // Quand la série tourne
             launch();
-            // Alors la première tournée ne fait que la vérification, puis la série attend la fin de l'intervalle
-            assertThat(roundsBeforeWaiting).containsExactly(List.of(ROBE));
-            assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(60));
-            assertThat(deletions.findLatest(PULL)).isEmpty();
-            assertNoCadenceRefusal();
+            // Alors un seul worker la revérifie, l'autre reste inactif
+            assertThat(deleter.opened()).containsExactly(ROBE);
+            assertThat(whileRechecking).singleElement().satisfies(run ->
+                    assertThat(run.workers()).filteredOn(worker -> worker.worksOn(ROBE)).hasSize(1));
         }
 
         @Test
-        void a_pause_lets_the_whole_round_end() {
-            // Étant donné une tournée de deux suppressions en dry-run
-            inParallel(2);
+        void pause_lets_every_action_in_progress_finish() {
+            // AT-46-09
+            // Étant donné deux workers en action, et une annonce « Prête à supprimer » en dry-run après eux
+            withWorkers();
             deletionMode = DeletionMode.DRY_RUN;
-            aValidatedListing(ROBE, "Robe bleue", "12.00");
-            aValidatedListing(PULL, "Pull rayé", "15.00");
-            CyclicBarrier bothOpened = new CyclicBarrier(2, () -> launchAutomaticRun.pause());
-            deleter.onOpening(() -> await(bothOpened));
-            List<AutomaticRun> seenWhilePaused = new ArrayList<>();
+            aDeletionToCheck(ROBE, "Robe bleue", "12.00");
+            aDeletionToCheck(PULL, "Pull rayé", "15.00");
+            aValidatedListing(JUPE, "Jupe plissée", "9.00");
+            deleter.onOpening(() -> {
+                meet(RunWorkerKind.DELETION, RunWorkerKind.VERIFICATION);
+                // Quand le membre demande une pause
+                launchAutomaticRun.pause();
+            });
+            List<Integer> openedWhilePaused = Collections.synchronizedList(new ArrayList<>());
             waiting.during(() -> {
-                seenWhilePaused.add(launchAutomaticRun.overview());
-                launchAutomaticRun.stop();
+                if (launchAutomaticRun.overview().status() == RunStatus.PAUSED) {
+                    openedWhilePaused.add(deleter.opened().size());
+                    // Quand il reprend
+                    launchAutomaticRun.resume();
+                }
             });
-            // Quand le membre demande une pause pendant la première
             launch();
-            // Alors les deux se terminent, puis la série passe en pause
-            assertThat(seenWhilePaused).singleElement().satisfies(run -> {
-                assertThat(run.status()).isEqualTo(RunStatus.PAUSED);
-                assertThat(run.relaunchCount()).isEqualTo(2);
-            });
+            // Alors chaque worker finit son action, n'en prend pas d'autre, et la série est en pause quand tous ont
+            // fini
+            assertThat(openedWhilePaused).first().isEqualTo(2);
+            // Alors les workers reprennent
+            assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL, JUPE);
+            assertThat(launchAutomaticRun.overview().status()).isEqualTo(RunStatus.FINISHED);
         }
 
         @Test
-        void a_stop_lets_the_whole_round_end() {
-            // Étant donné une tournée de deux suppressions en dry-run
-            inParallel(2);
-            deletionMode = DeletionMode.DRY_RUN;
+        void stop_cuts_a_wait_short() {
+            // AT-46-09
+            // Étant donné deux annonces « Prêtes à supprimer » : le worker suppression attend la cadence pour la
+            // seconde
+            withWorkers();
             aValidatedListing(ROBE, "Robe bleue", "12.00");
             aValidatedListing(PULL, "Pull rayé", "15.00");
-            aValidatedListing(JUPE, "Jupe plissée", "9.00");
-            CyclicBarrier bothOpened = new CyclicBarrier(2, () -> launchAutomaticRun.stop());
-            deleter.onOpening(() -> await(bothOpened));
-            // Quand il demande l'arrêt pendant une tournée
+            // Quand le membre demande l'arrêt pendant qu'un worker attend
+            waiting.during(() -> launchAutomaticRun.stop());
             launch();
-            // Alors les deux relances de la tournée se terminent, puis la série s'arrête (STOPPED_BY_MEMBER)
+            // Alors l'attente est interrompue et la série s'arrête quand plus aucun worker n'est en action
             AutomaticRun run = launchAutomaticRun.overview();
-            assertThat(run.relaunchCount()).isEqualTo(2);
-            assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL);
+            assertThat(run.status()).isEqualTo(RunStatus.STOPPED);
             assertThat(run.stopReason()).contains(RunStopReason.STOPPED_BY_MEMBER);
+            assertThat(deletions.findLatest(PULL)).isEmpty();
+            assertThat(run.workers()).extracting(RunWorker::state).containsOnly(RunWorkerState.STOPPED);
         }
 
         @Test
-        void stops_once_the_round_is_over() {
-            // Étant donné deux annonces prêtes et une session Vinted perdue, parallélisme 2 (dry-run : sans cadence)
-            inParallel(2);
-            deletionMode = DeletionMode.DRY_RUN;
-            aValidatedListing(ROBE, "Robe bleue", "12.00");
-            aValidatedListing(PULL, "Pull rayé", "15.00");
+        void an_account_problem_stops_every_worker() {
+            // AT-46-10
+            // Étant donné deux workers en action, et une annonce « Prête à supprimer » après eux
+            withWorkers();
+            aDeletionToCheck(ROBE, "Robe bleue", "12.00");
+            aDeletionToCheck(PULL, "Pull rayé", "15.00");
             aValidatedListing(JUPE, "Jupe plissée", "9.00");
+            deleter.onOpening(() -> meet(RunWorkerKind.DELETION, RunWorkerKind.VERIFICATION));
+            // Quand le worker suppression trouve la session Vinted déconnectée
             deleter.disconnected();
-            // Quand la série les relance dans la même tournée
             launch();
-            // Alors la série s'arrête une fois la tournée finie, raison SESSION_DISCONNECTED
-            AutomaticRun run = launchAutomaticRun.overview();
+            // Alors les deux autres finissent leur action et n'en prennent plus
             assertThat(deleter.opened()).containsExactlyInAnyOrder(ROBE, PULL);
+            // Et la série s'arrête avec la raison SESSION_DISCONNECTED
+            AutomaticRun run = launchAutomaticRun.overview();
             assertThat(run.status()).isEqualTo(RunStatus.STOPPED);
             assertThat(run.stopReason()).contains(RunStopReason.SESSION_DISCONNECTED);
         }
 
         @Test
-        void waits_only_when_the_whole_round_waits() {
-            // Étant donné une annonce « En attente » republiable dans 5 minutes et une « Prête à supprimer » en dry-run
-            inParallel(2);
+        void a_manual_relaunch_holding_a_listing_makes_its_worker_wait() {
+            // AT-46-11
+            // Étant donné une relance manuelle en cours sur une annonce « Prête à supprimer »
+            withWorkers();
             deletionMode = DeletionMode.DRY_RUN;
-            ListingBackup robe = aValidatedListing(ROBE, "Robe bleue", "12.00");
-            listings.saveAll(List.of(Listing.seen(aListing(1, "Robe bleue", "12.00", ACTIVE), SAVED_AT).absent()));
-            deleter.gone(ROBE);
-            deletions.save(ListingDeletion.attempted(robe, NOW).confirmed(NOW));
-            aValidatedListing(PULL, "Pull rayé", "15.00");
-            List<Instant> waitsWhenPullRelaunched = new ArrayList<>();
-            deleter.onOpening(() -> waitsWhenPullRelaunched.addAll(waiting.untils()));
-            waiting.during(() -> launchAutomaticRun.stop());
+            aValidatedListing(ROBE, "Robe bleue", "12.00");
+            session.start(BrowserAction.DELETING, ROBE);
+            List<RunWorker> deletionWorkerWaiting = Collections.synchronizedList(new ArrayList<>());
+            waiting.during(() -> {
+                deletionWorkerWaiting.add(launchAutomaticRun.overview().worker(RunWorkerKind.DELETION));
+                session.finish(ROBE);
+            });
             // Quand la série tourne
             launch();
-            // Alors la première tournée passe la seconde en dry-run sans attendre
-            assertThat(waitsWhenPullRelaunched).isEmpty();
-            assertThat(launchAutomaticRun.overview().skippedListings()).containsExactly(PULL);
-            // Et la série n'attend qu'ensuite, jusqu'à la date de republication de la première
-            assertThat(waiting.untils()).containsExactly(NOW.plusSeconds(300));
+            // Alors le worker qui en avait besoin attend 30 secondes (navigateur occupé), puis la relance
+            assertThat(deletionWorkerWaiting).first().satisfies(worker -> {
+                assertThat(worker.waitingUntil()).contains(NOW.plusSeconds(30));
+                assertThat(worker.waitingReason()).contains(RunWaitingReason.BROWSER_BUSY);
+            });
+            assertThat(deleter.opened()).containsExactly(ROBE);
         }
     }
 
-    private static void await(CyclicBarrier barrier) {
+    private static boolean awaits(CountDownLatch latch) {
         try {
-            barrier.await(5, TimeUnit.SECONDS);
-        } catch (InterruptedException | BrokenBarrierException | TimeoutException notTogether) {
-            throw new IllegalStateException("the relaunches did not run at the same time", notTogether);
+            return latch.await(5, TimeUnit.SECONDS);
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            return false;
         }
     }
 
@@ -555,6 +702,47 @@ class AutomaticRunAcceptanceTest {
     }
 
     @Test
+    void a_pause_asked_for_right_after_a_resume_takes_effect_at_once() {
+        // Étant donné une série en pause, deux annonces « Prêtes à supprimer » en dry-run
+        deletionMode = DeletionMode.DRY_RUN;
+        aValidatedListing(ROBE, "Robe bleue", "12.00");
+        aValidatedListing(PULL, "Pull rayé", "15.00");
+        deleter.onOpening(() -> {
+            if (deleter.opened().size() == 1) {
+                launchAutomaticRun.pause();
+            }
+        });
+        AtomicInteger resumes = new AtomicInteger();
+        waiting.during(() -> {
+            if (launchAutomaticRun.overview().status() == RunStatus.PAUSED) {
+                launchAutomaticRun.resume();
+                // Quand le membre reprend puis demande aussitôt une nouvelle pause
+                if (resumes.incrementAndGet() == 1) {
+                    launchAutomaticRun.pause();
+                }
+            }
+        });
+        launch();
+        // Alors la série se remet en pause tout de suite, sans attendre la fin du pas de pause
+        assertThat(waiting.untils()).containsExactly(NOW.plus(Duration.ofHours(1)), NOW.plus(Duration.ofHours(1)));
+        assertThat(launchAutomaticRun.overview().status()).isEqualTo(RunStatus.FINISHED);
+    }
+
+    @Test
+    void a_failure_to_start_the_workers_stops_the_run() {
+        // Étant donné le mode WORKERS et des fils de workers qui refusent de démarrer
+        withWorkers();
+        relaunchers.shutdownNow();
+        aValidatedListing(ROBE, "Robe bleue", "12.00");
+        // Quand la série est lancée
+        launch();
+        // Alors elle s'arrête en échec, au lieu de rester « en cours »
+        AutomaticRun run = launchAutomaticRun.overview();
+        assertThat(run.status()).isEqualTo(RunStatus.STOPPED);
+        assertThat(run.stopReason()).contains(RunStopReason.RUN_FAILED);
+    }
+
+    @Test
     void a_pause_asked_for_again_while_paused_is_ignored() {
         // Étant donné une série en pause
         aValidatedListing(ROBE, "Robe bleue", "12.00");
@@ -718,7 +906,7 @@ class AutomaticRunAcceptanceTest {
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
                 deletions, republications, delay, clock, new InMemoryListingTagRepository(),
                 new InMemoryBackupVerificationRepository()), relaunch, waiting, clock,
-                Runnable::run, parallelism, relaunchers == null ? Runnable::run : relaunchers);
+                Runnable::run, mode, relaunchers == null ? Runnable::run : relaunchers);
     }
 
     /** Present, backed up with its photo kept, validated by the member, and shown as is on Vinted. */
@@ -813,6 +1001,10 @@ class AutomaticRunAcceptanceTest {
         @Override
         public Optional<ScannedListing> show(ListingLink listing) {
             opened.add(listing.id());
+            onOpening.run();
+            if (disconnected) {
+                throw new SessionDisconnected("redirected to login");
+            }
             return Optional.ofNullable(shown.get(listing.id()));
         }
     }
@@ -820,7 +1012,7 @@ class AutomaticRunAcceptanceTest {
     /** Waits by moving the clock forward, so a run that waits five minutes takes no time. */
     private final class ClockWaiting implements RunWaiting {
 
-        private final List<Instant> untils = new ArrayList<>();
+        private final List<Instant> untils = Collections.synchronizedList(new ArrayList<>());
         private Runnable during = () -> {
         };
 

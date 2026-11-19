@@ -1614,7 +1614,7 @@ components:
         STOPPED_BY_MEMBER]
     AutomaticRunOverview:
       type: object
-      required: [status, currentListingIds, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
+      required: [status, workers, relaunchCount, skippedListingIds, pauseRequested, stopRequested]
       properties:
         status:
           $ref: '#/components/schemas/RunStatus'
@@ -1628,15 +1628,15 @@ components:
         waitingUntil:
           type: string
           format: date-time
-          description: Date jusqu'à laquelle la série attend ; présente pour WAITING.
-        currentListingIds:
+          description: >
+            Date jusqu'à laquelle la série attend, la plus proche de ses workers ; présente pour WAITING.
+        workers:
           type: array
           description: >
-            Identifiants Vinted des annonces de la dernière tournée, relancées ensemble (US-15), dans l'ordre de la
-            série, tant que la série tourne ; une seule avec le parallélisme par défaut, vide hors série.
+            Workers de la série (US-46) : un seul ALL_ACTIONS en mode séquentiel ; REPUBLICATION, DELETION et
+            VERIFICATION, dans cet ordre, en mode workers. Vide quand aucune série n'a tourné depuis le démarrage.
           items:
-            type: integer
-            format: int64
+            $ref: '#/components/schemas/RunWorker'
         relaunchCount:
           type: integer
           format: int32
@@ -1652,19 +1652,71 @@ components:
           $ref: '#/components/schemas/RunStopReason'
         pauseRequested:
           type: boolean
-          description: Pause demandée, effective à la fin de la relance en cours.
+          description: Pause demandée, effective quand plus aucun worker ne relance.
         stopRequested:
           type: boolean
-          description: Arrêt demandé, effectif à la fin de la relance en cours.
+          description: Arrêt demandé, effectif quand chaque worker a fini sa relance en cours.
       example:
-        status: WAITING
+        status: RUNNING
         startedAt: '2026-11-17T10:00:00Z'
-        waitingUntil: '2026-11-17T10:05:00Z'
-        currentListingIds: [10208799832]
+        workers:
+          - kind: REPUBLICATION
+            state: WORKING
+            listingId: 10208799832
+            action: REPUBLICATION
+            relaunchCount: 2
+          - kind: DELETION
+            state: WAITING
+            waitingUntil: '2026-11-17T10:05:00Z'
+            waitingReason: CADENCE
+            relaunchCount: 1
+          - kind: VERIFICATION
+            state: IDLE
+            relaunchCount: 0
         relaunchCount: 3
         skippedListingIds: []
         pauseRequested: false
         stopRequested: false
+    RunWorkerKind:
+      type: string
+      description: >
+        Étapes que prend le worker : toutes (mode séquentiel), republication (à republier, en attente), suppression
+        (suppression à vérifier, prête à supprimer), vérification (republication à vérifier, puis suppression à
+        vérifier).
+      enum: [ALL_ACTIONS, REPUBLICATION, DELETION, VERIFICATION]
+    RunWorkerState:
+      type: string
+      description: En relance, en attente d'une date, sans rien à faire, hors série (en pause ou série finie).
+      enum: [WORKING, WAITING, IDLE, STOPPED]
+    RunWaitingReason:
+      type: string
+      description: Cadence du type d'écriture, délai de republication, navigateur occupé.
+      enum: [CADENCE, REPUBLICATION_DELAY, BROWSER_BUSY]
+    RunWorker:
+      type: object
+      required: [kind, state, relaunchCount]
+      properties:
+        kind:
+          $ref: '#/components/schemas/RunWorkerKind'
+        state:
+          $ref: '#/components/schemas/RunWorkerState'
+        listingId:
+          type: integer
+          format: int64
+          description: Annonce en cours de relance ; présente pour WORKING.
+        action:
+          $ref: '#/components/schemas/RelaunchAction'
+        waitingUntil:
+          type: string
+          format: date-time
+          description: Fin de l'attente ; présente pour WAITING.
+        waitingReason:
+          $ref: '#/components/schemas/RunWaitingReason'
+        relaunchCount:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Relances faites par ce worker.
     RelaunchRequest:
       type: object
       required: [stage]

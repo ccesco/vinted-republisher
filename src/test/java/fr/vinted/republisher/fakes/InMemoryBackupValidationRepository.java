@@ -14,17 +14,17 @@ public class InMemoryBackupValidationRepository implements BackupValidationRepos
     private final Map<VintedListingId, BackupValidation> validations = new LinkedHashMap<>();
 
     @Override
-    public Optional<BackupValidation> find(VintedListingId listing) {
+    public synchronized Optional<BackupValidation> find(VintedListingId listing) {
         return Optional.ofNullable(validations.get(listing));
     }
 
     @Override
-    public List<BackupValidation> findAll() {
+    public synchronized List<BackupValidation> findAll() {
         return List.copyOf(validations.values());
     }
 
     @Override
-    public void save(BackupValidation validation) {
+    public synchronized void save(BackupValidation validation) {
         validations.put(validation.listingId(), validation);
     }
 

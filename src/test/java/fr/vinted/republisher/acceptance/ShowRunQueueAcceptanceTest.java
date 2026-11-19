@@ -12,6 +12,10 @@ import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.run.AutomaticRun;
+import fr.vinted.republisher.domain.run.ParallelismMode;
+import fr.vinted.republisher.domain.run.RunWaitingReason;
+import fr.vinted.republisher.domain.run.RunWorker;
+import fr.vinted.republisher.domain.run.RunWorkerKind;
 import fr.vinted.republisher.domain.run.QueuedAction;
 import fr.vinted.republisher.domain.run.RunQueue;
 import fr.vinted.republisher.domain.run.WriteModes;
@@ -145,7 +149,7 @@ class ShowRunQueueAcceptanceTest {
     @Test
     void listings_set_aside_by_the_current_run_are_left_out() {
         // Étant donné une série en cours qui a écarté l'annonce 1
-        run = AutomaticRun.startedAt(NOW.minusSeconds(60)).skipping(new VintedListingId(1));
+        run = AutomaticRun.startedAt(NOW.minusSeconds(60), ParallelismMode.SEQUENTIAL.workerKinds()).skipping(new VintedListingId(1));
         // Et les annonces 1 et 2 « Prêtes à supprimer »
         aValidatedListing(1);
         aValidatedListing(2);
@@ -159,7 +163,8 @@ class ShowRunQueueAcceptanceTest {
     @Test
     void listings_the_run_is_relaunching_are_left_out() {
         // Étant donné une série en train de relancer l'annonce 1, et les annonces 1 et 2 « Prêtes à supprimer »
-        run = AutomaticRun.startedAt(NOW.minusSeconds(60)).relaunching(List.of(new VintedListingId(1)));
+        run = AutomaticRun.startedAt(NOW.minusSeconds(60), ParallelismMode.WORKERS.workerKinds())
+                .withWorker(RunWorker.idle(RunWorkerKind.DELETION).working(new VintedListingId(1), RelaunchAction.DELETION));
         aValidatedListing(1);
         aValidatedListing(2);
         // Quand le membre affiche la file d'attente
@@ -170,9 +175,9 @@ class ShowRunQueueAcceptanceTest {
     }
 
     @Test
-    void listings_of_the_last_round_are_back_while_the_run_waits() {
-        run = AutomaticRun.startedAt(NOW.minusSeconds(60)).relaunching(List.of(new VintedListingId(1)))
-                .waitingUntil(NOW.plusSeconds(30));
+    void listings_are_back_once_their_worker_waits() {
+        run = AutomaticRun.startedAt(NOW.minusSeconds(60), ParallelismMode.WORKERS.workerKinds())
+                .withWorker(RunWorker.idle(RunWorkerKind.DELETION).waiting(NOW.plusSeconds(30), RunWaitingReason.CADENCE));
         aValidatedListing(1);
 
         List<QueuedAction> actions = showRunQueue(new WriteModes(DeletionMode.DRY_RUN, RepublicationMode.DRY_RUN))
@@ -183,7 +188,7 @@ class ShowRunQueueAcceptanceTest {
 
     @Test
     void listings_set_aside_by_an_ended_run_are_back() {
-        run = AutomaticRun.startedAt(NOW.minusSeconds(60)).skipping(new VintedListingId(1)).finishedAt(NOW);
+        run = AutomaticRun.startedAt(NOW.minusSeconds(60), ParallelismMode.SEQUENTIAL.workerKinds()).skipping(new VintedListingId(1)).finishedAt(NOW);
         aValidatedListing(1);
 
         List<QueuedAction> actions = showRunQueue(new WriteModes(DeletionMode.DRY_RUN, RepublicationMode.DRY_RUN))

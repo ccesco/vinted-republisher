@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.session;
 
+import fr.vinted.republisher.domain.run.ParallelismMode;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,17 @@ class VintedSessionTest {
             twoAtOnce.finish(ROBE);
             assertThat(twoAtOnce.start(DELETING, JUPE)).isTrue();
             assertThat(twoAtOnce.overview().currentAction()).contains(REPUBLISHING);
+        }
+
+        @Test
+        void admits_three_listing_actions_with_workers() {
+            // AT-46-11
+            VintedSession withWorkers = new VintedSession(ParallelismMode.WORKERS.listingActions());
+            withWorkers.start(REPUBLISHING, ROBE);
+            withWorkers.start(DELETING, PULL);
+
+            assertThat(withWorkers.start(DELETING, JUPE)).isTrue();
+            assertThat(withWorkers.start(DELETING, new VintedListingId(4))).isFalse();
         }
 
         @Test

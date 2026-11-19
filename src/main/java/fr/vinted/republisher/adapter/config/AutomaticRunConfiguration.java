@@ -26,14 +26,14 @@ import java.util.concurrent.Executors;
 class AutomaticRunConfiguration {
 
     // The run waits minutes, even hours: it goes on in the background, like scans and backups.
-    // The relaunches of a round (US-15) get threads of their own: the run's thread waits for them.
+    // Workers (US-46) get threads of their own: the run's thread waits for them.
     @Bean
     LaunchAutomaticRun launchAutomaticRun(ShowListingInventory showListingInventory, RelaunchListing relaunchListing,
                                           Clock clock, @Qualifier("applicationTaskExecutor") Executor background,
                                           ParallelismMode parallelism, RelaunchThreads relaunchThreads) {
         return new LaunchAutomaticRun(showListingInventory, relaunchListing,
                 new SleepingRunWaiting(clock, Duration.ofSeconds(1)), clock, new FailureLoggingExecutor(background),
-                parallelism.listingActions(), relaunchThreads.threads);
+                parallelism, relaunchThreads.threads);
     }
 
     @Bean

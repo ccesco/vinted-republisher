@@ -9,7 +9,7 @@ import java.time.ZoneOffset;
 /** Time moves only when a test says so, or by a step each time it is read. */
 public class AdjustableClock extends Clock {
 
-    private Instant now;
+    private volatile Instant now;
     private Duration step = Duration.ZERO;
 
     public AdjustableClock(Instant now) {

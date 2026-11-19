@@ -4,7 +4,8 @@ import { OncePerPeriod, runChanged } from './wardrobe-follow';
 
 function aRun(relaunchCount: number): AutomaticRunOverview {
   return {
-    status: 'RUNNING', startedAt: '2026-11-17T10:00:00Z', currentListingIds: [1], relaunchCount,
+    status: 'RUNNING', startedAt: '2026-11-17T10:00:00Z', relaunchCount,
+    workers: [{ kind: 'ALL_ACTIONS', state: 'WORKING', listingId: 1, action: 'DELETION', relaunchCount }],
     skippedListingIds: [], pauseRequested: false, stopRequested: false
   };
 }

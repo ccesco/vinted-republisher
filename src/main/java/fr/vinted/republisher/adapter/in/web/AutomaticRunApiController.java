@@ -7,11 +7,16 @@ import fr.vinted.republisher.adapter.in.web.api.model.RelaunchActionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RunQueueDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RunStatusDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RunStopReasonDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RunWaitingReasonDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RunWorkerDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RunWorkerKindDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RunWorkerStateDto;
 import fr.vinted.republisher.application.run.LaunchAutomaticRun;
 import fr.vinted.republisher.application.run.ShowRunQueue;
 import fr.vinted.republisher.domain.run.AutomaticRun;
 import fr.vinted.republisher.domain.run.QueuedAction;
 import fr.vinted.republisher.domain.run.RunQueue;
+import fr.vinted.republisher.domain.run.RunWorker;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -84,12 +89,24 @@ public class AutomaticRunApiController implements AutomaticRunApi {
                 .startedAt(run.startedAt().map(AutomaticRunApiController::utc).orElse(null))
                 .endedAt(run.endedAt().map(AutomaticRunApiController::utc).orElse(null))
                 .waitingUntil(run.waitingUntil().map(AutomaticRunApiController::utc).orElse(null))
-                .currentListingIds(run.currentListings().stream().map(VintedListingId::value).toList())
+                .workers(run.workers().stream().map(AutomaticRunApiController::toDto).toList())
                 .relaunchCount(run.relaunchCount())
                 .skippedListingIds(run.skippedListings().stream().map(VintedListingId::value).toList())
                 .stopReason(run.stopReason().map(reason -> RunStopReasonDto.valueOf(reason.name())).orElse(null))
                 .pauseRequested(run.pauseRequested())
                 .stopRequested(run.stopRequested());
+    }
+
+    private static RunWorkerDto toDto(RunWorker worker) {
+        return new RunWorkerDto()
+                .kind(RunWorkerKindDto.valueOf(worker.kind().name()))
+                .state(RunWorkerStateDto.valueOf(worker.state().name()))
+                .listingId(worker.listing().map(VintedListingId::value).orElse(null))
+                .action(worker.action().map(action -> RelaunchActionDto.valueOf(action.name())).orElse(null))
+                .waitingUntil(worker.waitingUntil().map(AutomaticRunApiController::utc).orElse(null))
+                .waitingReason(worker.waitingReason().map(reason -> RunWaitingReasonDto.valueOf(reason.name()))
+                        .orElse(null))
+                .relaunchCount(worker.relaunchCount());
     }
 
     private static OffsetDateTime utc(Instant instant) {

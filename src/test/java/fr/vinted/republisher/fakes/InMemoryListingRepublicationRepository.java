@@ -21,29 +21,29 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
     private int savesBeforeTheDatabaseGoesDown = Integer.MAX_VALUE;
     private int notPublishedCountReads;
 
-    public InMemoryListingRepublicationRepository whereDatabaseIsDown() {
+    public synchronized InMemoryListingRepublicationRepository whereDatabaseIsDown() {
         savesBeforeTheDatabaseGoesDown = 0;
         return this;
     }
 
-    public List<ListingRepublication> findAll() {
+    public synchronized List<ListingRepublication> findAll() {
         return List.copyOf(republications.values());
     }
 
     @Override
-    public List<ListingRepublication> findAllLatest() {
+    public synchronized List<ListingRepublication> findAllLatest() {
         return republications.values().stream().map(ListingRepublication::listingId).distinct()
                 .map(listing -> findLatest(listing).orElseThrow()).toList();
     }
 
     @Override
-    public Optional<ListingRepublication> findLatest(VintedListingId listing) {
+    public synchronized Optional<ListingRepublication> findLatest(VintedListingId listing) {
         return republications.values().stream().filter(republication -> republication.listingId().equals(listing))
                 .max(Comparator.comparing(ListingRepublication::attemptedAt));
     }
 
     @Override
-    public Map<VintedListingId, Integer> findNotPublishedCounts() {
+    public synchronized Map<VintedListingId, Integer> findNotPublishedCounts() {
         notPublishedCountReads++;
         return republications.values().stream()
                 .filter(republication -> republication.outcome() == RepublicationOutcome.NOT_PUBLISHED)
@@ -51,32 +51,32 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
                         Collectors.collectingAndThen(Collectors.counting(), Long::intValue)));
     }
 
-    public int notPublishedCountReads() {
+    public synchronized int notPublishedCountReads() {
         return notPublishedCountReads;
     }
 
     @Override
-    public Set<VintedListingId> findNewListings() {
+    public synchronized Set<VintedListingId> findNewListings() {
         return republications.values().stream().flatMap(republication -> republication.newListingId().stream())
                 .collect(Collectors.toUnmodifiableSet());
     }
 
     @Override
-    public List<Instant> findAttemptedSince(Instant since) {
+    public synchronized List<Instant> findAttemptedSince(Instant since) {
         return republications.values().stream().map(ListingRepublication::attemptedAt)
                 .filter(attempted -> attempted.isAfter(since))
                 .toList();
     }
 
     @Override
-    public Optional<ListingRepublication> findPublishedAs(VintedListingId newListing) {
+    public synchronized Optional<ListingRepublication> findPublishedAs(VintedListingId newListing) {
         return republications.values().stream()
                 .filter(republication -> republication.newListingId().filter(newListing::equals).isPresent())
                 .findFirst();
     }
 
     @Override
-    public void save(ListingRepublication republication) {
+    public synchronized void save(ListingRepublication republication) {
         if (savesBeforeTheDatabaseGoesDown == 0) {
             throw new IllegalStateException("database down");
         }
