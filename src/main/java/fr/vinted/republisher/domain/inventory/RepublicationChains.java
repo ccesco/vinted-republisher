@@ -16,9 +16,14 @@ final class RepublicationChains {
 
     private final Map<VintedListingId, VintedListingId> next = new HashMap<>();
     private final Map<VintedListingId, VintedListingId> previous = new HashMap<>();
+    private final Map<VintedListingId, Integer> notPublished;
 
-    /** {@code latest} is the last attempt of every listing: a republished listing is never attempted again. */
-    RepublicationChains(List<ListingRepublication> latest) {
+    /**
+     * {@code latest} is the last attempt of every listing (a republished listing is never attempted again),
+     * {@code notPublished} the number of attempts found not published, per listing.
+     */
+    RepublicationChains(List<ListingRepublication> latest, Map<VintedListingId, Integer> notPublished) {
+        this.notPublished = Map.copyOf(notPublished);
         latest.stream().filter(republication -> republication.outcome() == RepublicationOutcome.PUBLISHED)
                 .forEach(republication -> {
                     VintedListingId newListing = republication.newListingId().orElseThrow();
@@ -28,7 +33,7 @@ final class RepublicationChains {
     }
 
     /** Over the whole chain of {@code listing}: its published republications and attempts found not published. */
-    RepublicationTally tallyOf(VintedListingId listing, Map<VintedListingId, Integer> notPublished) {
+    RepublicationTally tallyOf(VintedListingId listing) {
         Set<VintedListingId> chain = chainOf(listing);
         return new RepublicationTally((int) chain.stream().filter(next::containsKey).count(),
                 chain.stream().mapToInt(member -> notPublished.getOrDefault(member, 0)).sum());

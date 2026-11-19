@@ -155,6 +155,7 @@
         <th scope="col">Validation</th>
         <th scope="col">Étape</th>
         <th scope="col">Republication</th>
+        <th scope="col">Republications</th>
         <th scope="col">Action</th>
         <th scope="col">Tags</th>
         <th scope="col"><input id="select-all" type="checkbox" aria-label="Sélectionner toutes les annonces affichées"
@@ -186,6 +187,7 @@
                 <a [href]="republication.newListingUrl" target="_blank" rel="noopener noreferrer">nouvelle annonce</a>
               }
             </td>
+            <td>{{ republicationTallyTextOf(row.listing) }}</td>
             <td>
               @if (relaunchableStages.includes(row.listing.stage)) {
                 <button matButton="outlined" type="button" [disabled]="row.relaunching" (click)="relaunch(row)">Relancer</button>

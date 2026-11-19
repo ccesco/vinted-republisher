@@ -293,9 +293,21 @@ class ShowListingInventoryAcceptanceTest {
         List<InventoryEntry> entries = showListingInventory.show(staged(PresenceFilter.ALL, Optional.empty()));
 
         // Alors A, B et C portent chacune 2 republications réussies et 2 en échec
-        assertThat(entries).extracting(InventoryEntry::republicationTally)
-                .containsExactly(new RepublicationTally(2, 2), new RepublicationTally(2, 2),
-                        new RepublicationTally(2, 2));
+        assertThat(List.of(101L, 201L, 301L)).allSatisfy(id ->
+                assertThat(entryOf(entries, id).republicationTally()).isEqualTo(new RepublicationTally(2, 2)));
+    }
+
+    @Test
+    void a_listing_of_the_chain_left_out_by_the_filters_still_counts() {
+        // Étant donné A (absente), constatée non publiée puis republiée en B (présente)
+        listings.saveAll(List.of(present(101, "a", "1").absent(), present(201, "a", "1")));
+        republications.save(notPublished(101, ATTEMPTED_AT));
+        republications.save(published(101, 201, ATTEMPTED_AT.plusSeconds(600)));
+
+        // Quand le membre demande les annonces présentes
+        // Alors B, seule affichée, porte aussi la tentative non publiée de A
+        assertThat(showListingInventory.show(InventoryCriteria.defaults())).singleElement()
+                .satisfies(entry -> assertThat(entry.republicationTally()).isEqualTo(new RepublicationTally(1, 1)));
     }
 
     /** AT-44-03 */

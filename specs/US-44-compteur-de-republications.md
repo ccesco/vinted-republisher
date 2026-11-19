@@ -1,5 +1,5 @@
 # US-44 – Compteur de republications dans la liste
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-12 et US-13 (republication, vérification), US-18 (liste des annonces), US-24 et US-32 (chaîne de republications), US-38 (colonne « Republication »)
 
@@ -27,12 +27,12 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - `Listing.republicationTally` : toujours rendu par la liste (zéros compris), absent de la fiche et de la relance, comme `tags`.
 
 ## Critères d'acceptation
-- [ ] Une annonce sans aucune republication a un compteur à zéro réussie, zéro échec (AT-44-01).
-- [ ] Le compteur couvre toute la chaîne : chaque annonce de l'article porte le même nombre de réussies et d'échecs (AT-44-02).
-- [ ] Seules les tentatives non publiées comptent comme échecs ; une tentative en erreur à vérifier n'est pas comptée (AT-44-03).
-- [ ] L'API rend `republicationTally` dans chaque `Listing` de la liste (AT-44-04).
-- [ ] La colonne « Republications » affiche les nombres, singulier ou pluriel, vide sans republication (AT-44-05).
-- [ ] La liste reste lue en un nombre de requêtes indépendant du nombre d'annonces (AT-44-06).
+- [x] Une annonce sans aucune republication a un compteur à zéro réussie, zéro échec (AT-44-01).
+- [x] Le compteur couvre toute la chaîne : chaque annonce de l'article porte le même nombre de réussies et d'échecs (AT-44-02).
+- [x] Seules les tentatives non publiées comptent comme échecs ; une tentative en erreur à vérifier n'est pas comptée (AT-44-03).
+- [x] L'API rend `republicationTally` dans chaque `Listing` de la liste (AT-44-04).
+- [x] La colonne « Republications » affiche les nombres, singulier ou pluriel, vide sans republication (AT-44-05).
+- [x] La liste reste lue en un nombre de requêtes indépendant du nombre d'annonces (AT-44-06).
 
 ## Tests d'acceptation
 ### AT-44-01 – Annonce jamais republiée
@@ -91,7 +91,7 @@ Test : `ShowListingInventoryAcceptanceTest.reads_not_published_attempts_once_wha
 ## Cas limites et erreurs
 - Chaîne qui bouclerait (impossible : identifiant Vinted jamais réutilisé) : parcours arrêté sur une annonce déjà vue.
 - Annonce de la chaîne inconnue de l'outil : ses tentatives comptent quand même (elles sont en base, reliées par identifiant).
-- Filtres de la liste (présence, étape, tags) : le compteur est calculé sur toute la chaîne, même si d'autres annonces de l'article sont filtrées.
+- Filtres de la liste (présence, étape, tags) : le compteur est calculé sur toute la chaîne, même si d'autres annonces de l'article sont filtrées (`ShowListingInventoryAcceptanceTest.a_listing_of_the_chain_left_out_by_the_filters_still_counts()`).
 
 ## Hors périmètre
 - Compteur sur la fiche d'une annonce (la chronologie d'US-32 montre déjà les republications).

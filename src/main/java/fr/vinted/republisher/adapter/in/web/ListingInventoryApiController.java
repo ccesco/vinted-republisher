@@ -20,6 +20,7 @@ import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
+import fr.vinted.republisher.domain.inventory.RepublicationTally;
 import fr.vinted.republisher.domain.inventory.SortDirection;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -53,10 +54,12 @@ public class ListingInventoryApiController implements ListingInventoryApi {
                 .map(entry -> toDto(entry).tags(entry.tags().stream().map(Tag::name).toList())
                         .republication(entry.republication().map(republication ->
                                 ListingBackupApiController.toDto(republication, entry.newListing())).orElse(null))
-                        .republicationTally(new RepublicationTallyDto()
-                                .published(entry.republicationTally().published())
-                                .notPublished(entry.republicationTally().notPublished())))
+                        .republicationTally(toDto(entry.republicationTally())))
                 .toList()));
+    }
+
+    private static RepublicationTallyDto toDto(RepublicationTally tally) {
+        return new RepublicationTallyDto().published(tally.published()).notPublished(tally.notPublished());
     }
 
     /** A blank tag means no tag filter. */

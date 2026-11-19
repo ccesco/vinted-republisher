@@ -104,9 +104,9 @@ public record ListingInventory(List<InventoryEntry> entries) {
      */
     public ListingInventory withRepublicationTallies(List<ListingRepublication> latest,
                                                      Map<VintedListingId, Integer> notPublished) {
-        RepublicationChains chains = new RepublicationChains(latest);
+        RepublicationChains chains = new RepublicationChains(latest, notPublished);
         return new ListingInventory(entries.stream()
-                .map(entry -> entry.withRepublicationTally(chains.tallyOf(entry.listing().id(), notPublished)))
+                .map(entry -> entry.withRepublicationTally(chains.tallyOf(entry.listing().id())))
                 .toList());
     }
 
