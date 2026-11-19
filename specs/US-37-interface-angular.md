@@ -19,7 +19,7 @@ En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afi
    - **Aperçu live** (`#/live-preview`) : reprend `live-preview.html` (US-22, fusionnée pendant cette US).
    - **Session Vinted** (`#/vinted-session`) : reprend `vinted-session.html`.
 3. En haut de chaque écran, une puce donne l'état de la session Vinted.
-4. Le Dressing affiche en tête des chiffres clés **calculés à partir des données déjà renvoyées par l'API**, sur les annonces affichées (ils suivent donc les filtres et la recherche) : nombre d'annonces présentes, nombre de sauvegardes validées sur le total, total des vues, total des favoris. Pas de tendance ni de courbe (aucune donnée d'historique agrégée dans l'API).
+4. Le Dressing affiche en tête des chiffres clés **calculés à partir des données déjà renvoyées par l'API**, sur **toutes les annonces présentes du dressing**, quels que soient les filtres et la recherche de la liste : nombre d'annonces présentes, nombre de sauvegardes validées sur le total, total des vues, total des favoris. Quand la liste n'est pas filtrée (sauvegarde « Toutes », ni recherche, ni tag, ni étape, présence autre que « Absentes »), ils se calculent sur la liste affichée ; sinon, à chaque relecture périodique de la liste (pendant un scan, une sauvegarde, un rafraîchissement, une série ou une vérification, voir US-42), l'écran relit aussi `GET /api/listings` sans critère (annonces présentes) pour les calculer ; changer un filtre ne les relit pas (l'écran s'ouvre non filtré, ses chiffres restent ceux de la dernière lecture). Si cette lecture échoue, les derniers chiffres restent affichés, sans message. Pas de tendance ni de courbe (aucune donnée d'historique agrégée dans l'API).
 5. Les actions irréversibles sur Vinted (suppression, republication) gardent leur confirmation explicite, sous forme de boîte de dialogue.
 6. Le thème suit le réglage clair ou sombre du système ; un bouton permet de basculer, le choix est retenu dans le navigateur.
 7. Les textes de l'interface sont en français.
@@ -30,6 +30,7 @@ En tant qu'utilisateur, je veux une interface plus agréable et plus claire, afi
 - [x] L'interface n'appelle que l'API du contrat et ne charge aucune ressource hors de l'application (polices et icônes embarquées).
 - [x] Les appels à l'API passent par le client généré depuis le contrat OpenAPI : un écart au contrat ne compile pas.
 - [x] Les chiffres clés du Dressing correspondent aux annonces renvoyées par l'API.
+- [x] Les chiffres clés portent sur tout le dressing et ne suivent pas les filtres de la liste.
 - [x] Le thème suit le système et peut être basculé.
 - [x] Aucun défilement horizontal de la page à 375 px de large.
 - [x] Back et interface se lancent séparément ; `mvn test` ne demande ni Node ni Chrome, l'interface se teste avec `npm test` et ses pages avec `mvn test -Pbrowser` une fois construite.
@@ -90,6 +91,25 @@ Et la barre de navigation reste utilisable
 ```
 Test : `WardrobePageTest.showsAnErrorWhenListingsCannotBeLoaded()`
 
+### AT-37-07 – Chiffres clés indépendants des filtres
+```gherkin
+Étant donné que le dressing compte 3 annonces présentes, dont 2 avec une sauvegarde validée, totalisant 120 vues et 9 favoris
+Et que la recherche « pull » ne renvoie qu'une de ces annonces
+Quand j'ouvre le Dressing et que je cherche « pull »
+Alors la liste n'affiche qu'une annonce
+Et je vois toujours « 3 » annonces en ligne, « 2 / 3 » sauvegardes validées, « 120 » vues et « 9 » favoris
+```
+Test : `WardrobePageTest.keepsKeyFiguresOfTheWholeWardrobeWhenTheListIsFiltered()`
+
+### AT-37-08 – Chiffres clés relus pendant un suivi, liste filtrée
+```gherkin
+Étant donné un scan en cours et une recherche « pull » qui ne renvoie qu'une annonce
+Quand le scan trouve 4 annonces présentes et qu'une période de suivi passe
+Alors la page relit tout le dressing, sans critère, et je vois « 4 » annonces en ligne
+Et la liste n'affiche toujours qu'une annonce
+```
+Test : `WardrobePageTest.readsKeyFiguresOfTheWholeWardrobeAtEachFollowUpWhenTheListIsFiltered()`
+
 ## Cas limites et erreurs
 - API injoignable ou en erreur : l'écran affiche l'erreur renvoyée sans perdre ce qui était affiché.
 - Lien direct vers une fiche (`#/listings/{listingId}`) d'une annonce inconnue, sans identifiant ou à l'identifiant invalide : message « Annonce inconnue. » (celui de l'ancienne fiche) et lien « Retour à la liste ».
@@ -112,6 +132,8 @@ Prises par délégation de l'utilisateur (« fais comme tu veux »), confirmées
 - **Polices et icônes embarquées** via npm (`@fontsource/roboto` 5.3.0, `material-symbols` 0.49.0). Raison : aucun appel hors de l'application, fonctionne hors ligne.
 - **Nouvelles dépendances** (accord requis par `CLAUDE.md`, donné en validant cette spec) : npm `@angular/*` (`core`, `common`, `compiler`, `platform-browser`, `router`), `@angular/material`, `@angular/cdk`, `rxjs` et `tslib` (requis par Angular), `@fontsource/roboto`, `material-symbols`, et en développement `@angular/cli`, `@angular/build`, `@angular/compiler-cli`, `typescript`, `vitest`.
 
+- **Chiffres clés sur tout le dressing** (décision de l'utilisateur le 19/11/2026, remplace « suivent les filtres ») : les quatre chiffres portent sur toutes les annonces présentes, lus par un second appel à `GET /api/listings` sans critère quand la liste est filtrée. Raison : « En ligne » doit toujours donner le nombre d'annonces en ligne ; les quatre ensemble pour que « validées / en ligne » reste cohérent ; contrat d'API inchangé.
+
 ## Questions ouvertes
 - Aucune.
 
@@ -119,6 +141,6 @@ Prises par délégation de l'utilisateur (« fais comme tu veux »), confirmées
 - Aucun terme métier nouveau : refonte de l'adapter d'entrée web côté navigateur. Les noms des composants et services Angular reprennent les termes du glossaire (`Wardrobe`, `Listing`, `ActionJournal`, `Sale`, `VintedSession`, `AutomaticRun`…).
 
 ## Tests unitaires et d'intégration attendus
-- Front (Vitest) : calcul des chiffres clés à partir d'une liste d'annonces ; construction des critères de filtre et de tri envoyés à l'API ; bascule et mémorisation du thème.
+- Front (Vitest) : calcul des chiffres clés à partir d'une liste d'annonces, et reconnaissance d'une liste qui couvre tout le dressing ; construction des critères de filtre et de tri envoyés à l'API ; bascule et mémorisation du thème.
 - Adapter web (Playwright, `@Tag("browser")`) : tests de pages existants adaptés, plus `NavigationPageTest`.
 - Architecture : les règles ArchUnit restent inchangées (aucun code Java nouveau hors suppression des pages).

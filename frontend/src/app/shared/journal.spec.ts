@@ -48,7 +48,29 @@ describe('cause of a failure', () => {
     expect(causeOf(anEntry('REFUSED', 'NEW_CODE'))).toBe('NEW_CODE');
   });
 
-  it('says the republication was not done when the member validated it not published', () => {
-    expect(causeOf({ ...anEntry('NOT_DONE'), action: 'REPUBLICATION_VERIFICATION' })).toBe('republication non faite');
+});
+
+describe('proof of a republication (US-44)', () => {
+  it('names the verification and the validation of a republication, highlighting a doubt or a refusal', () => {
+    const verification = journalLineOf(entry({ action: 'REPUBLICATION_VERIFICATION', outcome: 'IN_DOUBT' }));
+    const validation = journalLineOf(entry({
+      action: 'REPUBLICATION_VALIDATION', outcome: 'REFUSED', reason: 'NEW_LISTING_LINK_INVALID'
+    }));
+
+    expect(verification.action).toBe('Vérification de la republication');
+    expect(verification.highlighted).toBe(true);
+    expect(validation.action).toBe('Validation de la republication');
+    expect(validation.reason).toBe('lien de la nouvelle annonce invalide');
+    expect(validation.highlighted).toBe(true);
+  });
+
+  it('gives its refusals in plain words', () => {
+    expect(journalLineOf(entry({ reason: 'NO_REPUBLICATION_TO_VERIFY' })).reason).toBe('aucune republication à vérifier');
+    expect(journalLineOf(entry({ reason: 'NEW_LISTING_MISMATCH' })).reason)
+      .toBe('nouvelle annonce différente de la sauvegarde');
+  });
+
+  it('says the republication was not done for a validation « non publiée »', () => {
+    expect(causeOf({ ...anEntry('NOT_DONE'), action: 'REPUBLICATION_VALIDATION' })).toBe('republication non faite');
   });
 });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Listing } from '../../generated/api';
-import { keyFiguresOf } from './key-figures';
+import { coversWholeWardrobe, keyFiguresOf } from './key-figures';
 
 function aListing(changes: Partial<Listing>): Listing {
   return {
@@ -28,5 +28,21 @@ describe('key figures', () => {
     const listings = [aListing({ present: false, validatedAt: '2026-11-10T10:00:00Z', ...readOf(50, 2) })];
 
     expect(keyFiguresOf(listings)).toEqual({ online: 0, validated: 0, views: 0, favourites: 0 });
+  });
+});
+
+describe('a list covering the whole wardrobe', () => {
+  it('is one without criteria, whatever its order, with present or all listings', () => {
+    expect(coversWholeWardrobe({})).toBe(true);
+    expect(coversWholeWardrobe({ presence: 'PRESENT', backup: 'ALL', sort: 'RECENCY', direction: 'DESC' })).toBe(true);
+    expect(coversWholeWardrobe({ presence: 'ALL', backup: 'ALL', sort: 'VIEWS', direction: 'ASC' })).toBe(true);
+  });
+
+  it('is not one filtered by presence, backup, search, tag or stage', () => {
+    expect(coversWholeWardrobe({ presence: 'ABSENT' })).toBe(false);
+    expect(coversWholeWardrobe({ backup: 'VALIDATED' })).toBe(false);
+    expect(coversWholeWardrobe({ search: 'pull' })).toBe(false);
+    expect(coversWholeWardrobe({ tag: 'hiver' })).toBe(false);
+    expect(coversWholeWardrobe({ stage: 'TO_DELETE' })).toBe(false);
   });
 });

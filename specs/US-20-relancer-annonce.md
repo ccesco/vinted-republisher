@@ -26,7 +26,7 @@ En tant que membre, je veux relancer une annonce depuis la liste, afin qu'elle p
 3. **Sauvegarde concernée** : la suppression et la republication portent sur la sauvegarde actuelle de l'annonce. La validation (US-08) ne vaut que pour la sauvegarde actuelle : une sauvegarde remplacée fait retomber l'annonce en `TO_VALIDATE`, qui ne se relance pas.
 4. **Étape vue** : la demande porte l'étape que le membre a vue. Étape différente au moment de la demande → refus, rien n'est lancé ; la liste affiche la nouvelle étape.
 5. **Synchrone** : la réponse arrive une fois l'action finie, avec l'action lancée, si c'était un dry-run, et l'annonce relue (nouvelle étape).
-6. **Liste** (`wardrobe.html`) : bouton « Relancer » sur la ligne des seules annonces dont l'étape se relance. Pendant l'action, le bouton est désactivé. Ensuite, la ligne affiche la nouvelle étape et un message court :
+6. **Liste** (`wardrobe.html`) : bouton de relance sur la ligne des seules annonces dont l'étape se relance ; son libellé dit l'action qu'il lancera : « Supprimer de Vinted » (`TO_DELETE`), « Revérifier la suppression » (`DELETION_TO_CHECK`), « Republier sur Vinted » (`TO_REPUBLISH`), « Vérifier la republication » (`REPUBLICATION_TO_CHECK`). Pendant l'action, le bouton est désactivé. Ensuite, la ligne affiche la nouvelle étape et un message court :
    - action faite : « <action> faite » (ex. « Suppression faite ») ; dry-run : « Dry-run réussi, rien n'a été modifié sur Vinted » ;
    - annonce en attente : « Republication possible à partir du <date> » ; étape changée : la ligne prend l'étape actuelle, d'où repartira le prochain clic ;
    - refus : sa raison (« limite de cadence atteinte (à partir du <date>) », navigateur occupé, étape changée, « Relance refusée : voir la fiche » avec le lien de la fiche) ; le bouton reste proposé ;
@@ -55,7 +55,7 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - [x] Le dry-run, la cadence, le verrou et le journal s'appliquent comme depuis la fiche.
 - [x] Les refus et échecs des cas d'usage sont rendus selon le contrat.
 - [x] La réponse donne l'action, le dry-run et l'annonce relue.
-- [x] La liste montre « Relancer » sur les seules étapes qui se relancent, puis la nouvelle étape et le message.
+- [x] La liste montre le bouton de relance, libellé par son action, sur les seules étapes qui se relancent, puis la nouvelle étape et le message.
 
 ## Tests d'acceptation
 
@@ -159,7 +159,7 @@ Test : `ListingRelaunchApiControllerTest`
 ```gherkin
 Étant donné une liste avec une annonce « Prête à supprimer » et une annonce « À valider »
 Quand le membre l'affiche
-Alors seule la première a un bouton « Relancer »
+Alors seule la première a un bouton « Supprimer de Vinted »
 Quand il clique dessus
 Alors le bouton est désactivé pendant l'action, puis la ligne montre la nouvelle étape et « Suppression faite »
 ```
@@ -195,6 +195,7 @@ Test : `WardrobePageTest.shows_a_cadence_refusal_with_its_date()`, `WardrobePage
   - bouton dans la liste seulement ; la fiche garde ses boutons ;
   - un refus du cas d'usage est rendu `ACTION_REFUSED` sans recopier sa raison : le détail est sur la fiche et dans le journal, ce qui évite de dupliquer tous les schémas de refus ;
   - pages, formulaire ou nouvelle annonce illisibles regroupés en `VINTED_PAGE_UNREADABLE` (502).
+- Libellé du bouton, demandé par l'utilisateur (2026-11-19) : « Relancer » ne disait pas assez ce qui allait se passer ; le bouton porte l'action déduite de l'étape (tableau du comportement 1).
 
 ## Questions ouvertes
 - Aucune.

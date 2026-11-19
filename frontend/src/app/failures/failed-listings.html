@@ -34,9 +34,9 @@
                 <td>{{ causeOf(failed.failure) }}</td>
                 <td>{{ dateOf(failed.failure.occurredAt) }}</td>
                 <td>
-                  @if (relaunchableStages.includes(failed.stage)) {
+                  @if (relaunchLabels[failed.stage]; as label) {
                     <button matButton="outlined" type="button" [disabled]="relaunching() !== null"
-                            (click)="relaunch(failed)">Relancer</button>
+                            (click)="relaunch(failed)">{{ label }}</button>
                   }
                   @if (manuallyRepublishable(failed)) {
                     <button matButton="outlined" type="button" [disabled]="relaunching() !== null"

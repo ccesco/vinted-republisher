@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Stream;
 
@@ -258,6 +259,65 @@ class ListingInventoryTest {
                 InventorySort.RECENCY, SortDirection.DESC, Optional.of(new Tag("LOT")));
 
         assertThat(ids(inventory, lot)).containsExactly(3L, 1L);
+    }
+
+    @Test
+    void a_listing_without_republication_bears_an_empty_tally() {
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1")), List.of(), List.of(), List.of())
+                .withRepublicationTallies(List.of(), Map.of());
+
+        assertThat(inventory.entries()).extracting(InventoryEntry::republicationTally)
+                .containsExactly(RepublicationTally.NONE);
+    }
+
+    @Test
+    void every_listing_of_the_chain_bears_the_tally_of_the_whole_article() {
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1"), present(2, "a", "1"),
+                present(3, "a", "1"), present(4, "b", "1")), List.of(), List.of(), List.of())
+                .withRepublicationTallies(List.of(published(1, 2), published(2, 3)),
+                        Map.of(id(1), 2, id(3), 1, id(4), 5));
+
+        assertThat(inventory.entries()).extracting(InventoryEntry::republicationTally).containsExactly(
+                new RepublicationTally(2, 3), new RepublicationTally(2, 3), new RepublicationTally(2, 3),
+                new RepublicationTally(0, 5));
+    }
+
+    @Test
+    void a_listing_of_the_chain_unknown_to_the_tool_still_counts() {
+        ListingInventory inventory = inventoryOf(List.of(present(3, "a", "1")), List.of(), List.of(), List.of())
+                .withRepublicationTallies(List.of(published(1, 2), published(2, 3)), Map.of(id(1), 1));
+
+        assertThat(inventory.entries()).extracting(InventoryEntry::republicationTally)
+                .containsExactly(new RepublicationTally(2, 1));
+    }
+
+    @Test
+    void a_chain_that_loops_stops_on_a_listing_already_seen() {
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1"), present(2, "a", "1")), List.of(),
+                List.of(), List.of())
+                .withRepublicationTallies(List.of(published(1, 2), published(2, 1)), Map.of(id(2), 1));
+
+        assertThat(inventory.entries()).extracting(InventoryEntry::republicationTally)
+                .containsExactly(new RepublicationTally(2, 1), new RepublicationTally(2, 1));
+    }
+
+    @Test
+    void only_published_republications_link_the_chain() {
+        ListingRepublication toCheck = ListingRepublication.attempted(aBackup(1, SAVED_AT), SAVED_AT);
+        ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1")), List.of(), List.of(), List.of())
+                .withRepublicationTallies(List.of(toCheck), Map.of(id(1), 1));
+
+        assertThat(inventory.entries()).extracting(InventoryEntry::republicationTally)
+                .containsExactly(new RepublicationTally(0, 1));
+    }
+
+    private static ListingRepublication published(long id, long newListing) {
+        return ListingRepublication.attempted(aBackup(id, SAVED_AT), SAVED_AT)
+                .published(id(newListing), SAVED_AT.plusSeconds(60));
+    }
+
+    private static VintedListingId id(long id) {
+        return new VintedListingId(id);
     }
 
     private static ListingTag tag(long id, String tag) {

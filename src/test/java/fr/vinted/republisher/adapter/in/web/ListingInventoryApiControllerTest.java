@@ -104,15 +104,37 @@ class ListingInventoryApiControllerTest {
                         {"listings": [{"vintedId": 18, "title": "Jupe",
                                        "price": {"amount": 3.00, "currency": "EUR"},
                                        "url": "https://vinted.test/items/18", "present": true,
-                                       "stage": "TO_BACK_UP", "tags": []},
+                                       "stage": "TO_BACK_UP", "tags": [],
+                                       "republicationTally": {"published": 0, "notPublished": 0}},
                                       {"vintedId": 17, "title": "Pull rayé",
                                        "price": {"amount": 1.50, "currency": "EUR"},
                                        "url": "https://vinted.test/items/17", "present": true,
                                        "stage": "TO_DELETE", "tags": [],
+                                       "republicationTally": {"published": 0, "notPublished": 0},
                                        "savedAt": "2026-11-07T10:00:00Z", "photoCount": 3,
                                        "validatedAt": "2026-11-07T11:00:00Z",
                                        "statistics": {"viewCount": 15, "favouriteCount": 4,
                                                       "readAt": "2026-11-06T10:15:30Z"}}]}""");
+    }
+
+    /** AT-44-04 */
+    @Test
+    void each_listing_bears_the_republication_tally_of_its_article() {
+        // Étant donné 17 constatée non publiée puis republiée en 20
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT).absent(),
+                Listing.seen(aListing(20, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+        ListingBackup backup = ListingBackup.of(new ListingReading(aContent(17), List.of(aPhoto("A"))), SAVED_AT);
+        Instant attemptedAt = NOW.minusSeconds(1200);
+        republications.save(ListingRepublication.attempted(backup, attemptedAt).notPublished(attemptedAt.plusSeconds(60)));
+        republications.save(ListingRepublication.attempted(backup, attemptedAt.plusSeconds(600))
+                .published(new VintedListingId(20), attemptedAt.plusSeconds(660)));
+
+        // Quand le membre demande la liste
+        // Alors chaque Listing porte republicationTally, avec published et notPublished
+        assertThat(mvc.get().uri("/api/listings?presence=ALL"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listings[*].republicationTally").isEqualTo(List.of(
+                        Map.of("published", 1, "notPublished", 1), Map.of("published", 1, "notPublished", 1)));
     }
 
     @Test

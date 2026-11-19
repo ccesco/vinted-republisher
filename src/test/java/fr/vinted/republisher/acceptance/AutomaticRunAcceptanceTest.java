@@ -714,7 +714,7 @@ class AutomaticRunAcceptanceTest {
                         cadence, republications, publisher, newListingSearch, listings, RepublicationMode.REAL, clock,
                         showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
-                        contents, noBackupPause(), clock, showRepublication, new JournalWriter(new InMemoryActionJournal(), clock)));
+                        contents, noBackupPause(), clock, showRepublication, journalWriter));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
                 deletions, republications, delay, clock, new InMemoryListingTagRepository(),
                 new InMemoryBackupVerificationRepository()), relaunch, waiting, clock,

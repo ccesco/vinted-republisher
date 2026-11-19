@@ -61,12 +61,12 @@ public class JournalWriter {
             Map.entry(ListingAlreadyRepublished.class, "ALREADY_REPUBLISHED"),
             Map.entry(RepublicationInError.class, "REPUBLICATION_IN_ERROR"),
             Map.entry(FieldNotFillable.class, "FIELD_NOT_FILLABLE"),
-            Map.entry(BrowserBusy.class, "BROWSER_BUSY"),
-            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"),
-            Map.entry(ManualRepublicationInDryRun.class, "MANUAL_REPUBLICATION_IN_DRY_RUN"),
             Map.entry(NoRepublicationToVerify.class, "NO_REPUBLICATION_TO_VERIFY"),
             Map.entry(NewListingLinkInvalid.class, "NEW_LISTING_LINK_INVALID"),
-            Map.entry(NewListingMismatch.class, "NEW_LISTING_MISMATCH"));
+            Map.entry(NewListingMismatch.class, "NEW_LISTING_MISMATCH"),
+            Map.entry(BrowserBusy.class, "BROWSER_BUSY"),
+            Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"),
+            Map.entry(ManualRepublicationInDryRun.class, "MANUAL_REPUBLICATION_IN_DRY_RUN"));
 
     /** A republication refuses a backup not verified with its own code, as its API answer does. */
     private static final Map<Class<?>, String> REPUBLICATION_REFUSAL_REASONS =
@@ -78,11 +78,8 @@ public class JournalWriter {
             VintedUnreachable.class, "VINTED_UNREACHABLE",
             SessionDisconnected.class, "SESSION_DISCONNECTED",
             ListingPageUnreadable.class, "LISTING_PAGE_UNREADABLE",
-            ListingFormUnreadable.class, "FORM_UNREADABLE");
-
-    /** A verification of a republication fails on the new listing with its own code, as its API answer does. */
-    private static final Map<Class<?>, String> VERIFICATION_FAILURE_REASONS =
-            Map.of(ListingUnreadable.class, "LISTING_UNREADABLE");
+            ListingFormUnreadable.class, "FORM_UNREADABLE",
+            ListingUnreadable.class, "LISTING_UNREADABLE");
 
     private final ActionJournal journal;
     private final Clock clock;
@@ -129,10 +126,7 @@ public class JournalWriter {
                 write(action, Optional.of(listing), ActionOutcome.REFUSED, refusal);
             } else {
                 write(action, Optional.of(listing), ActionOutcome.FAILED,
-                        reasonOf(refusalOrFailure, FAILURE_REASONS)
-                                .or(() -> reasonOf(refusalOrFailure, action == JournaledAction.REPUBLICATION_VERIFICATION
-                                        ? VERIFICATION_FAILURE_REASONS : Map.of()))
-                                .or(() -> failureReason));
+                        reasonOf(refusalOrFailure, FAILURE_REASONS).or(() -> failureReason));
             }
             throw refusalOrFailure;
         }

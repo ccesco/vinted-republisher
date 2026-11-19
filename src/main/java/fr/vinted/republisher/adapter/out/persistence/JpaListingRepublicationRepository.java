@@ -7,6 +7,7 @@ import org.springframework.stereotype.Repository;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -24,6 +25,12 @@ class JpaListingRepublicationRepository implements ListingRepublicationRepositor
     public Optional<ListingRepublication> findLatest(VintedListingId listing) {
         return repository.findFirstByListingIdOrderByAttemptedAtDesc(listing.value())
                 .map(ListingRepublicationJpaEntity::toListingRepublication);
+    }
+
+    @Override
+    public Map<VintedListingId, Integer> findNotPublishedCounts() {
+        return repository.countNotPublishedPerListing().stream().collect(Collectors.toUnmodifiableMap(
+                count -> new VintedListingId(count.listingId()), count -> Math.toIntExact(count.attempts())));
     }
 
     @Override

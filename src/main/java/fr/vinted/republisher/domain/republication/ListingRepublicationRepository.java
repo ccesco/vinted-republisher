@@ -4,6 +4,7 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
@@ -15,6 +16,9 @@ public interface ListingRepublicationRepository {
 
     /** The last attempt of every listing. */
     List<ListingRepublication> findAllLatest();
+
+    /** The number of attempts found not published, per listing that has any, counted by the store in one read. */
+    Map<VintedListingId, Integer> findNotPublishedCounts();
 
     /** The dates of the attempts made after {@code since}, whatever their outcome. */
     List<Instant> findAttemptedSince(Instant since);

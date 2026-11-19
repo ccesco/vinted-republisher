@@ -145,8 +145,8 @@ class FailedListingsPageTest {
         assertThat(pull()).containsText("18/11/2026 11:00:00");
         assertThat(dress()).containsText("À sauvegarder");
         assertThat(dress()).containsText("sauvegarde remplacée");
-        // Et « Pull bleu » a un bouton « Relancer », « Robe » n'en a pas
-        assertThat(pull().getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        // Et « Pull bleu » a un bouton « Supprimer de Vinted » (action de la relance), « Robe » n'en a pas
+        assertThat(pull().getByRole(AriaRole.BUTTON)).hasText("Supprimer de Vinted");
         assertThat(dress().getByRole(AriaRole.BUTTON)).hasCount(0);
         // Quand il relance « Pull bleu » et que la suppression réussit
         pull().getByRole(AriaRole.BUTTON).click();
@@ -192,10 +192,10 @@ class FailedListingsPageTest {
         // Alors « Pull bleu » est dans « Dans le doute » avec « Relancer »
         assertThat(group("in-doubt").locator("h2")).hasText("Dans le doute (1)");
         assertThat(group("in-doubt").locator("tbody tr")).containsText("Pull bleu");
-        assertThat(group("in-doubt").getByRole(AriaRole.BUTTON)).hasText("Relancer");
-        // Et « Robe » est dans « Refusées » avec « Relancer » et « Republier manuellement »
+        assertThat(group("in-doubt").getByRole(AriaRole.BUTTON)).hasText("Vérifier la republication");
+        // Et « Robe » est dans « Refusées » avec « Republier sur Vinted » et « Republier manuellement »
         assertThat(group("refused").locator("tbody tr")).containsText("Robe");
-        assertThat(group("refused").getByRole(AriaRole.BUTTON)).hasText(new String[]{"Relancer",
+        assertThat(group("refused").getByRole(AriaRole.BUTTON)).hasText(new String[]{"Republier sur Vinted",
                 "Republier manuellement"});
         // Et la section « Autres échecs » est affichée avec « Aucune annonce. »
         assertThat(group("other").locator(".no-failure")).hasText("Aucune annonce.");

@@ -67,6 +67,7 @@ class WardrobePageTest {
     private HttpServer fakeApi;
     private final AtomicReference<String> overview = new AtomicReference<>(IDLE);
     private final AtomicReference<String> inventory = new AtomicReference<>(NO_LISTING);
+    private final AtomicReference<String> searchedInventory = new AtomicReference<>();
     private final AtomicReference<Integer> inventoryStatus = new AtomicReference<>(200);
     private final AtomicReference<String> launchAnswer = new AtomicReference<>(IDLE);
     private final AtomicBoolean applicationDown = new AtomicBoolean();
@@ -109,9 +110,11 @@ class WardrobePageTest {
             answer(exchange, overview.get());
         });
         fakeApi.createContext("/api/listings", exchange -> {
-            listingQueries.add(exchange.getRequestURI().getRawQuery());
+            String query = exchange.getRequestURI().getRawQuery();
+            listingQueries.add(query);
             if (inventoryStatus.get() == 200) {
-                answer(exchange, inventory.get());
+                boolean searched = query != null && query.contains("search=") && searchedInventory.get() != null;
+                answer(exchange, searched ? searchedInventory.get() : inventory.get());
             } else {
                 exchange.sendResponseHeaders(inventoryStatus.get(), -1);
                 exchange.close();
@@ -196,7 +199,7 @@ class WardrobePageTest {
         //   et le titre affiché tel quel
         assertThat(page.locator("#listings thead th")).hasText(new String[]{
                 "Titre", "Prix", "Vues", "Favoris", "Conseil", "Présence", "Sauvegarde", "Validation", "Étape",
-                "Republication", "Action", "Tags", ""});
+                "Republication", "Republications", "Action", "Tags", ""});
         assertThat(rows()).hasCount(2);
         assertThat(listingCount()).hasText("2 annonces");
         assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
@@ -257,6 +260,35 @@ class WardrobePageTest {
         assertThat(page.locator("#presence")).hasValue("ALL");
     }
 
+    /** AT-44-05 */
+    @Test
+    void shows_republication_tally() {
+        // Étant donné la page Annonces
+        // Et une annonce avec 2 réussies et 1 échec, une avec 1 réussie, une avec 3 échecs, une sans republication
+        overview.set(SCANNED);
+        inventory.set("""
+                {"listings": [%s, %s, %s, %s]}""".formatted(tallied(1, 2, 1), tallied(2, 1, 0), tallied(3, 0, 3),
+                tallied(4, 0, 0)));
+
+        // Quand la liste s'affiche
+        open();
+
+        // Alors la colonne « Republications » affiche « 2 réussies, 1 échec », « 1 réussie », « 3 échecs » et rien
+        assertThat(page.locator("thead th").nth(REPUBLICATIONS)).hasText("Republications");
+        assertThat(cell(0, REPUBLICATIONS)).hasText("2 réussies, 1 échec");
+        assertThat(cell(1, REPUBLICATIONS)).hasText("1 réussie");
+        assertThat(cell(2, REPUBLICATIONS)).hasText("3 échecs");
+        assertThat(cell(3, REPUBLICATIONS)).hasText("");
+    }
+
+    private static String tallied(int id, int published, int notPublished) {
+        return """
+                {"vintedId": %d, "title": "Pull %d", "price": {"amount": 10, "currency": "EUR"},
+                 "url": "https://vinted.test/items/%d", "present": true, "stage": "TO_DELETE",
+                 "republicationTally": {"published": %d, "notPublished": %d}}"""
+                .formatted(id, id, id, published, notPublished);
+    }
+
     @Test
     void shows_the_answer_to_the_last_criteria() {
         open();
@@ -302,6 +334,74 @@ class WardrobePageTest {
         assertThat(page.locator("#key-validated")).hasText("2 / 3");
         assertThat(page.locator("#key-views")).hasText("120");
         assertThat(page.locator("#key-favourites")).hasText("9");
+    }
+
+    @Test
+    void keepsKeyFiguresOfTheWholeWardrobeWhenTheListIsFiltered() {
+        // AT-37-07. Étant donné que le dressing compte 3 annonces présentes, dont 2 avec une sauvegarde validée,
+        //   totalisant 120 vues et 9 favoris
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-10T10:00:00Z",
+                   "statistics": {"viewCount": 100, "favouriteCount": 5, "readAt": "2026-11-17T10:00:00Z"}},
+                  {"vintedId": 2, "title": "Bonnet", "price": {"amount": 5, "currency": "EUR"}, "url": "https://vinted.test/items/2",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-11T10:00:00Z",
+                   "statistics": {"viewCount": 20, "favouriteCount": 4, "readAt": "2026-11-17T10:00:00Z"}},
+                  {"vintedId": 3, "title": "Écharpe", "price": {"amount": 8, "currency": "EUR"}, "url": "https://vinted.test/items/3",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+        // Et que la recherche « pull » ne renvoie qu'une de ces annonces
+        searchedInventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_DELETE", "validatedAt": "2026-11-10T10:00:00Z",
+                   "statistics": {"viewCount": 100, "favouriteCount": 5, "readAt": "2026-11-17T10:00:00Z"}}]}""");
+
+        // Quand j'ouvre le Dressing et que je cherche « pull »
+        open();
+        page.locator("#search").fill("pull");
+
+        // Alors la liste n'affiche qu'une annonce
+        assertThat(page.locator("#listings tbody tr")).hasCount(1);
+        // Et je vois toujours « 3 » annonces en ligne, « 2 / 3 » sauvegardes validées, « 120 » vues et « 9 » favoris
+        assertThat(page.locator("#key-online")).hasText("3");
+        assertThat(page.locator("#key-validated")).hasText("2 / 3");
+        assertThat(page.locator("#key-views")).hasText("120");
+        assertThat(page.locator("#key-favourites")).hasText("9");
+        // Et changer un filtre ne relit pas tout le dressing
+        settle();
+        assertThat(listingQueries).doesNotContainNull();
+    }
+
+    @Test
+    void readsKeyFiguresOfTheWholeWardrobeAtEachFollowUpWhenTheListIsFiltered() {
+        // AT-37-08. Étant donné un scan en cours et une recherche « pull » qui ne renvoie qu'une annonce
+        overview.set(SCANNING);
+        searchedInventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+        openFollowing();
+        page.locator("#search").fill("pull");
+        page.clock().runFor(PERIOD_MS);
+        assertThat(page.locator("#listings tbody tr")).hasCount(1);
+        // Quand le scan trouve 4 annonces présentes et qu'une période de suivi passe
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"}, "url": "https://vinted.test/items/1",
+                   "present": true, "stage": "TO_BACK_UP"},
+                  {"vintedId": 2, "title": "Bonnet", "price": {"amount": 5, "currency": "EUR"}, "url": "https://vinted.test/items/2",
+                   "present": true, "stage": "TO_BACK_UP"},
+                  {"vintedId": 3, "title": "Écharpe", "price": {"amount": 8, "currency": "EUR"}, "url": "https://vinted.test/items/3",
+                   "present": true, "stage": "TO_BACK_UP"},
+                  {"vintedId": 4, "title": "Gants", "price": {"amount": 6, "currency": "EUR"}, "url": "https://vinted.test/items/4",
+                   "present": true, "stage": "TO_BACK_UP"}]}""");
+        followPeriods(1, "/api/wardrobe");
+        // Alors la page relit tout le dressing, sans critère, et je vois « 4 » annonces en ligne
+        assertThat(page.locator("#key-online")).hasText("4");
+        assertThat(listingQueries).containsNull();
+        // Et la liste n'affiche toujours qu'une annonce
+        assertThat(page.locator("#listings tbody tr")).hasCount(1);
     }
 
     @Test
@@ -535,8 +635,8 @@ class WardrobePageTest {
                              "url": "https://vinted.test/items/3", "present": false, "stage": "WAITING"}}""");
         // Quand le membre l'affiche
         open();
-        // Alors seule la première a un bouton « Relancer »
-        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Relancer");
+        // Alors seule la première a un bouton « Supprimer de Vinted » (action de la relance)
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Supprimer de Vinted");
         assertThat(cell(1, ACTION).getByRole(AriaRole.BUTTON)).hasCount(0);
         // Quand il clique dessus
         cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
@@ -1002,7 +1102,8 @@ class WardrobePageTest {
     private static final int VALIDATION = 7;
     private static final int STAGE = 8;
     private static final int REPUBLICATION = 9;
-    private static final int ACTION = 10;
+    private static final int REPUBLICATIONS = 10;
+    private static final int ACTION = 11;
     private static final String TO_DELETE_AND_TO_VALIDATE = """
             {"listings": [
                {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
