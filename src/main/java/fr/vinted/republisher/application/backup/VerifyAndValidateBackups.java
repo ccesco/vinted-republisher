@@ -175,7 +175,7 @@ public class VerifyAndValidateBackups {
                 VerificationResult.of(backup, BackupVerification.online(backup, reading.content(), photos), now);
         if (result.passed()) {
             // Validated again, the same version keeps its first validation date (US-08).
-            if (validations.find(id).filter(existing -> existing.holdsFor(backup)).isEmpty()) {
+            if (validations.find(id).filter(existing -> existing.holdsFor(backup.summary())).isEmpty()) {
                 validations.save(BackupValidation.of(backup, now));
             }
         }

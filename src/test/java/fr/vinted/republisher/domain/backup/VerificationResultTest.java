@@ -23,9 +23,9 @@ class VerificationResultTest {
         assertThat(result.backupSavedAt()).isEqualTo(SAVED_AT);
         assertThat(result.verifiedAt()).isEqualTo(VERIFIED_AT);
         assertThat(result.passed()).isTrue();
-        assertThat(result.holdsFor(backup)).isTrue();
-        assertThat(result.holdsFor(aBackup(1, SAVED_AT.plusSeconds(1)))).isFalse();
-        assertThat(result.holdsFor(aBackup(2, SAVED_AT))).isFalse();
+        assertThat(result.holdsFor(backup.summary())).isTrue();
+        assertThat(result.holdsFor(aBackup(1, SAVED_AT.plusSeconds(1)).summary())).isFalse();
+        assertThat(result.holdsFor(aBackup(2, SAVED_AT).summary())).isFalse();
     }
 
     @Test
@@ -36,7 +36,7 @@ class VerificationResultTest {
 
         assertThat(failed.passed()).isFalse();
         assertThat(failed.failures()).containsExactly(new ListingAbsent());
-        assertThat(failed.failsFor(backup)).isTrue();
-        assertThat(failed.failsFor(aBackup(1, VERIFIED_AT.plusSeconds(60)))).isFalse();
+        assertThat(failed.failsFor(backup.summary())).isTrue();
+        assertThat(failed.failsFor(aBackup(1, VERIFIED_AT.plusSeconds(60)).summary())).isFalse();
     }
 }

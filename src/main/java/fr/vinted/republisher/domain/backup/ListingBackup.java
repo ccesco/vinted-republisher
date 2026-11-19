@@ -33,4 +33,8 @@ public record ListingBackup(ListingContent content, List<ListingPhoto> photos, I
     public VintedListingId id() {
         return content.id();
     }
+
+    public BackupSummary summary() {
+        return new BackupSummary(id(), savedAt, photos.size());
+    }
 }

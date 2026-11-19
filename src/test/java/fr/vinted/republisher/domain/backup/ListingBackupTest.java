@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.backup;
 
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -24,6 +25,14 @@ class ListingBackupTest {
                 ListingPhoto.at(0, aPhoto("cover")), ListingPhoto.at(1, aPhoto("back")));
         assertThat(backup.content()).isEqualTo(aContent(1));
         assertThat(backup.savedAt()).isEqualTo(NOW);
+    }
+
+    @Test
+    void summary_tells_the_listing_the_backup_date_and_the_photo_count() {
+        ListingReading reading = new ListingReading(aContent(1), List.of(aPhoto("cover"), aPhoto("back")));
+
+        assertThat(ListingBackup.of(reading, NOW).summary())
+                .isEqualTo(new BackupSummary(new VintedListingId(1), NOW, 2));
     }
 
     @Test

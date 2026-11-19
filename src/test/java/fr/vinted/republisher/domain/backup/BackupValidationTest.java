@@ -20,20 +20,20 @@ class BackupValidationTest {
         BackupValidation validation = BackupValidation.of(backup, VALIDATED_AT);
 
         assertThat(validation).isEqualTo(new BackupValidation(new VintedListingId(1), SAVED_AT, VALIDATED_AT));
-        assertThat(validation.holdsFor(backup)).isTrue();
+        assertThat(validation.holdsFor(backup.summary())).isTrue();
     }
 
     @Test
     void validation_no_longer_holds_once_the_backup_is_replaced() {
         BackupValidation validation = BackupValidation.of(aBackup(1, SAVED_AT), VALIDATED_AT);
 
-        assertThat(validation.holdsFor(aBackup(1, VALIDATED_AT.plusSeconds(60)))).isFalse();
+        assertThat(validation.holdsFor(aBackup(1, VALIDATED_AT.plusSeconds(60)).summary())).isFalse();
     }
 
     @Test
     void validation_holds_for_its_listing_only() {
         BackupValidation validation = BackupValidation.of(aBackup(1, SAVED_AT), VALIDATED_AT);
 
-        assertThat(validation.holdsFor(aBackup(2, SAVED_AT))).isFalse();
+        assertThat(validation.holdsFor(aBackup(2, SAVED_AT).summary())).isFalse();
     }
 }

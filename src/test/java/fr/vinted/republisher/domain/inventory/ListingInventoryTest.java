@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.inventory;
 
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -17,6 +18,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Stream;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
@@ -30,7 +32,8 @@ class ListingInventoryTest {
 
     private static ListingInventory inventoryOf(List<Listing> listings, List<StatisticsReading> readings,
                                                 List<ListingBackup> backups, List<BackupValidation> validations) {
-        return ListingInventory.of(listings, readings, List.of(), backups, validations, List.of(),
+        return ListingInventory.of(listings, readings, List.of(), backups.stream().map(ListingBackup::summary).toList(),
+                validations, List.of(),
                 List.of(), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
     }
@@ -47,7 +50,7 @@ class ListingInventoryTest {
         assertThat(inventory.select(InventoryCriteria.defaults())).containsExactly(
                 new InventoryEntry(present(2, "b", "1"), Optional.empty(), Optional.empty(), Optional.empty(),
                         ListingStage.TO_BACK_UP, Optional.empty()),
-                new InventoryEntry(present(1, "a", "1"), Optional.of(reading), Optional.of(backup),
+                new InventoryEntry(present(1, "a", "1"), Optional.of(reading), Optional.of(backup.summary()),
                         Optional.of(validation.validatedAt()), ListingStage.TO_DELETE, Optional.empty()));
     }
 
@@ -148,7 +151,7 @@ class ListingInventoryTest {
         ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(),
-                List.of(backup), List.of(), List.of(), List.of(notDone, unconfirmed), List.of(),
+                summaries(backup), List.of(), List.of(), List.of(notDone, unconfirmed), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt);
 
         assertThat(inventory.entries()).singleElement()
@@ -164,7 +167,7 @@ class ListingInventoryTest {
         Listing newListing = present(2, "a", "1");
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent(), newListing),
-                List.of(), List.of(), List.of(backup), List.of(), List.of(), List.of(), List.of(published),
+                List.of(), List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(published),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
 
         assertThat(inventory.entries().getFirst().republication()).contains(published);
@@ -175,7 +178,7 @@ class ListingInventoryTest {
     @Test
     void stage_filter_keeps_only_listings_at_that_stage() {
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
-                List.of(), List.of(), List.of(aBackup(2, SAVED_AT)), List.of(), List.of(), List.of(),
+                List.of(), List.of(), summaries(aBackup(2, SAVED_AT)), List.of(), List.of(), List.of(),
                 List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
 
@@ -191,7 +194,7 @@ class ListingInventoryTest {
         ListingRepublication toCheck = ListingRepublication.attempted(backup, clickedAt);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
-                List.of(), List.of(backup), List.of(), List.of(), List.of(), List.of(toCheck),
+                List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(toCheck),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
 
         assertThat(inventory.entries()).singleElement().satisfies(entry -> {
@@ -209,7 +212,7 @@ class ListingInventoryTest {
                 .notPublished(clickedAt.plusSeconds(60));
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
-                List.of(), List.of(backup), List.of(), List.of(), List.of(), List.of(notPublished),
+                List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(notPublished),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
 
         assertThat(inventory.entries()).singleElement()
@@ -259,6 +262,10 @@ class ListingInventoryTest {
 
     private static ListingTag tag(long id, String tag) {
         return new ListingTag(new VintedListingId(id), new Tag(tag));
+    }
+
+    private static List<BackupSummary> summaries(ListingBackup... backups) {
+        return Stream.of(backups).map(ListingBackup::summary).toList();
     }
 
     private static Listing present(long id, String title, String price) {

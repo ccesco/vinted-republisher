@@ -1,5 +1,6 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -34,6 +35,11 @@ public class InMemoryListingBackupRepository implements ListingBackupRepository 
     @Override
     public List<ListingBackup> findAll() {
         return List.copyOf(backups.values());
+    }
+
+    @Override
+    public List<BackupSummary> findAllSummaries() {
+        return backups.values().stream().map(ListingBackup::summary).toList();
     }
 
     @Override

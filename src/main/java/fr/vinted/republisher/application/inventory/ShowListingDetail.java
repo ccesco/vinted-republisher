@@ -2,6 +2,7 @@ package fr.vinted.republisher.application.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidationRepository;
 import fr.vinted.republisher.domain.backup.BackupVerificationRepository;
+import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
@@ -74,7 +75,7 @@ public class ShowListingDetail {
         Optional<VerificationResult> verification = verifications.find(id);
         ListingInventory inventory = ListingInventory.of(List.of(listing), history.stream().limit(1).toList(),
                 history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
-                backups.find(id).stream().toList(), validations.find(id).stream().toList(),
+                backups.find(id).map(ListingBackup::summary).stream().toList(), validations.find(id).stream().toList(),
                 verification.stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
                 clock.instant());

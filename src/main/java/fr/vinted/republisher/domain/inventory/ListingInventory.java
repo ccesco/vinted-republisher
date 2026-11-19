@@ -1,7 +1,7 @@
 package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.BackupValidation;
-import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -49,7 +49,7 @@ public record ListingInventory(List<InventoryEntry> entries) {
      * {@code now}.
      */
     public static ListingInventory of(List<Listing> listings, List<StatisticsReading> readings,
-                                      List<StatisticsReading> baselines, List<ListingBackup> backups,
+                                      List<StatisticsReading> baselines, List<BackupSummary> backups,
                                       List<BackupValidation> validations, List<VerificationResult> verifications,
                                       List<ListingDeletion> deletions, List<ListingRepublication> republications,
                                       RepublicationDelay delay, Instant now) {
@@ -57,8 +57,8 @@ public record ListingInventory(List<InventoryEntry> entries) {
                 .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
         Map<VintedListingId, StatisticsReading> baselineOf = baselines.stream()
                 .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
-        Map<VintedListingId, ListingBackup> backupOf = backups.stream()
-                .collect(Collectors.toMap(ListingBackup::id, Function.identity()));
+        Map<VintedListingId, BackupSummary> backupOf = backups.stream()
+                .collect(Collectors.toMap(BackupSummary::id, Function.identity()));
         Map<VintedListingId, BackupValidation> validationOf = validations.stream()
                 .collect(Collectors.toMap(BackupValidation::listingId, Function.identity()));
         Map<VintedListingId, VerificationResult> verificationOf = verifications.stream()
@@ -71,7 +71,7 @@ public record ListingInventory(List<InventoryEntry> entries) {
         Map<VintedListingId, Listing> listingOf = listings.stream()
                 .collect(Collectors.toMap(Listing::id, Function.identity()));
         return new ListingInventory(listings.stream().map(listing -> {
-            Optional<ListingBackup> backup = Optional.ofNullable(backupOf.get(listing.id()));
+            Optional<BackupSummary> backup = Optional.ofNullable(backupOf.get(listing.id()));
             Optional<BackupValidation> validation = Optional.ofNullable(validationOf.get(listing.id()))
                     .filter(given -> backup.filter(given::holdsFor).isPresent());
             boolean verificationFailed = Optional.ofNullable(verificationOf.get(listing.id()))

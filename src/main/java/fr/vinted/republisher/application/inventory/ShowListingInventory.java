@@ -52,7 +52,7 @@ public class ShowListingInventory {
     public List<InventoryEntry> show(InventoryCriteria criteria) {
         Instant now = clock.instant();
         return ListingInventory.of(listings.findAll(), statistics.findLatest(),
-                statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAll(),
+                statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAllSummaries(),
                 validations.findAll(), verifications.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay, now)
                 .withTags(tags.findAll()).select(criteria);
     }

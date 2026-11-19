@@ -1,6 +1,6 @@
 package fr.vinted.republisher.domain.inventory;
 
-import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -17,7 +17,7 @@ import java.util.Optional;
  * or to check (none at any other stage) with the new listing it led to when the tool knows it, and the tags it bears,
  * in alphabetical order.
  */
-public record InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<ListingBackup> backup,
+public record InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<BackupSummary> backup,
                              Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice,
                              Optional<ListingRepublication> republication, Optional<Listing> newListing,
                              List<Tag> tags) {
@@ -35,7 +35,7 @@ public record InventoryEntry(Listing listing, Optional<StatisticsReading> statis
     }
 
     /** Without republication nor tags. */
-    public InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<ListingBackup> backup,
+    public InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<BackupSummary> backup,
                           Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice) {
         this(listing, statistics, backup, validatedAt, stage, advice, Optional.empty(), Optional.empty(), List.of());
     }
