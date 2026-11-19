@@ -1,5 +1,5 @@
 # US-15 – Traitement en parallèle (plusieurs navigateurs)
-**Statut** : implémentée
+**Statut** : implémentée — tournées et `parallelism.listing-actions` remplacés par les workers d'US-46 (verrou par annonce et réservation de cadence par type conservés)
 **Priorité** : V2
 **Dépend de** : US-19 (série automatique), US-20 (relance), US-21 (pause et stop), US-27 (cadence)
 

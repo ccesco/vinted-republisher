@@ -43,14 +43,6 @@ class WriteCadenceTest {
     }
 
     @Test
-    void the_minimum_interval_holds_whatever_the_kind_of_the_last_write() {
-        assertThatThrownBy(() -> CADENCE.check(VintedWrite.DELETION, List.of(), List.of(minutesAgo(1)), NOW))
-                .isInstanceOf(CadenceLimitReached.class);
-        assertThatThrownBy(() -> CADENCE.check(VintedWrite.REPUBLICATION, List.of(minutesAgo(1)), List.of(), NOW))
-                .isInstanceOf(CadenceLimitReached.class);
-    }
-
-    @Test
     void tells_from_when_a_write_is_allowed_without_refusing_it() {
         assertThat(CADENCE.allowedAt(VintedWrite.DELETION, List.of(minutesAgo(1)), List.of(), NOW))
                 .isEqualTo(minutesAgo(1).plus(Duration.ofMinutes(2)));
@@ -119,24 +111,17 @@ class WriteCadenceTest {
     }
 
     @Test
-    void each_kind_waits_its_own_interval_after_the_last_write_of_any_kind() {
-        // AT-27-10
-        WriteCadence cadence = new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 140, 20);
-        Instant republishedAt = NOW;
-        // Étant donné une republication tentée à 10:00, quand le membre lance une suppression à 10:00:20
-        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:00:30)
-        assertThatThrownBy(() -> cadence.check(VintedWrite.DELETION, List.of(), List.of(republishedAt),
-                NOW.plusSeconds(20)))
-                .isInstanceOfSatisfying(CadenceLimitReached.class,
-                        refusal -> assertThat(refusal.allowedAt()).isEqualTo(NOW.plusSeconds(30)));
-        // Quand il la relance à 10:00:30, alors elle a lieu
-        assertThatCode(() -> cadence.check(VintedWrite.DELETION, List.of(), List.of(republishedAt),
-                NOW.plusSeconds(30)))
+    void a_write_only_waits_for_the_interval_of_its_own_type() {
+        // AT-46-05
+        // Étant donné une suppression tentée à 10:00
+        List<Instant> deletions = List.of(NOW);
+        // Quand une republication est demandée à 10:00:10, alors elle a lieu
+        assertThatCode(() -> CADENCE.check(VintedWrite.REPUBLICATION, deletions, List.of(), NOW.plusSeconds(10)))
                 .doesNotThrowAnyException();
-        // Et une republication lancée à 10:01 est refusée (à partir de 10:02:30)
-        assertThatThrownBy(() -> cadence.check(VintedWrite.REPUBLICATION, List.of(NOW.plusSeconds(30)),
-                List.of(republishedAt), NOW.plusSeconds(60)))
+        // Quand une autre suppression est demandée à 10:01, alors elle est refusée (à partir de 10:02)
+        assertThatThrownBy(() -> CADENCE.check(VintedWrite.DELETION, deletions, List.of(NOW.plusSeconds(10)),
+                NOW.plusSeconds(60)))
                 .isInstanceOfSatisfying(CadenceLimitReached.class,
-                        refusal -> assertThat(refusal.allowedAt()).isEqualTo(NOW.plusSeconds(150)));
+                        refusal -> assertThat(refusal.allowedAt()).isEqualTo(NOW.plus(Duration.ofMinutes(2))));
     }
 }

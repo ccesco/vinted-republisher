@@ -1,5 +1,5 @@
 # US-46 – Workers attitrés par type d'action
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-15 (traitement en parallèle, tournées remplacées), US-19 (série automatique), US-20 (relance), US-21 (pause et stop), US-27 (cadence, modifiée), US-41 (file d'attente, modifiée)
 
@@ -34,7 +34,7 @@ En tant que membre, je veux que la série mène en parallèle suppressions, repu
 13. **Suivi par worker (aperçu)** : `workers` remplace `currentListingIds` : en mode `WORKERS`, les trois workers dans l'ordre republication, suppression, vérification ; en mode `SEQUENTIAL`, un seul worker `ALL_ACTIONS`. Pour chacun : son type, son état (`WORKING` en action, `WAITING` avec sa date et sa raison, `IDLE` inactif, `STOPPED` hors série, en pause ou après l'arrêt), l'annonce et l'action en cours quand il est en action, et son nombre de relances. `relaunchCount` de la série reste le total.
 14. **Page du dressing** : en mode `WORKERS`, la ligne « Traitement en cours » devient une ligne par worker, tant que la série tourne ou attend :
     - « Republication : republie Bonnet (annonce 1) » ; action en clair : « supprime », « revérifie la suppression de », « republie », « vérifie la republication de » ; titre lu dans la liste affichée, « annonce <id> » seul sinon ;
-    - « Suppression : en attente jusqu'au <date> (cadence) » ; raisons : « cadence », « délai de republication », « navigateur occupé », « nouvel essai » (`WAIT` d'US-17) ;
+    - « Suppression : en attente jusqu'au <date> (cadence) » ; raisons : « cadence », « délai de republication », « navigateur occupé » (seules attentes que donne US-17) ;
     - « Vérification : rien à faire ».
 
     En mode `SEQUENTIAL`, la ligne reste celle d'US-19 (« Traitement en cours : Bonnet (annonce 1). »).
@@ -46,21 +46,21 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`. Au
 - `RunWorker` : `kind` (`RunWorkerKind`, obligatoire), `state` (`RunWorkerState`, obligatoire), `listingId` (int64, présent pour `WORKING`), `action` (`RelaunchAction`, présent pour `WORKING`), `waitingUntil` (date-time, présent pour `WAITING`), `waitingReason` (`RunWaitingReason`, présent pour `WAITING`), `relaunchCount` (int32 ≥ 0, obligatoire).
 - `RunWorkerKind` : `ALL_ACTIONS`, `REPUBLICATION`, `DELETION`, `VERIFICATION`.
 - `RunWorkerState` : `WORKING`, `WAITING`, `IDLE`, `STOPPED`.
-- `RunWaitingReason` : `CADENCE`, `REPUBLICATION_DELAY`, `BROWSER_BUSY`, `RETRY`.
+- `RunWaitingReason` : `CADENCE`, `REPUBLICATION_DELAY`, `BROWSER_BUSY`.
 
 ## Critères d'acceptation
-- [ ] Par défaut (`SEQUENTIAL`), une seule action d'annonce à la fois : la série se comporte comme en US-19.
-- [ ] En mode `WORKERS`, trois workers attitrés relancent chacun les annonces de leurs étapes, chacun dans son onglet, jamais deux sur la même annonce.
-- [ ] Le worker vérification revérifie les suppressions quand il n'a aucune republication à vérifier ; les écritures restent attitrées.
-- [ ] Chaque worker avance à son rythme : la fin d'une action ne dépend pas de celle des autres workers.
-- [ ] La cadence est propre à chaque type d'écriture : une suppression et une republication peuvent se suivre sans intervalle ; deux écritures du même type, jamais avant l'intervalle de leur type.
-- [ ] Une attente ne bloque que son worker.
-- [ ] Un worker inactif reprend dès qu'une action d'un autre worker se termine ; la série est terminée quand les trois sont inactifs.
-- [ ] Pause et arrêt laissent finir l'action en cours de chaque worker ; un problème du compte arrête la série une fois les actions en cours finies.
-- [ ] Le verrou admet trois actions d'annonce en mode `WORKERS` ; une relance manuelle prend une place libre ou est refusée.
-- [ ] L'aperçu et la page montrent l'état de chaque worker.
-- [ ] La file d'attente applique la cadence propre à chaque type.
-- [ ] Une configuration invalide empêche l'application de démarrer.
+- [x] Par défaut (`SEQUENTIAL`), une seule action d'annonce à la fois : la série se comporte comme en US-19.
+- [x] En mode `WORKERS`, trois workers attitrés relancent chacun les annonces de leurs étapes, chacun dans son onglet, jamais deux sur la même annonce.
+- [x] Le worker vérification revérifie les suppressions quand il n'a aucune republication à vérifier ; les écritures restent attitrées.
+- [x] Chaque worker avance à son rythme : la fin d'une action ne dépend pas de celle des autres workers.
+- [x] La cadence est propre à chaque type d'écriture : une suppression et une republication peuvent se suivre sans intervalle ; deux écritures du même type, jamais avant l'intervalle de leur type.
+- [x] Une attente ne bloque que son worker.
+- [x] Un worker inactif reprend dès qu'une action d'un autre worker se termine ; la série est terminée quand les trois sont inactifs.
+- [x] Pause et arrêt laissent finir l'action en cours de chaque worker ; un problème du compte arrête la série une fois les actions en cours finies.
+- [x] Le verrou admet trois actions d'annonce en mode `WORKERS` ; une relance manuelle prend une place libre ou est refusée.
+- [x] L'aperçu et la page montrent l'état de chaque worker.
+- [x] La file d'attente applique la cadence propre à chaque type.
+- [x] Une configuration invalide empêche l'application de démarrer.
 
 ## Tests d'acceptation
 Valeurs des scénarios : mode `WORKERS`, délai de republication 5 minutes, intervalle de cadence 2 minutes pour chaque type (les tests fixent leurs propres valeurs).
@@ -114,19 +114,19 @@ Test : `WriteCadenceTest.a_write_only_waits_for_the_interval_of_its_own_type()`,
 
 ### AT-46-06 – Une attente ne bloque que son worker
 ```gherkin
-Étant donné deux annonces « Prêtes à supprimer » validées, en mode réel, et une annonce « Suppression à vérifier »
+Étant donné deux annonces « Prêtes à supprimer » validées, en mode réel, et une annonce « À republier »
 Quand la série tourne
 Alors le worker suppression supprime la première puis attend 2 minutes pour la seconde
-Et pendant cette attente le worker vérification revérifie l'annonce « Suppression à vérifier »
+Et pendant cette attente le worker republication remet en vente l'annonce « À republier »
 Et l'aperçu montre le worker suppression en attente (cadence) avec sa date
 ```
 Test : `AutomaticRunAcceptanceTest.Workers.a_wait_only_holds_its_own_worker()`
 
 ### AT-46-07 – Un worker inactif reprend, la série finit quand tous sont inactifs
 ```gherkin
-Étant donné une annonce « À republier » et aucune autre candidate
-Quand la série tourne et que la republication aboutit (annonce « Republication à vérifier »)
-Alors le worker vérification, jusque-là inactif, vérifie la republication
+Étant donné une annonce « Prête à supprimer » validée et aucune autre candidate
+Quand la série tourne et que la suppression aboutit (annonce « En attente »)
+Alors le worker republication, jusque-là inactif, la remet en vente une fois le délai passé
 Et la série est terminée quand les trois workers sont inactifs
 ```
 Test : `AutomaticRunAcceptanceTest.Workers.an_idle_worker_picks_up_the_work_another_one_left()`
@@ -141,19 +141,19 @@ Test : `AutomaticRunAcceptanceTest.Workers.never_two_workers_on_the_same_listing
 
 ### AT-46-09 – Pause et arrêt laissent finir les actions en cours
 ```gherkin
-Étant donné trois workers en action
+Étant donné deux workers en action, et une annonce « Prête à supprimer » après eux
 Quand le membre demande une pause
 Alors chaque worker finit son action, n'en prend pas d'autre, et la série est en pause quand tous ont fini
 Quand il reprend
-Alors les trois workers reprennent
+Alors les workers reprennent
 Quand il demande l'arrêt pendant qu'un worker attend
 Alors l'attente est interrompue et la série s'arrête quand plus aucun worker n'est en action (STOPPED_BY_MEMBER)
 ```
-Test : `AutomaticRunAcceptanceTest.Workers.pause_and_stop_let_every_action_in_progress_finish()`
+Test : `AutomaticRunAcceptanceTest.Workers.pause_lets_every_action_in_progress_finish()`, `stop_cuts_a_wait_short()`
 
 ### AT-46-10 – Un problème du compte arrête tous les workers
 ```gherkin
-Étant donné trois workers en action
+Étant donné deux workers en action, et une annonce « Prête à supprimer » après eux
 Quand le worker suppression trouve la session Vinted déconnectée
 Alors les deux autres finissent leur action et n'en prennent plus
 Et la série s'arrête avec la raison SESSION_DISCONNECTED
@@ -165,12 +165,11 @@ Test : `AutomaticRunAcceptanceTest.Workers.an_account_problem_stops_every_worker
 Étant donné le mode WORKERS
 Quand quatre actions d'annonce sont demandées, ou deux sur la même annonce
 Alors la quatrième et la seconde sur la même annonce sont refusées (BROWSER_BUSY)
-Étant donné deux workers en action
-Quand le membre relance à la main une autre annonce
-Alors elle prend la place libre
-Et un worker qui en avait besoin attend 30 secondes (navigateur occupé)
+Étant donné une relance manuelle en cours sur une annonce « Prête à supprimer »
+Quand la série tourne
+Alors le worker qui en avait besoin attend 30 secondes (navigateur occupé), puis la relance
 ```
-Test : `VintedSessionTest.Parallelism.admits_three_listing_actions_with_workers()`, `AutomaticRunAcceptanceTest.Workers.a_manual_relaunch_takes_a_free_place()`
+Test : `VintedSessionTest.Parallelism.admits_three_listing_actions_with_workers()`, `AutomaticRunAcceptanceTest.Workers.a_manual_relaunch_holding_a_listing_makes_its_worker_wait()`
 
 ### AT-46-12 – Page du dressing
 ```gherkin
@@ -221,6 +220,9 @@ Test : manuel (vrai compte Vinted : comportement anti-robot non simulable, valid
 - Tournées d'US-15 et `parallelism.listing-actions` : supprimés.
 
 ## Décisions
+- **Mode séquentiel = un seul worker `ALL_ACTIONS`** : le même moteur sert les deux modes ; comme en US-19, il attend la date permise de sa première candidate même si une écriture de l'autre type serait permise (comportement d'US-19 conservé).
+- **Après une republication réussie**, l'annonce est republiée sans passer par « Republication à vérifier » : le worker vérification ne travaille que sur les republications douteuses et les revérifications de suppression (AT-46-07 décrit donc la reprise par le worker republication).
+- **Pas de raison d'attente « nouvel essai »** : US-17 n'attend que pour la cadence, le délai de republication ou un navigateur occupé.
 - **Trois workers attitrés** : republication (`TO_REPUBLISH`, `WAITING`) ; suppression et revérification de suppression (`TO_DELETE`, `DELETION_TO_CHECK`) ; vérification (`REPUBLICATION_TO_CHECK`).
 - **Entraide limitée aux lectures** : le worker vérification prend la vérification de republication en priorité, sinon une revérification de suppression (en début de série, il n'a aucune republication à vérifier). Les écritures restent strictement attitrées. Jamais deux workers sur la même annonce.
 - **Cadence propre à chaque type d'écriture** (modifie US-27, spec mise à jour dans le même commit que le code) : plus d'intervalle entre deux écritures de types différents, ni d'écart minimal ; plafonds journaliers inchangés ; réservation d'US-15 par type. Le risque anti-robot accru (jusqu'à deux écritures par intervalle) est accepté, borné par les intervalles et les plafonds.
@@ -241,7 +243,7 @@ Termes à ajouter à `docs/glossary.md` :
 - `RunWorker` | Worker de la série | Place de la série attitrée à un type d'action ; relance une annonce à la fois, à son rythme.
 - `RunWorkerKind` (`ALL_ACTIONS`, `REPUBLICATION`, `DELETION`, `VERIFICATION`) | Type de worker | Étapes que le worker prend.
 - `RunWorkerState` (`WORKING`, `WAITING`, `IDLE`, `STOPPED`) | État d'un worker.
-- `RunWaitingReason` (`CADENCE`, `REPUBLICATION_DELAY`, `BROWSER_BUSY`, `RETRY`) | Raison d'attente d'un worker.
+- `RunWaitingReason` (`CADENCE`, `REPUBLICATION_DELAY`, `BROWSER_BUSY`) | Raison d'attente d'un worker.
 - `ParallelismMode` (`SEQUENTIAL`, `WORKERS`) | Mode de parallélisme.
 
 Termes retirés : `Round` (tournée), `ParallelListingActions`.
@@ -252,5 +254,5 @@ Termes retirés : `Round` (tournée), `ParallelListingActions`.
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : `WriteCadenceTest` (intervalle par type, réservation par type), `AutomaticRunTest` (état global déduit des workers : `RUNNING`, `WAITING` avec la date la plus proche, `FINISHED`, pause), `RunWorkerKindTest` (étapes prises et ordre de chaque type), `RunQueueTest` (cadence par type).
-- Application : `LaunchAutomaticRunTest` (choix atomique d'une annonce par worker, worker inactif réveillé, attente par worker, pause, arrêt, `STOP_RUN`).
+- Application : couverte par `AutomaticRunAcceptanceTest.Workers` (choix d'une annonce par worker sans doublon, worker inactif réveillé, attente par worker, pause, arrêt, `STOP_RUN`) et les scénarios séquentiels d'US-19 et US-21.
 - Adaptateurs : `ParallelismConfigurationTest` (mode par défaut, valeur invalide), `VintedSessionTest.Parallelism` (trois places en mode `WORKERS`, une en `SEQUENTIAL`), `AutomaticRunApiControllerTest` (`workers` dans l'aperçu), `WardrobePageTest` et `run-summary.spec.ts` (lignes par worker).

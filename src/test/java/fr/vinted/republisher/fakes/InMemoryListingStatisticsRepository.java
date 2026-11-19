@@ -17,22 +17,22 @@ public class InMemoryListingStatisticsRepository implements ListingStatisticsRep
     private final List<StatisticsReading> readings = new ArrayList<>();
 
     /** Every reading ever added, in order. */
-    public List<StatisticsReading> readings() {
+    public synchronized List<StatisticsReading> readings() {
         return List.copyOf(readings);
     }
 
     @Override
-    public void addAll(List<StatisticsReading> added) {
+    public synchronized void addAll(List<StatisticsReading> added) {
         readings.addAll(added);
     }
 
     @Override
-    public List<StatisticsReading> findLatest() {
+    public synchronized List<StatisticsReading> findLatest() {
         return latestOf(readings);
     }
 
     @Override
-    public List<StatisticsReading> findLatestAsOf(Instant at) {
+    public synchronized List<StatisticsReading> findLatestAsOf(Instant at) {
         return latestOf(readings.stream().filter(reading -> !reading.readAt().isAfter(at)).toList());
     }
 
@@ -44,13 +44,13 @@ public class InMemoryListingStatisticsRepository implements ListingStatisticsRep
     }
 
     @Override
-    public List<StatisticsReading> historyOf(VintedListingId listing) {
+    public synchronized List<StatisticsReading> historyOf(VintedListingId listing) {
         return readings.stream().filter(reading -> reading.listingId().equals(listing))
                 .sorted(Comparator.comparing(StatisticsReading::readAt).reversed()).toList();
     }
 
     @Override
-    public Optional<Instant> findLastReadAt() {
+    public synchronized Optional<Instant> findLastReadAt() {
         return readings.stream().map(StatisticsReading::readAt).max(Comparator.naturalOrder());
     }
 }

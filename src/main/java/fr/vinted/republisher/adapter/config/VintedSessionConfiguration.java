@@ -9,6 +9,7 @@ import fr.vinted.republisher.adapter.out.browser.VintedSiteProperties;
 import fr.vinted.republisher.application.session.CheckVintedSession;
 import fr.vinted.republisher.application.session.LogInToVinted;
 import fr.vinted.republisher.application.session.ShowVintedSession;
+import fr.vinted.republisher.domain.run.ParallelismMode;
 import fr.vinted.republisher.domain.session.VintedAccount;
 import fr.vinted.republisher.domain.session.VintedSession;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -26,8 +27,8 @@ import java.util.concurrent.Executor;
 public class VintedSessionConfiguration {
 
     @Bean
-    VintedSession vintedSession(ParallelismConfiguration.ParallelListingActions parallelism) {
-        return new VintedSession(parallelism.count());
+    VintedSession vintedSession(ParallelismMode parallelism) {
+        return new VintedSession(parallelism.listingActions());
     }
 
     @Bean

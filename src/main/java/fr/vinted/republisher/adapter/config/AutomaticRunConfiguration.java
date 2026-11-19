@@ -1,6 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
-import fr.vinted.republisher.adapter.config.ParallelismConfiguration.ParallelListingActions;
+import fr.vinted.republisher.domain.run.ParallelismMode;
 import fr.vinted.republisher.adapter.out.time.SleepingRunWaiting;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
@@ -26,14 +26,14 @@ import java.util.concurrent.Executors;
 class AutomaticRunConfiguration {
 
     // The run waits minutes, even hours: it goes on in the background, like scans and backups.
-    // The relaunches of a round (US-15) get threads of their own: the run's thread waits for them.
+    // Workers (US-46) get threads of their own: the run's thread waits for them.
     @Bean
     LaunchAutomaticRun launchAutomaticRun(ShowListingInventory showListingInventory, RelaunchListing relaunchListing,
                                           Clock clock, @Qualifier("applicationTaskExecutor") Executor background,
-                                          ParallelListingActions parallelism, RelaunchThreads relaunchThreads) {
+                                          ParallelismMode parallelism, RelaunchThreads relaunchThreads) {
         return new LaunchAutomaticRun(showListingInventory, relaunchListing,
                 new SleepingRunWaiting(clock, Duration.ofSeconds(1)), clock, new FailureLoggingExecutor(background),
-                parallelism.count(), relaunchThreads.threads);
+                parallelism, relaunchThreads.threads);
     }
 
     @Bean
@@ -46,8 +46,8 @@ class AutomaticRunConfiguration {
     }
 
     @Bean
-    RelaunchThreads relaunchThreads(ParallelListingActions parallelism) {
-        return new RelaunchThreads(parallelism.count());
+    RelaunchThreads relaunchThreads(ParallelismMode parallelism) {
+        return new RelaunchThreads(parallelism.listingActions());
     }
 
     /**

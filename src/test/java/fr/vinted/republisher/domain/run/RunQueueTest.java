@@ -87,8 +87,8 @@ class RunQueueTest {
         assertThat(actions).startsWith(
                 action(1, RelaunchAction.DELETION, NOW, false),
                 action(2, RelaunchAction.DELETION, NOW.plusSeconds(30), false),
-                action(5, RelaunchAction.REPUBLICATION, NOW.plusSeconds(150), false),
-                action(3, RelaunchAction.DELETION, NOW.plusSeconds(180), false));
+                action(5, RelaunchAction.REPUBLICATION, NOW.plusSeconds(60), false),
+                action(3, RelaunchAction.DELETION, NOW.plusSeconds(60), false));
     }
 
     @Test

@@ -25,17 +25,17 @@ public class InMemoryBackupVerificationRepository implements BackupVerificationR
     }
 
     @Override
-    public Optional<VerificationResult> find(VintedListingId listing) {
+    public synchronized Optional<VerificationResult> find(VintedListingId listing) {
         return Optional.ofNullable(results.get(listing));
     }
 
     @Override
-    public List<VerificationResult> findAll() {
+    public synchronized List<VerificationResult> findAll() {
         return List.copyOf(results.values());
     }
 
     @Override
-    public void save(VerificationResult result) {
+    public synchronized void save(VerificationResult result) {
         results.put(result.listingId(), result);
         if (!result.passed()) {
             validations.cancel(result.listingId());

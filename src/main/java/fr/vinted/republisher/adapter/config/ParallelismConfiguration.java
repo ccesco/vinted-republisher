@@ -1,46 +1,39 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.domain.run.ParallelismMode;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
+import java.util.Arrays;
+import java.util.stream.Collectors;
+
 /**
- * Reads once, at startup, how many listing actions may run at the same time (US-15), each in its own tab of Chrome:
- * 1 by default, at most 4. A missing or doubtful value stops the tool.
+ * Reads once, at startup, how the automatic run relaunches listings (US-46): sequential by default, or by workers. A
+ * missing or unknown value stops the tool.
  */
 @Configuration
 @EnableConfigurationProperties(ParallelismConfiguration.ParallelismProperties.class)
 public class ParallelismConfiguration {
 
-    /** Beyond, the anti-bot risk grows while the write cadence leaves extra tabs idle. */
-    static final int MAXIMUM_LISTING_ACTIONS = 4;
-
     @Bean
-    ParallelListingActions parallelListingActions(ParallelismProperties parallelism) {
-        Integer listingActions = parallelism.listingActions();
-        if (listingActions == null) {
-            throw new InvalidParallelismConfiguration("missing value");
+    ParallelismMode parallelismMode(ParallelismProperties parallelism) {
+        if (parallelism.mode() == null) {
+            throw new InvalidParallelismConfiguration();
         }
-        if (listingActions < 1 || listingActions > MAXIMUM_LISTING_ACTIONS) {
-            throw new InvalidParallelismConfiguration(
-                    "listing-actions must be from 1 to " + MAXIMUM_LISTING_ACTIONS + ": " + listingActions);
-        }
-        return new ParallelListingActions(listingActions);
+        return parallelism.mode();
     }
 
     @ConfigurationProperties("parallelism")
-    record ParallelismProperties(Integer listingActions) {
-    }
-
-    /** How many listing actions may run at the same time. */
-    record ParallelListingActions(int count) {
+    record ParallelismProperties(ParallelismMode mode) {
     }
 
     static class InvalidParallelismConfiguration extends RuntimeException {
 
-        InvalidParallelismConfiguration(String reason) {
-            super("parallelism : " + reason);
+        InvalidParallelismConfiguration() {
+            super("parallelism.mode : missing value, expected one of " + Arrays.stream(ParallelismMode.values())
+                    .map(Enum::name).collect(Collectors.joining(", ")));
         }
     }
 }

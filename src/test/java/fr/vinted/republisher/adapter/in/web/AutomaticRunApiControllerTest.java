@@ -24,6 +24,11 @@ import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.run.AutomaticRun;
+import fr.vinted.republisher.domain.run.ParallelismMode;
+import fr.vinted.republisher.domain.run.RunWaitingReason;
+import fr.vinted.republisher.domain.run.RunWorker;
+import fr.vinted.republisher.domain.run.RunWorkerKind;
+import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.run.RunStopReason;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -79,7 +84,7 @@ class AutomaticRunApiControllerTest {
         assertThat(mvc.get().uri("/api/automatic-run"))
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
-                        {"status": "IDLE", "currentListingIds": [], "relaunchCount": 0, "skippedListingIds": [],
+                        {"status": "IDLE", "workers": [], "relaunchCount": 0, "skippedListingIds": [],
                          "pauseRequested": false, "stopRequested": false}""");
     }
 
@@ -88,7 +93,8 @@ class AutomaticRunApiControllerTest {
         assertThat(mvc.post().uri("/api/automatic-run"))
                 .hasStatus(202)
                 .bodyJson().isStrictlyEqualTo("""
-                        {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [],
+                        {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z",
+                         "workers": [{"kind": "ALL_ACTIONS", "state": "IDLE", "relaunchCount": 0}],
                          "relaunchCount": 0, "skippedListingIds": [], "pauseRequested": false,
                          "stopRequested": false}""");
         assertThat(launched).hasSize(1);
@@ -121,7 +127,7 @@ class AutomaticRunApiControllerTest {
 
     @Test
     void a_run_stopped_by_the_member_and_a_paused_run() {
-        AutomaticRun started = AutomaticRun.startedAt(NOW);
+        AutomaticRun started = AutomaticRun.startedAt(NOW, ParallelismMode.WORKERS.workerKinds());
 
         assertThat(AutomaticRunApiController.toDto(started.withPauseRequested().pausedIfRequested()).getStatus().name()).isEqualTo("PAUSED");
         assertThat(AutomaticRunApiController.toDto(started.stoppedAt(NOW, RunStopReason.STOPPED_BY_MEMBER))
@@ -129,30 +135,59 @@ class AutomaticRunApiControllerTest {
     }
 
     @Test
-    void a_waiting_run_shows_its_date_and_the_listings_of_its_round() {
-        AutomaticRun waiting = AutomaticRun.startedAt(NOW)
-                .relaunching(List.of(new VintedListingId(7), new VintedListingId(8))).relaunched()
-                .skipping(new VintedListingId(3)).waitingUntil(NOW.plusSeconds(300));
+    void a_running_run_shows_each_of_its_workers() {
+        // AT-46-02, AT-46-06
+        AutomaticRun running = AutomaticRun.startedAt(NOW, ParallelismMode.WORKERS.workerKinds())
+                .relaunchedBy(RunWorkerKind.REPUBLICATION).skipping(new VintedListingId(3))
+                .withWorker(RunWorker.idle(RunWorkerKind.REPUBLICATION).working(new VintedListingId(7),
+                        RelaunchAction.REPUBLICATION))
+                .withWorker(RunWorker.idle(RunWorkerKind.DELETION).waiting(NOW.plusSeconds(300),
+                        RunWaitingReason.CADENCE));
+
+        assertThat(AutomaticRunApiController.toDto(running)).satisfies(dto -> {
+            assertThat(dto.getStatus().name()).isEqualTo("RUNNING");
+            assertThat(dto.getRelaunchCount()).isEqualTo(1);
+            assertThat(dto.getSkippedListingIds()).containsExactly(3L);
+            assertThat(dto.getWorkers()).satisfiesExactly(
+                    republication -> {
+                        assertThat(republication.getKind().name()).isEqualTo("REPUBLICATION");
+                        assertThat(republication.getState().name()).isEqualTo("WORKING");
+                        assertThat(republication.getListingId()).isEqualTo(7L);
+                        assertThat(republication.getAction().name()).isEqualTo("REPUBLICATION");
+                        assertThat(republication.getWaitingUntil()).isNull();
+                    },
+                    deletion -> {
+                        assertThat(deletion.getState().name()).isEqualTo("WAITING");
+                        assertThat(deletion.getWaitingUntil()).hasToString("2026-11-17T10:05Z");
+                        assertThat(deletion.getWaitingReason().name()).isEqualTo("CADENCE");
+                        assertThat(deletion.getListingId()).isNull();
+                    },
+                    verification -> assertThat(verification.getState().name()).isEqualTo("IDLE"));
+        });
+    }
+
+    @Test
+    void a_waiting_run_shows_its_nearest_date() {
+        AutomaticRun waiting = AutomaticRun.startedAt(NOW, ParallelismMode.WORKERS.workerKinds())
+                .withWorker(RunWorker.idle(RunWorkerKind.DELETION).waiting(NOW.plusSeconds(300),
+                        RunWaitingReason.CADENCE));
 
         assertThat(AutomaticRunApiController.toDto(waiting)).satisfies(dto -> {
             assertThat(dto.getStatus().name()).isEqualTo("WAITING");
             assertThat(dto.getWaitingUntil()).hasToString("2026-11-17T10:05Z");
-            assertThat(dto.getCurrentListingIds()).containsExactly(7L, 8L);
-            assertThat(dto.getRelaunchCount()).isEqualTo(1);
-            assertThat(dto.getSkippedListingIds()).containsExactly(3L);
         });
     }
 
     @Test
     void a_stopped_run_shows_its_reason_and_end() {
-        AutomaticRun stopped = AutomaticRun.startedAt(NOW).stoppedAt(NOW.plusSeconds(60),
+        AutomaticRun stopped = AutomaticRun.startedAt(NOW, ParallelismMode.WORKERS.workerKinds()).stoppedAt(NOW.plusSeconds(60),
                 RunStopReason.SESSION_DISCONNECTED);
 
         assertThat(AutomaticRunApiController.toDto(stopped)).satisfies(dto -> {
             assertThat(dto.getStatus().name()).isEqualTo("STOPPED");
             assertThat(dto.getStopReason().name()).isEqualTo("SESSION_DISCONNECTED");
             assertThat(dto.getEndedAt()).hasToString("2026-11-17T10:01Z");
-            assertThat(dto.getCurrentListingIds()).isEmpty();
+            assertThat(dto.getWorkers()).extracting(worker -> worker.getState().name()).containsOnly("STOPPED");
         });
     }
 
@@ -239,7 +274,7 @@ class AutomaticRunApiControllerTest {
                     deletions, republications, delay, clock, new InMemoryListingTagRepository(),
                     new InMemoryBackupVerificationRepository()), relaunch,
                     (until, interrupted) -> {
-                    }, clock, launched::add, 1, Runnable::run);
+                    }, clock, launched::add, ParallelismMode.SEQUENTIAL, Runnable::run);
         }
     }
 }

@@ -774,7 +774,8 @@ class WardrobePageTest {
         assertThat(runSummary()).hasText("");
         // Quand le membre clique sur « Tout lancer »
         runOverview.set("""
-                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [3], "relaunchCount": 0,
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "relaunchCount": 0, "workers": [{"kind": "ALL_ACTIONS",
+                 "state": "WORKING", "listingId": 3, "action": "DELETION", "relaunchCount": 0}],
                  "skippedListingIds": []}""");
         runButton().click();
         // Alors la série est lancée, le bouton est masqué et la page affiche l'état
@@ -814,16 +815,37 @@ class WardrobePageTest {
     }
 
     @Test
-    void shows_every_listing_of_the_round() {
-        // Étant donné une série en cours sur une tournée de deux annonces (US-15), affichées dans la liste
+    void shows_each_worker_of_the_run() {
+        // AT-46-12
+        // Étant donné une série en mode WORKERS : republication de « Bonnet » (annonce 1) en cours, suppression en
+        // attente de cadence, vérification inactive
         inventory.set(TWO_LISTINGS);
         runOverview.set("""
-                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [1, 2],
-                 "relaunchCount": 0, "skippedListingIds": [], "pauseRequested": false, "stopRequested": false}""");
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "relaunchCount": 0, "workers": [
+                  {"kind": "REPUBLICATION", "state": "WORKING", "listingId": 1, "action": "REPUBLICATION",
+                   "relaunchCount": 0},
+                  {"kind": "DELETION", "state": "WAITING", "waitingUntil": "2026-11-17T10:05:00Z",
+                   "waitingReason": "CADENCE", "relaunchCount": 0},
+                  {"kind": "VERIFICATION", "state": "IDLE", "relaunchCount": 0}],
+                 "skippedListingIds": [], "pauseRequested": false, "stopRequested": false}""");
         // Quand le membre ouvre la page du dressing
         open();
-        // Alors elle nomme les deux annonces de la tournée par leur titre
-        assertThat(runSummary()).hasText("Traitement en cours : Bonnet (annonce 1), Pull <b>rayé</b> (annonce 2).");
+        // Alors il voit une ligne par worker
+        assertThat(runSummary()).hasText("Traitement en cours.");
+        assertThat(page.locator("#run-workers li")).hasText(new String[]{
+                "Republication : republie Bonnet (annonce 1)",
+                "Suppression : en attente jusqu'au "
+                        + page.evaluate("new Date('2026-11-17T10:05:00Z').toLocaleString('fr-FR')") + " (cadence)",
+                "Vérification : rien à faire"});
+    }
+
+    @Test
+    void shows_no_worker_line_for_a_sequential_run() {
+        // AT-46-01
+        runOverview.set(runningWith(0));
+        open();
+        assertThat(runSummary()).hasText("Traitement en cours : annonce 1.");
+        assertThat(page.locator("#run-workers")).hasCount(0);
     }
 
     @Test
@@ -862,7 +884,9 @@ class WardrobePageTest {
     }
 
     private static String run(String status, boolean pauseRequested, boolean stopRequested, String more) {
-        return "{\"status\": \"" + status + "\", \"startedAt\": \"2026-11-17T10:00:00Z\", \"currentListingIds\": [3],"
+        return "{\"status\": \"" + status + "\", \"startedAt\": \"2026-11-17T10:00:00Z\","
+                + " \"workers\": [{\"kind\": \"ALL_ACTIONS\","
+                + " \"state\": \"WORKING\", \"listingId\": 3, \"action\": \"DELETION\", \"relaunchCount\": 1}],"
                 + " \"relaunchCount\": 1, \"skippedListingIds\": [], \"pauseRequested\": " + pauseRequested
                 + ", \"stopRequested\": " + stopRequested + more + "}";
     }
@@ -876,6 +900,8 @@ class WardrobePageTest {
         // Étant donné une série en attente
         runOverview.set("""
                 {"status": "WAITING", "startedAt": "2026-11-17T10:00:00Z", "waitingUntil": "2026-11-17T10:05:00Z",
+                 "workers": [{"kind": "ALL_ACTIONS", "state": "WAITING", "waitingUntil": "2026-11-17T10:05:00Z",
+                   "waitingReason": "CADENCE", "relaunchCount": 1}],
                  "relaunchCount": 1, "skippedListingIds": []}""");
         open();
         // Alors la page affiche la date de fin d'attente, sans proposer de relancer la série
@@ -1175,7 +1201,8 @@ class WardrobePageTest {
 
     private static String runningWith(int relaunchCount) {
         return """
-                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "currentListingIds": [1],
+                {"status": "RUNNING", "startedAt": "2026-11-17T10:00:00Z", "workers": [{"kind": "ALL_ACTIONS", "state": "WORKING",
+                 "listingId": 1, "action": "DELETION", "relaunchCount": 0}],
                  "relaunchCount": %d, "skippedListingIds": []}""".formatted(relaunchCount);
     }
 

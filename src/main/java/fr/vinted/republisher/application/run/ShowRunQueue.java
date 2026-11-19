@@ -46,7 +46,7 @@ public class ShowRunQueue {
     }
 
     /**
-     * Listings set aside by a run in progress, or relaunched in its round under way, are left out: a new run starts
+     * Listings set aside by a run in progress, or being relaunched by one of its workers, are left out: a new run starts
      * without any.
      */
     public RunQueue show() {

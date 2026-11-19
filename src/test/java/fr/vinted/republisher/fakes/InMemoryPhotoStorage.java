@@ -22,7 +22,7 @@ public class InMemoryPhotoStorage implements PhotoStorage {
     private final List<String> written = new ArrayList<>();
     private boolean diskFull;
 
-    public InMemoryPhotoStorage whereWritingFails() {
+    public synchronized InMemoryPhotoStorage whereWritingFails() {
         diskFull = true;
         return this;
     }
@@ -33,12 +33,12 @@ public class InMemoryPhotoStorage implements PhotoStorage {
     }
 
     /** The file of the photo disappears, as if deleted by hand. */
-    public void lose(long listing, ListingPhoto photo) {
+    public synchronized void lose(long listing, ListingPhoto photo) {
         files.getOrDefault(new VintedListingId(listing), new HashMap<>()).remove(photo.fileName());
     }
 
     /** The file of the photo now holds other bytes, as if edited by hand. */
-    public void overwrite(long listing, ListingPhoto photo, byte[] content) {
+    public synchronized void overwrite(long listing, ListingPhoto photo, byte[] content) {
         files.computeIfAbsent(new VintedListingId(listing), id -> new HashMap<>()).put(photo.fileName(), content);
     }
 
@@ -48,12 +48,12 @@ public class InMemoryPhotoStorage implements PhotoStorage {
     }
 
     /** Names of the files written so far, in order. */
-    public List<String> written() {
+    public synchronized List<String> written() {
         return written;
     }
 
     @Override
-    public void store(VintedListingId listing, DownloadedPhoto photo) {
+    public synchronized void store(VintedListingId listing, DownloadedPhoto photo) {
         if (diskFull) {
             throw new UncheckedIOException(new IOException("No space left on device"));
         }
@@ -65,7 +65,7 @@ public class InMemoryPhotoStorage implements PhotoStorage {
     }
 
     @Override
-    public void removeAllBut(VintedListingId listing, List<ListingPhoto> photos) {
+    public synchronized void removeAllBut(VintedListingId listing, List<ListingPhoto> photos) {
         Set<String> kept = photos.stream().map(ListingPhoto::fileName).collect(Collectors.toSet());
         files.getOrDefault(listing, new HashMap<>()).keySet().retainAll(kept);
     }

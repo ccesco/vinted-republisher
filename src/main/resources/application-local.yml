@@ -16,3 +16,7 @@ chrome:
 web:
   # Interface Angular servie à part par ng serve (US-37) : ses actions passent par son proxy, sous cette origine.
   trusted-origins: http://localhost:4200
+
+# Mode de parallélisme de la série (US-46), réglable par poste dans .env ; SEQUENTIAL si absent.
+parallelism:
+  mode: ${PARALLELISM_MODE:SEQUENTIAL}

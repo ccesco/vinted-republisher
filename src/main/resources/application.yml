@@ -74,7 +74,7 @@ republication:
   dry-run: ${REPUBLICATION_DRY_RUN:true}
 
 # Limites de cadence (US-27) : une écriture sur Vinted (suppression ou republication réelle) attend l'intervalle de son
-# type (deletion-interval, republication-interval) depuis la dernière écriture, quel que soit le type de celle-ci, et
+# type (deletion-interval, republication-interval) depuis la dernière écriture du même type (US-46), et
 # au plus daily-* de chaque type sur 24 heures glissantes. Absent, nul, négatif ou illisible, l'application ne démarre pas.
 cadence:
   deletion-interval: 1m
@@ -82,12 +82,12 @@ cadence:
   daily-deletions: 140
   daily-republications: 140
 
-# Traitement en parallèle (US-15) : nombre d'actions sur des annonces (suppression, republication et leurs
-# vérifications) menées en même temps, chacune dans son onglet du même Chrome, par la série comme à la main.
-# 1 par défaut : plusieurs onglets augmentent le risque de blocage anti-robot, et la cadence ci-dessus reste commune
-# à tout le compte. De 1 à 4 ; absent ou illisible, l'application ne démarre pas.
+# Mode de parallélisme de la série (US-46) : SEQUENTIAL, une action d'annonce à la fois ; WORKERS, trois workers
+# attitrés (republication ; suppression et revérification ; vérification), chacun dans son onglet du même Chrome.
+# SEQUENTIAL par défaut : plusieurs onglets augmentent le risque de blocage anti-robot. Absent ou inconnu,
+# l'application ne démarre pas.
 parallelism:
-  listing-actions: 1
+  mode: SEQUENTIAL
 
 # Chrome normal démarré par l'outil, piloté par son port de débogage (127.0.0.1 uniquement).
 chrome:
