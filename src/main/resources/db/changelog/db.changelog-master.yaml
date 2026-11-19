@@ -33,4 +33,4 @@ databaseChangeLog:
   - include:
       file: db/changelog/changes/016-create-backup-verification.yaml
   - include:
-      file: db/changelog/changes/017-journal-republication-verification.yaml
+      file: db/changelog/changes/017-journal-republication-proof.yaml

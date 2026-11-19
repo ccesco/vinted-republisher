@@ -1,8 +1,6 @@
 package fr.vinted.republisher.application.republication;
 
 import fr.vinted.republisher.application.journal.JournalWriter;
-import fr.vinted.republisher.domain.journal.ActionOutcome;
-import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
@@ -11,6 +9,8 @@ import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
@@ -53,7 +53,6 @@ public class VerifyListingRepublication {
                                       NewListingSearch newListingSearch, ListingContentReader contents,
                                       BackupPace backupPace, Clock clock,
                                       ShowListingRepublication showListingRepublication, JournalWriter journal) {
-        this.journal = journal;
         this.session = session;
         this.listingBackups = listingBackups;
         this.republications = republications;
@@ -63,6 +62,7 @@ public class VerifyListingRepublication {
         this.backupPace = backupPace;
         this.clock = clock;
         this.showListingRepublication = showListingRepublication;
+        this.journal = journal;
     }
 
     /**
@@ -70,17 +70,15 @@ public class VerifyListingRepublication {
      * Several listings matching the backup leave the republication in error.
      */
     public RepublicationReport verify(VintedListingId id) {
-        return journal.journaled(JournaledAction.REPUBLICATION_VERIFICATION, id, () -> verifyNow(id),
-                VerifyListingRepublication::outcomeOf, Optional.of("REPUBLICATION_FAILED"));
+        Verification verification = journal.journaled(JournaledAction.REPUBLICATION_VERIFICATION, id,
+                () -> verifyNow(id), Verification::outcome, Optional.of("REPUBLICATION_FAILED"));
+        verification.comparisonFailure().ifPresent(failure -> {
+            throw failure;
+        });
+        return verification.report();
     }
 
-    /** Still in error once verified: the doubt remains until the member validates it. */
-    private static ActionOutcome outcomeOf(RepublicationReport report) {
-        return report.lastRepublication().filter(last -> last.outcome() == RepublicationOutcome.PUBLISHED)
-                .isPresent() ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
-    }
-
-    private RepublicationReport verifyNow(VintedListingId id) {
+    private Verification verifyNow(VintedListingId id) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestToVerify(id);
         if (!session.start(BrowserAction.REPUBLISHING, id)) {
@@ -90,13 +88,33 @@ public class VerifyListingRepublication {
         try {
             // Read again under the lock: another verification may have settled it meanwhile.
             ListingRepublication republication = latestToVerify(id);
-            ListingRepublication settled = republication.outcome() == RepublicationOutcome.FAILED
-                    ? settle(republication, backup) : republication;
-            comparison = settled.newListingId().map(newListing -> compare(backup, newListing));
+            if (republication.outcome() != RepublicationOutcome.FAILED) {
+                comparison = republication.newListingId().map(newListing -> compare(backup, newListing));
+            } else {
+                ListingRepublication settled = settle(republication, backup);
+                try {
+                    comparison = settled.newListingId().map(newListing -> compare(backup, newListing));
+                } catch (RuntimeException failure) {
+                    // The proof is recorded: the verification succeeded, even though the comparison failed.
+                    return new Verification(showListingRepublication.verified(id, Optional.empty()),
+                            Optional.of(failure));
+                }
+            }
         } finally {
             session.finish(id);
         }
-        return showListingRepublication.verified(id, comparison);
+        return new Verification(showListingRepublication.verified(id, comparison), Optional.empty());
+    }
+
+    /** {@code comparisonFailure}: the comparison that failed once the republication was proven, passed on after. */
+    private record Verification(RepublicationReport report, Optional<RuntimeException> comparisonFailure) {
+
+        /** Published, whether just proven or only compared; otherwise the republication stays in error. */
+        ActionOutcome outcome() {
+            return report.lastRepublication().map(ListingRepublication::outcome)
+                    .filter(RepublicationOutcome.PUBLISHED::equals).isPresent()
+                    ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
+        }
     }
 
     private ListingRepublication latestToVerify(VintedListingId id) {

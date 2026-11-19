@@ -311,7 +311,7 @@ class ListingRelaunchApiControllerTest {
                             RepublicationMode.REAL, clock, showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                     new VerifyListingRepublication(session, listingBackups, republications, listings,
                             newListingSearch, new FakeListingContentReader(), noBackupPause(), clock,
-                            showRepublication, new JournalWriter(new InMemoryActionJournal(), clock)));
+                            showRepublication, journalWriter));
         }
     }
 }

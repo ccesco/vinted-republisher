@@ -163,6 +163,9 @@ class RelaunchListingAcceptanceTest {
         // Et la réponse donne l'action « vérification » et l'étape « Republiée »
         assertThat(report.action()).isEqualTo(RelaunchAction.REPUBLICATION_VERIFICATION);
         assertThat(report.entry().stage()).isEqualTo(ListingStage.REPUBLISHED);
+        // US-44 AT-44-06. Et le journal contient « Vérification de la republication : réussie »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(tuple(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED));
     }
 
     @Test
@@ -284,7 +287,7 @@ class RelaunchListingAcceptanceTest {
                         cadence, republications, publisher, newListingSearch, listings, RepublicationMode.REAL, clock,
                         showRepublication, journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
                 new VerifyListingRepublication(session, listingBackups, republications, listings, newListingSearch,
-                        contents, noBackupPause(), clock, showRepublication, new JournalWriter(new InMemoryActionJournal(), clock)));
+                        contents, noBackupPause(), clock, showRepublication, journalWriter));
     }
 
     /** Present, backed up with two photos kept, and validated by the member. */

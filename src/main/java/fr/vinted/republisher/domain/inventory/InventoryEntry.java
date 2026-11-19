@@ -14,13 +14,13 @@ import java.util.Optional;
 /**
  * A listing with its latest statistics reading, its current backup and the date of the validation that holds for
  * that backup, where it stands, whether the tool advises republishing it, the republication that makes it republished
- * or to check (none at any other stage) with the new listing it led to when the tool knows it, and the tags it bears,
- * in alphabetical order.
+ * or to check (none at any other stage) with the new listing it led to when the tool knows it, the tags it bears,
+ * in alphabetical order, and the republication tally of its article.
  */
 public record InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<BackupSummary> backup,
                              Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice,
                              Optional<ListingRepublication> republication, Optional<Listing> newListing,
-                             List<Tag> tags) {
+                             List<Tag> tags, RepublicationTally republicationTally) {
 
     public InventoryEntry {
         Objects.requireNonNull(listing);
@@ -31,17 +31,24 @@ public record InventoryEntry(Listing listing, Optional<StatisticsReading> statis
         Objects.requireNonNull(advice);
         Objects.requireNonNull(republication);
         Objects.requireNonNull(newListing);
+        Objects.requireNonNull(republicationTally);
         tags = tags.stream().distinct().sorted().toList();
     }
 
-    /** Without republication nor tags. */
+    /** Without republication, tags nor tally. */
     public InventoryEntry(Listing listing, Optional<StatisticsReading> statistics, Optional<BackupSummary> backup,
                           Optional<Instant> validatedAt, ListingStage stage, Optional<RepublicationAdvice> advice) {
-        this(listing, statistics, backup, validatedAt, stage, advice, Optional.empty(), Optional.empty(), List.of());
+        this(listing, statistics, backup, validatedAt, stage, advice, Optional.empty(), Optional.empty(), List.of(),
+                RepublicationTally.NONE);
     }
 
     InventoryEntry withTags(List<Tag> borne) {
         return new InventoryEntry(listing, statistics, backup, validatedAt, stage, advice, republication, newListing,
-                borne);
+                borne, republicationTally);
+    }
+
+    InventoryEntry withRepublicationTally(RepublicationTally tally) {
+        return new InventoryEntry(listing, statistics, backup, validatedAt, stage, advice, republication, newListing,
+                tags, tally);
     }
 }

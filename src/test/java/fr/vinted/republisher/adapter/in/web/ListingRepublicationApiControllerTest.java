@@ -614,8 +614,9 @@ class ListingRepublicationApiControllerTest {
                                                                   FakeListingContentReader contents,
                                                                   ShowListingRepublication show) {
             return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
-                    noBackupPause(), Clock.fixed(NOW, ZoneOffset.UTC), show, URI.create("https://www.vinted.fr/member/42"),
-                    new JournalWriter(new InMemoryActionJournal(), Clock.fixed(NOW, ZoneOffset.UTC)));
+                    noBackupPause(), Clock.fixed(NOW, ZoneOffset.UTC), show,
+                    URI.create("https://www.vinted.fr/member/42"),
+                    new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
 
         @Bean
@@ -629,7 +630,7 @@ class ListingRepublicationApiControllerTest {
             return new VerifyListingRepublication(session, listingBackups, republications, listings,
                     new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(),
                     Clock.fixed(NOW, ZoneOffset.UTC), show,
-                    new JournalWriter(new InMemoryActionJournal(), Clock.fixed(NOW, ZoneOffset.UTC)));
+                    new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
         }
     }
 }

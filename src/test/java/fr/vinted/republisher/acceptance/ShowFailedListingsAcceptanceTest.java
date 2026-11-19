@@ -7,7 +7,10 @@ import fr.vinted.republisher.domain.inventory.FailureKind;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
+import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
@@ -26,6 +29,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
@@ -41,10 +45,11 @@ class ShowFailedListingsAcceptanceTest {
 
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final InMemoryActionJournal journal = new InMemoryActionJournal();
+    private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
     private final ShowFailedListings showFailedListings = new ShowFailedListings(journal,
             new ShowListingInventory(listings, new InMemoryListingStatisticsRepository(),
                     new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
-                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
                     new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository()));
 
@@ -98,10 +103,43 @@ class ShowFailedListingsAcceptanceTest {
     }
 
     @Test
+    void verified_republication_leaves_the_failed_listings() {
+        // US-44 AT-44-07. Étant donné une annonce dont la republication est restée dans le doute
+        // Et une annonce validée « non publiée » par le membre
+        listings.saveAll(List.of(present(101), present(102)));
+        write(101, JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, null, NOV_17);
+        write(102, JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, null, NOV_17);
+        // Quand la vérification trouve la première publiée et que la seconde est validée « non publiée »
+        write(101, JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED, null, NOV_18);
+        write(102, JournaledAction.REPUBLICATION_VALIDATION, ActionOutcome.NOT_DONE, null, NOV_18);
+
+        // Alors seule la seconde reste dans les annonces en échec
+        assertThat(showFailedListings.show()).singleElement().satisfies(listing -> {
+            assertThat(listing.listing().id().value()).isEqualTo(102L);
+            assertThat(listing.failure().record().action()).isEqualTo(JournaledAction.REPUBLICATION_VALIDATION);
+        });
+    }
+
+    @Test
     void ignores_listings_absent_from_vinted() {
         // Étant donné une annonce dont la republication a échoué, puis vue absente de Vinted
         listings.saveAll(List.of(present(101).absent()));
         write(101, JournaledAction.REPUBLICATION, ActionOutcome.FAILED, "FORM_UNREADABLE", NOV_18);
+
+        // Quand le membre demande les annonces en échec
+        // Alors elle n'est pas renvoyée
+        assertThat(showFailedListings.show()).isEmpty();
+    }
+
+    @Test
+    void ignores_listings_republished_since() {
+        // Étant donné une annonce dont la republication a échoué, puis dont une republication a été publiée
+        // Et aucune ligne plus récente du journal ne la concerne
+        listings.saveAll(List.of(present(101)));
+        write(101, JournaledAction.REPUBLICATION, ActionOutcome.FAILED, "FORM_UNREADABLE", NOV_17);
+        republications.save(new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
+                new VintedListingId(101), SCANNED_AT, NOV_17, RepublicationOutcome.PUBLISHED, Optional.of(NOV_18),
+                Optional.of(new VintedListingId(201)), Optional.empty()));
 
         // Quand le membre demande les annonces en échec
         // Alors elle n'est pas renvoyée

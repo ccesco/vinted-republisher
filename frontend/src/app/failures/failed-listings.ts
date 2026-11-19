@@ -10,7 +10,7 @@ import { dateOf, listingLink } from '../shared/format';
 import { actionOf, causeOf, outcomeOf } from '../shared/journal';
 import { manualRepublicationMessageOf } from '../shared/manual-republication';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
-import { RELAUNCHABLE_STAGES, RELAUNCH_FAILED_MESSAGE, STAGE_LABELS } from '../wardrobe/wardrobe-messages';
+import { RELAUNCH_LABELS, RELAUNCH_FAILED_MESSAGE, STAGE_LABELS } from '../wardrobe/wardrobe-messages';
 import { FailureGroup, failureGroupsOf } from './failure-groups';
 
 const MANUAL_REPUBLICATION_FAILED = 'Échec de la republication manuelle : voir la fiche';
@@ -28,7 +28,7 @@ export class FailedListings {
   protected readonly relaunching = signal<number | null>(null);
   protected readonly message = signal<MessagePart[]>([]);
   protected readonly stageLabels = STAGE_LABELS;
-  protected readonly relaunchableStages = RELAUNCHABLE_STAGES;
+  protected readonly relaunchLabels = RELAUNCH_LABELS;
   protected readonly listingLink = listingLink;
   protected readonly dateOf = dateOf;
   protected readonly actionOf = actionOf;

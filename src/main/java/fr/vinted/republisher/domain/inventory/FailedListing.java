@@ -14,7 +14,7 @@ import java.util.stream.Collectors;
 
 /**
  * A listing whose last journal entry is a failure, which gives its cause; never one gone from Vinted nor one
- * republished, with nothing left to do.
+ * republished since, as nothing is left to do on it.
  */
 public record FailedListing(Listing listing, ListingStage stage, JournalEntry failure) {
 

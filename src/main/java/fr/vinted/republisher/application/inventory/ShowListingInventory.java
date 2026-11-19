@@ -8,6 +8,7 @@ import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingInventory;
 import fr.vinted.republisher.domain.inventory.RepublicationAdvice;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.tag.ListingTagRepository;
@@ -51,9 +52,12 @@ public class ShowListingInventory {
 
     public List<InventoryEntry> show(InventoryCriteria criteria) {
         Instant now = clock.instant();
+        List<ListingRepublication> latest = republications.findAllLatest();
         return ListingInventory.of(listings.findAll(), statistics.findLatest(),
-                statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAllSummaries(),
-                validations.findAll(), verifications.findAll(), deletions.findAllLatest(), republications.findAllLatest(), delay, now)
-                .withTags(tags.findAll()).select(criteria);
+                        statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAllSummaries(),
+                        validations.findAll(), verifications.findAll(), deletions.findAllLatest(), latest, delay, now)
+                .withTags(tags.findAll())
+                .withRepublicationTallies(latest, republications.findNotPublishedCounts())
+                .select(criteria);
     }
 }

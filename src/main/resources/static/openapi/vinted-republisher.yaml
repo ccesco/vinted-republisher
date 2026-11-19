@@ -1348,10 +1348,9 @@ components:
       description: >
         Action journalisée : scan du dressing, sauvegarde du dressing, validation d'une sauvegarde, vérification
         d'une sauvegarde sur Vinted (US-40), suppression,
-        revérification d'une suppression, republication, vérification ou validation manuelle d'une republication
-        (US-45), rafraîchissement des vues et favoris.
-      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, BACKUP_VERIFICATION, DELETION, DELETION_RECHECK, REPUBLICATION,
-             REPUBLICATION_VERIFICATION, STATISTICS_REFRESH]
+        revérification d'une suppression, republication, vérification d'une republication sur Vinted et validation
+        manuelle d'une republication (US-44), rafraîchissement des vues et favoris.
+      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, BACKUP_VERIFICATION, DELETION, DELETION_RECHECK, REPUBLICATION, REPUBLICATION_VERIFICATION, REPUBLICATION_VALIDATION, STATISTICS_REFRESH]
     ActionOutcome:
       type: string
       description: >
@@ -1605,6 +1604,34 @@ components:
           description: >
             Tags portés par l'annonce, par ordre alphabétique (US-34) ; toujours rendu par la liste (vide si aucun),
             absent de la fiche et de la relance.
+        republicationTally:
+          allOf:
+            - $ref: '#/components/schemas/RepublicationTally'
+          description: >
+            Compteur de republications de l'article (US-44) ; toujours rendu par la liste (zéros compris), absent de
+            la fiche et de la relance.
+    RepublicationTally:
+      type: object
+      description: >
+        Republications de tout l'article, sur toutes les annonces de sa chaîne de republications publiées, dans les
+        deux sens : la même valeur pour chaque annonce de l'article.
+      required: [published, notPublished]
+      properties:
+        published:
+          type: integer
+          format: int32
+          minimum: 0
+          description: Republications publiées (PUBLISHED), retrouvées par l'outil ou validées par le membre.
+        notPublished:
+          type: integer
+          format: int32
+          minimum: 0
+          description: >
+            Tentatives constatées non publiées sur Vinted (NOT_PUBLISHED) ; une tentative en erreur encore à vérifier
+            (FAILED) n'est pas comptée.
+      example:
+        published: 2
+        notPublished: 1
     RepublicationAdvice:
       type: object
       description: >

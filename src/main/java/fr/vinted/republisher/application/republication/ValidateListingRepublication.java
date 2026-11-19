@@ -1,8 +1,6 @@
 package fr.vinted.republisher.application.republication;
 
 import fr.vinted.republisher.application.journal.JournalWriter;
-import fr.vinted.republisher.domain.journal.ActionOutcome;
-import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.backup.BackupPace;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
@@ -11,6 +9,8 @@ import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.NewListingLink;
@@ -57,7 +57,6 @@ public class ValidateListingRepublication {
                                         ListingContentReader contents, BackupPace backupPace, Clock clock,
                                         ShowListingRepublication showListingRepublication, URI vintedSite,
                                         JournalWriter journal) {
-        this.journal = journal;
         this.session = session;
         this.listingBackups = listingBackups;
         this.republications = republications;
@@ -67,6 +66,7 @@ public class ValidateListingRepublication {
         this.clock = clock;
         this.showListingRepublication = showListingRepublication;
         this.vintedSite = vintedSite;
+        this.journal = journal;
     }
 
     /**
@@ -74,14 +74,8 @@ public class ValidateListingRepublication {
      * {@link BrowserBusy} before opening Chrome, {@link NewListingMismatch} when the page has another title or price.
      */
     public RepublicationReport published(VintedListingId id, Optional<String> link) {
-        return journal.journaled(JournaledAction.REPUBLICATION_VERIFICATION, id, () -> publishedNow(id, link),
+        return journal.journaled(JournaledAction.REPUBLICATION_VALIDATION, id, () -> publishedNow(id, link),
                 report -> ActionOutcome.SUCCEEDED, Optional.of("REPUBLICATION_FAILED"));
-    }
-
-    /** Written as a republication not done: the listing is to be republished again. */
-    public RepublicationReport notPublished(VintedListingId id) {
-        return journal.journaled(JournaledAction.REPUBLICATION_VERIFICATION, id, () -> notPublishedNow(id),
-                report -> ActionOutcome.NOT_DONE, Optional.of("REPUBLICATION_FAILED"));
     }
 
     private RepublicationReport publishedNow(VintedListingId id, Optional<String> link) {
@@ -108,6 +102,11 @@ public class ValidateListingRepublication {
     }
 
     /** Throws {@link ListingNotBackedUp}, {@link NoRepublicationToVerify} or {@link BrowserBusy}. */
+    public RepublicationReport notPublished(VintedListingId id) {
+        return journal.journaled(JournaledAction.REPUBLICATION_VALIDATION, id, () -> notPublishedNow(id),
+                report -> ActionOutcome.NOT_DONE, Optional.of("REPUBLICATION_FAILED"));
+    }
+
     private RepublicationReport notPublishedNow(VintedListingId id) {
         listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         latestInError(id);
