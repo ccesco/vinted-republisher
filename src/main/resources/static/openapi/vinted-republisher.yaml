@@ -26,6 +26,8 @@ tags:
     description: Journal des actions de l'outil, refus, dry-runs et erreurs compris (US-23)
   - name: listing-relaunch
     description: Relance d'une annonce, d'une étape, depuis la liste (US-20)
+  - name: failed-listings
+    description: Annonces dont la dernière action a échoué, avec sa cause (US-39)
   - name: listing-tag
     description: Tags posés sur une sélection d'annonces, gardés dans l'outil (US-34)
   - name: automatic-run
@@ -287,6 +289,12 @@ paths:
           schema:
             type: string
             maxLength: 100
+        - name: stage
+          in: query
+          required: false
+          description: Étape des annonces retenues (US-38) ; absente = toutes les étapes.
+          schema:
+            $ref: '#/components/schemas/ListingStage'
       responses:
         '200':
           description: Annonces retenues, dans l'ordre demandé.
@@ -383,6 +391,23 @@ paths:
                 $ref: '#/components/schemas/ActionJournal'
         '400':
           description: before qui n'est pas un entier d'au moins 1.
+  /api/failed-listings:
+    get:
+      tags: [failed-listings]
+      operationId: showFailedListings
+      summary: Annonces en échec
+      description: >
+        Les annonces dont la dernière action journalisée, hors refus d'attente (cadence, trop tôt, navigateur
+        occupé), est un refus, un doute, une revérification non faite ou un échec, avec cette ligne pour cause, de
+        la plus récente à la plus ancienne ; hors annonces absentes de Vinted. Lit les données conservées, sans
+        accéder à Vinted.
+      responses:
+        '200':
+          description: Les annonces en échec.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FailedListings'
   /api/sales:
     get:
       tags: [sales]
@@ -1128,6 +1153,31 @@ components:
         listingId: 90000000001
         listingTitle: Pull rayé
         reason: NOT_VALIDATED
+    FailedListings:
+      type: object
+      description: Les annonces en échec, de l'échec le plus récent au plus ancien.
+      required: [listings]
+      properties:
+        listings:
+          type: array
+          items:
+            $ref: '#/components/schemas/FailedListing'
+    FailedListing:
+      type: object
+      description: >
+        Annonce dont la dernière ligne du journal (refus d'attente ignorés) est un refus, un doute, une
+        revérification non faite ou un échec ; cette ligne en donne la cause.
+      required: [listingId, listingTitle, stage, failure]
+      properties:
+        listingId:
+          type: integer
+          format: int64
+        listingTitle:
+          type: string
+        stage:
+          $ref: '#/components/schemas/ListingStage'
+        failure:
+          $ref: '#/components/schemas/JournalEntry'
     JournaledAction:
       type: string
       description: >
@@ -1375,6 +1425,12 @@ components:
           $ref: '#/components/schemas/ListingStage'
         republicationAdvice:
           $ref: '#/components/schemas/RepublicationAdvice'
+        republication:
+          allOf:
+            - $ref: '#/components/schemas/ListingRepublication'
+          description: >
+            Republication qui fixe l'étape (US-38) : présente seulement si l'annonce est republiée ou sa
+            republication à vérifier ; rendue par la liste, absente de la fiche et de la relance.
         tags:
           type: array
           items:

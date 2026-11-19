@@ -63,6 +63,18 @@ public class RelaunchListing {
         return new RelaunchReport(action, dryRun, detail.show(id).entry());
     }
 
+    /**
+     * When relaunching a listing at this stage would write on Vinted for real, from when the write cadence allows it;
+     * empty for a check or a dry run.
+     */
+    public Optional<Instant> realWriteAllowedAt(ListingStage stage) {
+        return RelaunchAction.after(stage).flatMap(action -> switch (action) {
+            case DELETION -> deleteListing.realWriteAllowedAt();
+            case REPUBLICATION -> republishListing.realWriteAllowedAt();
+            case DELETION_RECHECK, REPUBLICATION_VERIFICATION -> Optional.empty();
+        });
+    }
+
     private Optional<Instant> republishableAt(VintedListingId id, ListingStage stage) {
         if (stage != ListingStage.WAITING) {
             return Optional.empty();

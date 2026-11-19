@@ -27,7 +27,7 @@
 
 <section class="card run">
   <h2>Série automatique</h2>
-  <p id="run-summary">{{ runSummary() }}</p>
+  <p id="run-summary">@for (part of runSummary(); track $index) {@if (part.failuresLink) {<a href="#/failures">{{ part.text }}</a>} @else {{{ part.text }}}}</p>
   <div class="actions">
     <button id="automatic-run" matButton="filled" type="button" [hidden]="!runButtonShown()" (click)="launchRun()">Tout lancer</button>
     <button id="pause-run" matButton="tonal" type="button" [hidden]="!pauseShown()" (click)="controlRun('pause')">Pause</button>
@@ -70,9 +70,9 @@
     <mat-form-field appearance="outline">
       <mat-label>Présence</mat-label>
       <select matNativeControl id="presence" (change)="choose('presence', $any($event.target).value)">
-        <option value="PRESENT" selected>Présentes</option>
-        <option value="ABSENT">Absentes</option>
-        <option value="ALL">Toutes</option>
+        <option value="PRESENT" [selected]="presence() === 'PRESENT'">Présentes</option>
+        <option value="ABSENT" [selected]="presence() === 'ABSENT'">Absentes</option>
+        <option value="ALL" [selected]="presence() === 'ALL'">Toutes</option>
       </select>
     </mat-form-field>
     <mat-form-field appearance="outline">
@@ -116,6 +116,15 @@
         }
       </select>
     </mat-form-field>
+    <mat-form-field appearance="outline">
+      <mat-label>Étape</mat-label>
+      <select matNativeControl id="stage-filter" (change)="choose('stage', $any($event.target).value)">
+        <option value="" selected>Toutes</option>
+        @for (each of stages; track each[0]) {
+          <option [value]="each[0]">{{ each[1] }}</option>
+        }
+      </select>
+    </mat-form-field>
   </div>
 
   <div class="tag-edit" [class.active]="selection().size > 0">
@@ -145,6 +154,7 @@
         <th scope="col">Sauvegarde</th>
         <th scope="col">Validation</th>
         <th scope="col">Étape</th>
+        <th scope="col">Republication</th>
         <th scope="col">Action</th>
         <th scope="col">Tags</th>
         <th scope="col"><input id="select-all" type="checkbox" aria-label="Sélectionner toutes les annonces affichées"
@@ -167,6 +177,13 @@
                 <strong>{{ stageLabels[row.listing.stage] }}</strong>
               } @else {
                 {{ stageLabels[row.listing.stage] ?? '' }}
+              }
+            </td>
+            <td>
+              @let republication = republicationCellOf(row.listing);
+              {{ republication.text }}
+              @if (republication.newListingUrl) {
+                <a [href]="republication.newListingUrl" target="_blank" rel="noopener noreferrer">nouvelle annonce</a>
               }
             </td>
             <td>

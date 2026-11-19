@@ -18,6 +18,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.BinaryOperator;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -32,6 +33,10 @@ public record ListingInventory(List<InventoryEntry> entries) {
     private static final Comparator<ListingDeletion> LATEST_DELETION = Comparator
             .comparing(ListingDeletion::attemptedAt)
             .thenComparing(deletion -> deletion.outcome() != DeletionOutcome.NOT_DONE);
+
+    /** Stages set by the latest republication: the only ones whose entry bears it. */
+    private static final Set<ListingStage> REPUBLICATION_STAGES =
+            Set.of(ListingStage.REPUBLISHED, ListingStage.REPUBLICATION_TO_CHECK);
 
     public ListingInventory {
         entries = List.copyOf(entries);
@@ -63,18 +68,22 @@ public record ListingInventory(List<InventoryEntry> entries) {
                         BinaryOperator.maxBy(LATEST_DELETION)));
         Map<VintedListingId, ListingRepublication> republicationOf = republications.stream()
                 .collect(Collectors.toMap(ListingRepublication::listingId, Function.identity()));
+        Map<VintedListingId, Listing> listingOf = listings.stream()
+                .collect(Collectors.toMap(Listing::id, Function.identity()));
         return new ListingInventory(listings.stream().map(listing -> {
             Optional<ListingBackup> backup = Optional.ofNullable(backupOf.get(listing.id()));
             Optional<BackupValidation> validation = Optional.ofNullable(validationOf.get(listing.id()))
                     .filter(given -> backup.filter(given::holdsFor).isPresent());
             boolean verificationFailed = Optional.ofNullable(verificationOf.get(listing.id()))
                     .filter(result -> backup.filter(result::failsFor).isPresent()).isPresent();
+            Optional<ListingRepublication> republication = Optional.ofNullable(republicationOf.get(listing.id()));
             ListingStage stage = ListingStage.of(listing.present(), backup.isPresent(), validation.isPresent(),
-                    verificationFailed, Optional.ofNullable(deletionOf.get(listing.id())),
-                    Optional.ofNullable(republicationOf.get(listing.id())), delay, now);
+                    verificationFailed, Optional.ofNullable(deletionOf.get(listing.id())), republication, delay, now);
             Optional<StatisticsReading> latest = Optional.ofNullable(readingOf.get(listing.id()));
+            Optional<ListingRepublication> borne = republication.filter(_ -> REPUBLICATION_STAGES.contains(stage));
             return new InventoryEntry(listing, latest, backup, validation.map(BackupValidation::validatedAt), stage,
-                    RepublicationAdvice.of(stage, latest, Optional.ofNullable(baselineOf.get(listing.id())), now));
+                    RepublicationAdvice.of(stage, latest, Optional.ofNullable(baselineOf.get(listing.id())), now),
+                    borne, borne.flatMap(ListingRepublication::newListingId).map(listingOf::get), List.of());
         }).toList());
     }
 

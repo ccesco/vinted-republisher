@@ -59,6 +59,8 @@ Dans IntelliJ, renseigner `local` dans *Active profiles* de la configuration de 
 
 En production (profil `local` inactif), les variables viennent du système et sont toutes obligatoires : `DB_URL` (ex. `jdbc:postgresql://hote:5432/appdb`), `DB_USER`, `DB_PASSWORD`, `APP_DATA_DIR`, `CHROME_PATH`, `CHROME_DEBUG_PORT`, `VINTED_WARDROBE_URL`.
 
+Raccourci sous Windows : `.\scripts\demarrer.ps1` démarre PostgreSQL, régénère le client d'API puis ouvre une fenêtre pour le back et une pour le front.
+
 Interface : application Angular (Angular Material) à part, dans `frontend/`, qui demande Node. Back lancé (`mvn spring-boot:run`, API seule sur `http://localhost:8080/api`), la démarrer avec `npm install` puis `npm start` dans `frontend/` et ouvrir `http://localhost:4200/` : elle se recharge à chaque modification et relaie `/api` vers le back. La barre de navigation (à gauche, en bas sur téléphone) mène au Dressing, au Journal, aux Ventes et à la Session Vinted ; l'état de la session est rappelé en haut de chaque écran, et un bouton bascule entre thème clair et sombre (par défaut, celui du système). Le code est dans `frontend/` ; son client d'API est généré depuis le contrat OpenAPI.
 
 Session Vinted : écran `http://localhost:4200/#/vinted-session` (contrat d'API et Swagger UI sur `http://localhost:8080/swagger-ui.html`). L'outil démarre lui-même un Chrome normal (Chrome doit être installé) avec un profil dédié `APP_DATA_DIR/browser-profile` et le pilote par son port de débogage local ; ce Chrome reste ouvert entre deux actions. **Attention** : tant qu'il est ouvert, n'importe quel programme de votre machine peut le piloter par ce port, donc agir sur votre compte Vinted connecté ; fermez-le quand vous n'utilisez pas l'outil. Avec « Se connecter », vous vous connectez vous-même à Vinted dans ce Chrome ; la session est considérée ouverte quand la page `https://www.vinted.fr/settings/profile` s'affiche sans redirection vers la connexion.
@@ -166,3 +168,4 @@ Priorités : `MVP` = première version utilisable, `V2` = ensuite. Les critères
 
 ### Epic 10 – Interface `V2`
 - [x] US-37 Interface Angular (refonte à fonctions égales, Angular Material)
+- [x] US-38 Filtre par étape et suivi des republications dans la liste

@@ -37,6 +37,12 @@ class JpaActionJournal implements ActionJournal {
     }
 
     @Override
+    public List<JournalEntry> lastOfEachListing() {
+        return repository.findLastOfEachListingExcept(ActionRecord.WAITING_REASONS).stream()
+                .map(ActionJournalJpaEntity::toJournalEntry).toList();
+    }
+
+    @Override
     public List<JournalEntry> of(VintedListingId listing) {
         return repository.findByListingIdOrderByIdDesc(listing.value()).stream()
                 .map(ActionJournalJpaEntity::toJournalEntry).toList();

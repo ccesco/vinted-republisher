@@ -26,6 +26,7 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
     private static final Instant AT = Instant.parse("2026-11-15T10:00:00.123456Z");
     private static final VintedListingId LISTING = new VintedListingId(10208778166L);
     private static final VintedListingId OTHER = new VintedListingId(10208778167L);
+    private static final VintedListingId THIRD = new VintedListingId(10208778168L);
 
     @Autowired
     private ActionJournal journal;
@@ -89,5 +90,26 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
         records.forEach(journal::write);
 
         assertThat(journal.of(LISTING)).extracting(JournalEntry::record).containsExactlyInAnyOrderElementsOf(records);
+    }
+
+    @Test
+    void last_entry_of_each_listing() {
+        // US-39 : la dernière ligne de chaque annonce, sans les lignes sans annonce ni les refus d'attente
+        ActionRecord first = new ActionRecord(AT, JournaledAction.DELETION, ActionOutcome.FAILED,
+                Optional.of(LISTING), Optional.of("VINTED_UNREACHABLE"));
+        ActionRecord other = new ActionRecord(AT.plusSeconds(1), JournaledAction.DELETION, ActionOutcome.IN_DOUBT,
+                Optional.of(OTHER), Optional.empty());
+        ActionRecord second = new ActionRecord(AT.plusSeconds(2), JournaledAction.DELETION, ActionOutcome.SUCCEEDED,
+                Optional.of(LISTING), Optional.empty());
+        ActionRecord scan = new ActionRecord(AT.plusSeconds(3), JournaledAction.SCAN, ActionOutcome.STARTED,
+                Optional.empty(), Optional.empty());
+        ActionRecord waiting = new ActionRecord(AT.plusSeconds(4), JournaledAction.DELETION, ActionOutcome.REFUSED,
+                Optional.of(OTHER), Optional.of("CADENCE_LIMIT_REACHED"));
+        ActionRecord refusedWithoutReason = new ActionRecord(AT.plusSeconds(5), JournaledAction.DELETION,
+                ActionOutcome.REFUSED, Optional.of(THIRD), Optional.empty());
+        List.of(first, other, second, scan, waiting, refusedWithoutReason).forEach(journal::write);
+
+        assertThat(journal.lastOfEachListing()).extracting(JournalEntry::record)
+                .containsExactlyInAnyOrder(second, other, refusedWithoutReason);
     }
 }

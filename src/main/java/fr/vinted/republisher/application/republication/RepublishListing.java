@@ -72,6 +72,12 @@ public class RepublishListing {
         this.showListingRepublication = showListingRepublication;
     }
 
+    /** From when the cadence allows a real republication; empty in dry run, where nothing is published. */
+    public Optional<Instant> realWriteAllowedAt() {
+        return mode == RepublicationMode.REAL
+                ? Optional.of(cadence.allowedAt(VintedWrite.REPUBLICATION)) : Optional.empty();
+    }
+
     /**
      * {@code seen} is the date of the backup the member saw. Every check is made before Chrome opens; past the click on
      * Publish, any failure leaves the republication in error rather than risk a duplicate. The write cadence is

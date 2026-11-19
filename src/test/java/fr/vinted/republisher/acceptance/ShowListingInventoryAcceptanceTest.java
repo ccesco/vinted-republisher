@@ -11,6 +11,7 @@ import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
@@ -45,14 +46,17 @@ class ShowListingInventoryAcceptanceTest {
 
     private static final Instant SCANNED_AT = Instant.parse("2026-11-10T09:00:00Z");
     private static final Instant SAVED_AT = Instant.parse("2026-11-10T10:00:00Z");
+    private static final Instant ATTEMPTED_AT = Instant.parse("2026-11-18T10:00:00Z");
+    private static final Instant PUBLISHED_AT = Instant.parse("2026-11-18T10:05:00Z");
 
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
     private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
     private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
+    private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
     private final ShowListingInventory showListingInventory =
             new ShowListingInventory(listings, statistics, backups, validations,
-                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
                     new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
 
@@ -175,6 +179,75 @@ class ShowListingInventoryAcceptanceTest {
                 new InventoryEntry(listing, Optional.of(reading), Optional.of(backup), Optional.of(validatedAt),
                         ListingStage.TO_DELETE, Optional.empty()));
         assertThat(backup.photos()).hasSize(3);
+    }
+
+    @Test
+    void filters_on_stage() {
+        // Étant donné une annonce republiée (absente), une annonce dont la republication est à vérifier (absente)
+        //   et une annonce prête à supprimer (présente)
+        givenRepublishedToCheckAndToDelete();
+
+        // Quand le membre demande l'étape « Republiée » et toutes les présences
+        // Alors seule l'annonce republiée est renvoyée
+        assertThat(ids(staged(PresenceFilter.ALL, Optional.of(ListingStage.REPUBLISHED)))).containsExactly(101L);
+        // Et sans étape, les trois sont renvoyées
+        assertThat(ids(staged(PresenceFilter.ALL, Optional.empty()))).containsExactly(103L, 102L, 101L);
+    }
+
+    @Test
+    void combines_stage_with_presence() {
+        // Étant donné une annonce republiée, donc absente
+        givenRepublishedToCheckAndToDelete();
+
+        // Quand le membre demande l'étape « Republiée » avec les présentes
+        // Alors la liste est vide
+        assertThat(ids(staged(PresenceFilter.PRESENT, Optional.of(ListingStage.REPUBLISHED)))).isEmpty();
+    }
+
+    @Test
+    void shows_republication_of_republished_and_to_check_listings() {
+        // Étant donné une annonce republiée, dont la nouvelle annonce 201 est connue de l'outil,
+        //   une annonce à vérifier et une annonce prête à supprimer
+        givenRepublishedToCheckAndToDelete();
+        Listing newListing = present(201, "a", "1");
+        listings.saveAll(List.of(newListing));
+
+        // Quand le membre affiche toutes les annonces
+        List<InventoryEntry> entries = showListingInventory.show(staged(PresenceFilter.ALL, Optional.empty()));
+
+        // Alors la republiée porte sa date de publication et sa nouvelle annonce, avec son adresse
+        InventoryEntry republished = entryOf(entries, 101);
+        assertThat(republished.republication()).hasValueSatisfying(republication -> {
+            assertThat(republication.publishedAt()).contains(PUBLISHED_AT);
+            assertThat(republication.newListingId()).contains(new VintedListingId(201));
+        });
+        assertThat(republished.newListing().map(Listing::url)).contains(newListing.url());
+        // Et celle à vérifier sa date de tentative, sans date de publication
+        assertThat(entryOf(entries, 102).republication()).hasValueSatisfying(republication -> {
+            assertThat(republication.attemptedAt()).isEqualTo(ATTEMPTED_AT);
+            assertThat(republication.publishedAt()).isEmpty();
+        });
+        // Et la prête à supprimer aucune
+        assertThat(entryOf(entries, 103).republication()).isEmpty();
+    }
+
+    private static InventoryEntry entryOf(List<InventoryEntry> entries, long id) {
+        return entries.stream().filter(entry -> entry.listing().id().value() == id).findFirst().orElseThrow();
+    }
+
+    private void givenRepublishedToCheckAndToDelete() {
+        listings.saveAll(List.of(present(101, "a", "1").absent(), present(102, "b", "1").absent(),
+                present(103, "c", "1")));
+        republications.save(ListingRepublication.attempted(aBackup(101, SAVED_AT), ATTEMPTED_AT)
+                .published(new VintedListingId(201), PUBLISHED_AT));
+        republications.save(ListingRepublication.attempted(aBackup(102, SAVED_AT), ATTEMPTED_AT));
+        backups.save(aBackup(103, SAVED_AT));
+        validations.save(BackupValidation.of(aBackup(103, SAVED_AT), SAVED_AT.plusSeconds(60)));
+    }
+
+    private static InventoryCriteria staged(PresenceFilter presence, Optional<ListingStage> stage) {
+        return new InventoryCriteria(presence, BackupFilter.ALL, "", InventorySort.RECENCY, SortDirection.DESC,
+                Optional.empty(), stage);
     }
 
     private static ListingBackup aBackupWithPhotos(long id, int count) {

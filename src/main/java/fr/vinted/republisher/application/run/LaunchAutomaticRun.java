@@ -2,13 +2,9 @@ package fr.vinted.republisher.application.run;
 
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
-import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
-import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.ListingStage;
-import fr.vinted.republisher.domain.inventory.PresenceFilter;
-import fr.vinted.republisher.domain.inventory.SortDirection;
 import fr.vinted.republisher.domain.relaunch.FailureHandling;
 import fr.vinted.republisher.domain.relaunch.RelaunchReport;
 import fr.vinted.republisher.domain.run.AutomaticRun;
@@ -56,9 +52,6 @@ public class LaunchAutomaticRun {
     /** Stages the run relaunches, in the order it takes them. */
     private static final List<ListingStage> ORDER = List.of(ListingStage.REPUBLICATION_TO_CHECK,
             ListingStage.DELETION_TO_CHECK, ListingStage.TO_REPUBLISH, ListingStage.TO_DELETE, ListingStage.WAITING);
-
-    private static final InventoryCriteria EVERY_LISTING = new InventoryCriteria(PresenceFilter.ALL,
-            BackupFilter.ALL, "", InventorySort.RECENCY, SortDirection.DESC);
 
     private final ShowListingInventory inventory;
     private final RelaunchListing relaunchListing;
@@ -123,12 +116,14 @@ public class LaunchAutomaticRun {
                 } else if (current.pauseRequested()) {
                     pauseUntilResumedOrStopped();
                 } else {
-                    List<InventoryEntry> round = nextRound();
-                    if (round.isEmpty()) {
+                    Round round = nextRound();
+                    if (!round.entries().isEmpty()) {
+                        goesOn = relaunchTogether(round.entries());
+                    } else if (round.writeAllowedAt().isPresent()) {
+                        waitUntil(round.writeAllowedAt().get());
+                    } else {
                         update(run -> run.finishedAt(clock.instant()));
                         goesOn = false;
-                    } else {
-                        goesOn = relaunchTogether(round);
                     }
                 }
             }
@@ -139,16 +134,28 @@ public class LaunchAutomaticRun {
         }
     }
 
-    /** Up to {@code parallelism} listings, in the run's order; any back at a stage already relaunched is skipped. */
-    private List<InventoryEntry> nextRound() {
+    /**
+     * Listings to relaunch together; when there are none because the cadence does not allow the next write yet, the
+     * date from which it does.
+     */
+    private record Round(List<InventoryEntry> entries, Optional<Instant> writeAllowedAt) {
+    }
+
+    /**
+     * Up to {@code parallelism} listings, in the run's order; any back at a stage already relaunched is skipped. The
+     * round holds at most one real write, and ends before a write the cadence does not allow yet: no write is ever
+     * tried only to be refused for cadence.
+     */
+    private Round nextRound() {
         AutomaticRun current = overview();
-        List<InventoryEntry> candidates = inventory.show(EVERY_LISTING).stream()
+        List<InventoryEntry> candidates = inventory.show(InventoryCriteria.everyListing()).stream()
                 .filter(entry -> ORDER.contains(entry.stage()))
                 .filter(entry -> !current.skips(entry.listing().id()))
                 .sorted(Comparator.comparingInt((InventoryEntry entry) -> ORDER.indexOf(entry.stage()))
                         .thenComparingLong(entry -> entry.listing().id().value()))
                 .toList();
         List<InventoryEntry> round = new ArrayList<>();
+        boolean writes = false;
         // Only listings reached before the round is full are looked at: the others may still move on meanwhile.
         for (int next = 0; next < candidates.size() && round.size() < parallelism; next++) {
             InventoryEntry entry = candidates.get(next);
@@ -156,11 +163,21 @@ public class LaunchAutomaticRun {
             // Back at a stage already relaunched (a deletion found not done, ready again): never write twice in a run.
             if (relaunchedSteps.contains(new Step(id, entry.stage()))) {
                 update(run -> run.skipping(id));
-            } else {
-                round.add(entry);
+                continue;
             }
+            Optional<Instant> writeAllowedAt = relaunchListing.realWriteAllowedAt(entry.stage());
+            if (writeAllowedAt.isPresent()) {
+                if (writes) {
+                    break;
+                }
+                if (clock.instant().isBefore(writeAllowedAt.get())) {
+                    return new Round(round, round.isEmpty() ? writeAllowedAt : Optional.empty());
+                }
+                writes = true;
+            }
+            round.add(entry);
         }
-        return round;
+        return new Round(round, Optional.empty());
     }
 
     /** What a relaunch of the round came to: its report, or the failure that stopped it. */

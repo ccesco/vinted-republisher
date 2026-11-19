@@ -185,7 +185,7 @@ class WardrobePageTest {
         //   et le titre affiché tel quel
         assertThat(page.locator("#listings thead th")).hasText(new String[]{
                 "Titre", "Prix", "Vues", "Favoris", "Conseil", "Présence", "Sauvegarde", "Validation", "Étape",
-                "Action", "Tags", ""});
+                "Republication", "Action", "Tags", ""});
         assertThat(rows()).hasCount(2);
         assertThat(listingCount()).hasText("2 annonces");
         assertThat(rows().nth(0)).containsText("Pull <b>rayé</b>");
@@ -206,6 +206,44 @@ class WardrobePageTest {
         // Alors la page demande GET /api/listings?presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC
         page.waitForCondition(() -> listingQueries.contains(
                 "presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC"));
+    }
+
+    @Test
+    void filters_on_stage_and_shows_republication() {
+        // Étant donné une annonce republiée, dont la nouvelle annonce est connue, et une annonce à vérifier
+        overview.set(SCANNED);
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"},
+                   "url": "https://vinted.test/items/1", "present": false, "stage": "REPUBLISHED",
+                   "republication": {"outcome": "PUBLISHED", "attemptedAt": "2026-11-18T11:00:00Z",
+                     "publishedAt": "2026-11-18T11:05:00Z", "newListingId": 3,
+                     "newListingUrl": "https://vinted.test/items/3", "backupSavedAt": "2026-11-10T10:00:00Z"}},
+                  {"vintedId": 2, "title": "Jupe", "price": {"amount": 5, "currency": "EUR"},
+                   "url": "https://vinted.test/items/2", "present": false, "stage": "REPUBLICATION_TO_CHECK",
+                   "republication": {"outcome": "FAILED", "attemptedAt": "2026-11-18T11:00:00Z",
+                     "backupSavedAt": "2026-11-10T10:00:00Z"}}]}""");
+        open();
+
+        // Quand le membre choisit l'étape « Republiée »
+        page.locator("#stage-filter").selectOption("REPUBLISHED");
+
+        // Alors la présence passe sur « Toutes » et la liste est demandée avec cette étape
+        assertThat(page.locator("#presence")).hasValue("ALL");
+        page.waitForCondition(() -> listingQueries.contains(
+                "presence=ALL&backup=ALL&sort=RECENCY&direction=DESC&stage=REPUBLISHED"));
+        // Et la republiée montre sa date et le lien vers sa nouvelle annonce, ouvert dans un nouvel onglet
+        assertThat(cell(0, REPUBLICATION)).hasText("le 18/11/2026 nouvelle annonce");
+        Locator newListing = cell(0, REPUBLICATION).getByRole(AriaRole.LINK);
+        assertThat(newListing).hasAttribute("href", "https://vinted.test/items/3");
+        assertThat(newListing).hasAttribute("target", "_blank");
+        assertThat(newListing).hasAttribute("rel", "noopener noreferrer");
+        // Et celle à vérifier sa tentative
+        assertThat(cell(1, REPUBLICATION)).hasText("tentée le 18/11/2026, à vérifier");
+
+        // Quand il revient à toutes les étapes, la présence reste « Toutes »
+        page.locator("#stage-filter").selectOption("");
+        assertThat(page.locator("#presence")).hasValue("ALL");
     }
 
     @Test
@@ -641,6 +679,30 @@ class WardrobePageTest {
     }
 
     @Test
+    void skipped_listings_link_to_failures_page() {
+        // US-39 AT-39-07. Étant donné une série terminée avec 4 relances et 2 annonces écartées
+        runOverview.set("""
+                {"status": "FINISHED", "startedAt": "2026-11-17T10:00:00Z", "endedAt": "2026-11-17T10:07:00Z",
+                 "relaunchCount": 4, "skippedListingIds": [5, 6]}""");
+        // Quand le membre regarde la page du dressing
+        open();
+        // Alors « 2 annonces écartées » est un lien vers la page « Échecs »
+        assertThat(runSummary()).hasText("Traitement terminé : 4 relances, 2 annonces écartées.");
+        assertThat(runSummary().getByRole(AriaRole.LINK)).hasText("2 annonces écartées");
+        assertThat(runSummary().getByRole(AriaRole.LINK)).hasAttribute("href", "#/failures");
+    }
+
+    @Test
+    void no_link_without_skipped_listing() {
+        runOverview.set("""
+                {"status": "FINISHED", "startedAt": "2026-11-17T10:00:00Z", "endedAt": "2026-11-17T10:07:00Z",
+                 "relaunchCount": 4, "skippedListingIds": []}""");
+        open();
+        assertThat(runSummary()).hasText("Traitement terminé : 4 relances, 0 annonce écartée.");
+        assertThat(runSummary().getByRole(AriaRole.LINK)).hasCount(0);
+    }
+
+    @Test
     void shows_every_listing_of_the_round() {
         // Étant donné une série en cours sur une tournée de deux annonces (US-15), affichées dans la liste
         inventory.set(TWO_LISTINGS);
@@ -928,7 +990,8 @@ class WardrobePageTest {
     private static final int BACKUP = 6;
     private static final int VALIDATION = 7;
     private static final int STAGE = 8;
-    private static final int ACTION = 9;
+    private static final int REPUBLICATION = 9;
+    private static final int ACTION = 10;
     private static final String TO_DELETE_AND_TO_VALIDATE = """
             {"listings": [
                {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},

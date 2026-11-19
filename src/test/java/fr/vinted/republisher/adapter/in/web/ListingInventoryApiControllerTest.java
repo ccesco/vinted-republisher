@@ -12,6 +12,7 @@ import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
 import fr.vinted.republisher.domain.inventory.SortDirection;
+import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -74,6 +75,9 @@ class ListingInventoryApiControllerTest {
 
     @Autowired
     private InMemoryListingTagRepository tags;
+
+    @Autowired
+    private InMemoryListingRepublicationRepository republications;
 
     @Test
     void empty_inventory_has_no_listing() {
@@ -184,6 +188,40 @@ class ListingInventoryApiControllerTest {
     }
 
     @Test
+    void filters_on_stage_and_shows_the_republication() {
+        // Étant donné 17 republiée en 20 (connue de l'outil), 18 à vérifier, 19 à sauvegarder
+        listings.saveAll(List.of(Listing.seen(aListing(17, "Pull rayé", "1.5", ACTIVE), SCANNED_AT).absent(),
+                Listing.seen(aListing(18, "Jupe", "3", ACTIVE), SCANNED_AT).absent(),
+                Listing.seen(aListing(19, "Robe", "2", ACTIVE), SCANNED_AT),
+                Listing.seen(aListing(20, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
+        Instant attemptedAt = NOW.minusSeconds(600);
+        republications.save(ListingRepublication.attempted(ListingBackup.of(
+                        new ListingReading(aContent(17), List.of(aPhoto("A"))), SAVED_AT), attemptedAt)
+                .published(new VintedListingId(20), attemptedAt.plusSeconds(60)));
+        republications.save(ListingRepublication.attempted(ListingBackup.of(
+                new ListingReading(aContent(18), List.of(aPhoto("A"))), SAVED_AT), attemptedAt));
+
+        // Quand la page demande GET /api/listings?presence=ALL&stage=REPUBLISHED
+        // Alors seule 17 est renvoyée, avec sa republication et l'adresse de la nouvelle annonce
+        assertThat(mvc.get().uri("/api/listings?presence=ALL&stage=REPUBLISHED"))
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.listings[0].republication").isEqualTo(Map.of(
+                        "outcome", "PUBLISHED", "attemptedAt", "2026-11-17T09:50:00Z",
+                        "publishedAt", "2026-11-17T09:51:00Z", "newListingId", 20,
+                        "newListingUrl", "https://vinted.test/items/20", "backupSavedAt", "2026-11-07T10:00:00Z"));
+        assertThat(mvc.get().uri("/api/listings?presence=ALL&stage=REPUBLISHED"))
+                .bodyJson().extractingPath("$.listings[*].vintedId").isEqualTo(List.of(17));
+        // Et 18, à vérifier, porte sa tentative ; 19 n'a pas de republication
+        assertThat(mvc.get().uri("/api/listings?presence=ALL&stage=REPUBLICATION_TO_CHECK"))
+                .bodyJson().extractingPath("$.listings[0].republication.attemptedAt")
+                .isEqualTo("2026-11-17T09:50:00Z");
+        assertThat(mvc.get().uri("/api/listings?stage=TO_BACK_UP"))
+                .bodyJson().doesNotHavePath("$.listings[0].republication");
+        // Et une étape inconnue est refusée
+        assertThat(mvc.get().uri("/api/listings?stage=SOLD")).hasStatus(400);
+    }
+
+    @Test
     void contract_knows_every_criterion() {
         assertThat(names(PresenceFilterDto.values())).containsExactly(names(PresenceFilter.values()));
         assertThat(names(BackupFilterDto.values())).containsExactly(names(BackupFilter.values()));
@@ -223,11 +261,17 @@ class ListingInventoryApiControllerTest {
                                                   InMemoryListingStatisticsRepository statistics,
                                                   InMemoryListingBackupRepository backups,
                                                   InMemoryBackupValidationRepository validations,
-                                                  InMemoryListingTagRepository tags) {
+                                                  InMemoryListingTagRepository tags,
+                                                  InMemoryListingRepublicationRepository republications) {
             return new ShowListingInventory(listings, statistics, backups, validations,
-                    new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                    new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC), tags,
                     new InMemoryBackupVerificationRepository());
+        }
+
+        @Bean
+        InMemoryListingRepublicationRepository republications() {
+            return new InMemoryListingRepublicationRepository();
         }
 
         @Bean

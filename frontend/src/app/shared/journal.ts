@@ -33,7 +33,7 @@ const JOURNAL_REASONS: Record<string, string> = {
 };
 
 // Une raison peut en réunir plusieurs (« FIELD_CHANGED:SIZE, PHOTO_MISSING ») ; un code inconnu reste tel quel.
-function reasonOf(reason: string): string {
+function labelsOf(reason: string): string {
   return reason.split(', ').map(part => {
     const [code, detail] = part.split(':');
     const label = JOURNAL_REASONS[code] ?? code;
@@ -54,11 +54,28 @@ export interface JournalLine {
 export function journalLineOf(entry: JournalEntry): JournalLine {
   return {
     date: dateOf(entry.occurredAt),
-    action: JOURNAL_ACTIONS[entry.action] ?? entry.action,
-    outcome: JOURNAL_OUTCOMES[entry.outcome] ?? entry.outcome,
+    action: actionOf(entry),
+    outcome: outcomeOf(entry),
     highlighted: JOURNAL_HIGHLIGHTED.includes(entry.outcome),
-    reason: entry.reason ? reasonOf(entry.reason) : '',
+    reason: reasonOf(entry),
     listingId: entry.listingId,
     listingName: entry.listingTitle ?? String(entry.listingId ?? '')
   };
+}
+
+// Annonces en échec (US-39) : la raison en clair ; une revérification « non faite » n'en a pas.
+export function causeOf(entry: JournalEntry): string {
+  return entry.outcome === 'NOT_DONE' && !entry.reason ? 'suppression non faite' : reasonOf(entry);
+}
+
+export function actionOf(entry: JournalEntry): string {
+  return JOURNAL_ACTIONS[entry.action] ?? entry.action;
+}
+
+export function outcomeOf(entry: JournalEntry): string {
+  return JOURNAL_OUTCOMES[entry.outcome] ?? entry.outcome;
+}
+
+function reasonOf(entry: JournalEntry): string {
+  return entry.reason ? labelsOf(entry.reason) : '';
 }
