@@ -4,7 +4,14 @@ import fr.vinted.republisher.adapter.config.ParallelismConfiguration.ParallelLis
 import fr.vinted.republisher.adapter.out.time.SleepingRunWaiting;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
+import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.application.run.LaunchAutomaticRun;
+import fr.vinted.republisher.application.run.ShowRunQueue;
+import fr.vinted.republisher.domain.deletion.DeletionMode;
+import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.republication.RepublicationMode;
+import fr.vinted.republisher.domain.run.WriteModes;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -27,6 +34,15 @@ class AutomaticRunConfiguration {
         return new LaunchAutomaticRun(showListingInventory, relaunchListing,
                 new SleepingRunWaiting(clock, Duration.ofSeconds(1)), clock, new FailureLoggingExecutor(background),
                 parallelism.count(), relaunchThreads.threads);
+    }
+
+    @Bean
+    ShowRunQueue showRunQueue(ShowListingInventory showListingInventory, ListingDeletionRepository deletions,
+                              RepublicationDelay republicationDelay, CadenceCheck cadenceCheck,
+                              DeletionMode deletionMode, RepublicationMode republicationMode,
+                              LaunchAutomaticRun launchAutomaticRun, Clock clock) {
+        return new ShowRunQueue(showListingInventory, deletions, republicationDelay, cadenceCheck,
+                new WriteModes(deletionMode, republicationMode), launchAutomaticRun::overview, clock);
     }
 
     @Bean

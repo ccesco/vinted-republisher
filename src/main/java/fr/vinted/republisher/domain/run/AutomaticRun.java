@@ -47,6 +47,14 @@ public record AutomaticRun(RunStatus status, Optional<Instant> startedAt, Option
         return skippedListings.contains(listing);
     }
 
+    /**
+     * Whether the run will not take the listing again: set aside by a run in progress, or relaunched in the round
+     * under way (US-41).
+     */
+    public boolean leavesOut(VintedListingId listing) {
+        return inProgress() && skips(listing) || status == RunStatus.RUNNING && currentListings.contains(listing);
+    }
+
     public AutomaticRun relaunching(List<VintedListingId> listings) {
         return new AutomaticRun(RunStatus.RUNNING, startedAt, endedAt, Optional.empty(), listings,
                 relaunchCount, skippedListings, stopReason, pauseRequested, stopRequested);
