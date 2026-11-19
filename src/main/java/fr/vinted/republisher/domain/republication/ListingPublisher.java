@@ -18,4 +18,15 @@ public interface ListingPublisher {
      * or {@link FieldNotFillable}, having published nothing.
      */
     void publish(ListingContent content, List<DownloadedPhoto> photos, RepublicationVisit visit);
+
+    /**
+     * Opens the listing form in a new tab, left open and never used again, and fills it as {@link #publish} does,
+     * except that a field it cannot fill is left empty and the next ones are filled. Never clicks Publish: the member
+     * completes the form and publishes it. Throws {@code BrowserUnavailable}, {@code VintedUnreachable},
+     * {@code SessionDisconnected}, {@link ListingFormUnreadable}, or {@link FieldNotFillable} for a form without
+     * title, the tab being then closed.
+     *
+     * @return the fields left empty, in the order of the form
+     */
+    List<UnfilledField> prepare(ListingContent content, List<DownloadedPhoto> photos);
 }

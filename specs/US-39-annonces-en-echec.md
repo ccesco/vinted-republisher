@@ -20,9 +20,9 @@ En tant que membre, je veux une page qui récapitule les annonces en échec, ave
    - une revérification « non faite » (`NOT_DONE`) ;
    - un échec (`FAILED`), y compris un problème du compte ou de Vinted (session non connectée, navigateur indisponible, Vinted inaccessible, page illisible).
 
-   Un refus d'attente ne fait rien sur Vinted : il est ignoré, il ne crée ni n'efface un échec. Une annonce sort de la page dès qu'une ligne plus récente la concernant, hors refus d'attente, n'est pas un échec (réussite, dry-run). Une annonce à l'étape « Absente de Vinted » n'y figure pas : il n'y a plus rien à faire.
+   Un refus d'attente ne fait rien sur Vinted : il est ignoré, il ne crée ni n'efface un échec (US-45 : `MANUAL_REPUBLICATION_IN_DRY_RUN` en est un). Une annonce sort de la page dès qu'une ligne plus récente la concernant, hors refus d'attente, n'est pas un échec (réussite, dry-run). Une annonce à l'étape « Absente de Vinted » ou « Republiée » n'y figure pas : il n'y a plus rien à faire (l'article republié avec succès continue sur sa nouvelle annonce).
 2. **Cause** : la raison de cette dernière ligne, en clair, avec les mêmes libellés que le journal ; pour un `NOT_DONE` sans raison, « suppression non faite ».
-3. **Page « Échecs »** (route `/failures`) : lien « Échecs » dans la navigation. Une ligne par annonce en échec, la plus récente d'abord : annonce (titre, lien vers sa fiche), étape actuelle, action, issue, cause, date de la ligne. Sans annonce en échec : « Aucune annonce en échec. ». Toutes les annonces en une fois, sans pagination ni filtre.
+3. **Page « Échecs »** (route `/failures`) : lien « Échecs » dans la navigation. Une ligne par annonce en échec, la plus récente d'abord : annonce (titre, lien vers sa fiche), étape actuelle, action, issue, cause, date de la ligne. Sans annonce en échec : « Aucune annonce en échec. » (remplacé par US-45 : trois sections, vides avec « Aucune annonce. »). Toutes les annonces en une fois, sans pagination ni filtre.
 4. **Relancer** : bouton de relance, libellé par son action comme dans la liste (US-20), sur les lignes dont l'étape se relance (comme dans la liste, US-20), même appel (`POST /api/listings/{listingId}/relaunch`) et mêmes messages, affichés au-dessus du tableau sous la forme « <titre> : <message> ». Après la relance, la page relit les annonces en échec : une annonce relancée avec succès disparaît.
 5. **Depuis la page du dressing** : dans « Traitement terminé : <n> relances, <m> annonces écartées », « <m> annonces écartées » (quand il y en a au moins une) est un lien vers la page « Échecs ». « Traitement arrêté : <raison> » ne compte pas les annonces écartées et ne change pas.
 6. Rien n'est lu sur Vinted : seuls le journal et les faits en base sont lus.
@@ -38,6 +38,7 @@ En tant que membre, je veux une page qui récapitule les annonces en échec, ave
 - [x] Une annonce dont la dernière ligne du journal est un refus, un doute, une revérification non faite ou un échec est en échec, avec cette ligne pour cause.
 - [x] Une réussite ou un dry-run plus récent fait sortir l'annonce de la page ; un refus d'attente (cadence, trop tôt, navigateur occupé) est ignoré.
 - [x] Une annonce absente de Vinted n'est pas en échec.
+- [x] Une annonce republiée avec succès n'est pas en échec.
 - [x] Les annonces en échec sont triées de la plus récente à la plus ancienne.
 - [x] La page « Échecs » affiche titre (lien vers la fiche), étape, action, issue, cause en clair et date ; un message quand il n'y en a aucune.
 - [x] Le bouton de relance n'apparaît que pour une étape qui se relance ; après la relance, la page relit la liste.
@@ -75,6 +76,15 @@ Quand le membre demande les annonces en échec
 Alors elle n'est pas renvoyée
 ```
 Test : `ShowFailedListingsAcceptanceTest.ignores_listings_absent_from_vinted()`
+
+### AT-39-08 – Annonce republiée ensuite
+```gherkin
+Étant donné une annonce dont la republication a échoué, puis dont une republication a été publiée
+Et aucune ligne plus récente du journal ne la concerne
+Quand le membre demande les annonces en échec
+Alors elle n'est pas renvoyée
+```
+Test : `ShowFailedListingsAcceptanceTest.ignores_listings_republished_since()`
 
 ### AT-39-04 – Ordre
 ```gherkin
@@ -133,6 +143,7 @@ Test : `WardrobePageTest.skipped_listings_link_to_failures_page()`
 - Revérification « non faite », décidé par l'utilisateur (2026-11-18) : c'est un échec, cause « suppression non faite ».
 - Échec dû au compte ou à Vinted, décidé par l'utilisateur (2026-11-18) : l'annonce est en échec, avec sa cause ; une fois le problème réglé, « Relancer » suffit.
 - Refus d'attente après un échec, décidé par l'utilisateur (2026-11-18, contradiction relevée pendant l'implémentation entre le comportement 1 et AT-39-02) : il est ignoré, l'échec précédent reste affiché avec sa cause.
+- Annonce republiée, décidé par l'utilisateur (2026-11-19) : une annonce qui a eu une issue favorable (republiée ensuite) ne figure plus sur la page, même si la dernière ligne de son journal est un échec ; c'est l'étape « Republiée » qui l'en sort.
 - Proposé par Claude, validé avec la spec par l'utilisateur (2026-11-18) : refus d'attente exclus = `CADENCE_LIMIT_REACHED`, `TOO_EARLY`, `BROWSER_BUSY` (conduite `WAIT` d'US-17) ; annonces « Absente de Vinted » exclues ; tri de la plus récente à la plus ancienne, sans pagination ; réutilisation du schéma `JournalEntry` pour la cause.
 
 ## Questions ouvertes
@@ -146,7 +157,7 @@ Aucune.
 
 ## Tests unitaires et d'intégration attendus
 - Domaine : règle d'échec d'une ligne (chaque issue, refus d'attente exclus).
-- Application : `ShowFailedListings` (dernière ligne seulement, annonce absente de Vinted exclue, ordre).
+- Application : `ShowFailedListings` (dernière ligne seulement, annonces absente de Vinted et republiée exclues, ordre).
 - Adaptateur persistance : requête « dernière ligne par annonce » sur PostgreSQL (`@Tag("docker")`), refus d'attente et refus sans raison compris. Elle lit toutes les lignes qui nomment une annonce (journal d'un seul membre, petit) : pas de contrôle `EXPLAIN`, à revoir si le journal grossit.
 - Adaptateur web : `FailedListingsApiControllerTest`.
 - Interface : Vitest pour la cause en clair ; `FailedListingsPageTest` (Playwright, API simulée).

@@ -55,6 +55,7 @@ class FailedListingsApiControllerTest {
     void shows_each_failed_listing_with_its_stage_and_cause() {
         // AT-39-05. Quand le membre demande GET /api/failed-listings
         // Alors l'API renvoie chaque annonce en échec avec titre, étape et ligne du journal
+        // AT-45-06. Et GET /api/failed-listings donne le groupe de chaque annonce
         listings.saveAll(List.of(Listing.seen(aListing(101, "Pull bleu", "10", ACTIVE), AT)));
         journal.write(new ActionRecord(AT, JournaledAction.BACKUP_VALIDATION, ActionOutcome.REFUSED,
                 Optional.of(new VintedListingId(101)), Optional.of("BACKUP_REPLACED")));
@@ -63,7 +64,7 @@ class FailedListingsApiControllerTest {
                 .hasStatusOk()
                 .bodyJson().isStrictlyEqualTo("""
                         {"listings": [
-                           {"listingId": 101, "listingTitle": "Pull bleu", "stage": "TO_BACK_UP",
+                           {"listingId": 101, "listingTitle": "Pull bleu", "stage": "TO_BACK_UP", "kind": "REFUSED",
                             "failure": {"entryId": 1, "occurredAt": "2026-11-18T10:00:00Z",
                                         "action": "BACKUP_VALIDATION", "outcome": "REFUSED", "listingId": 101,
                                         "listingTitle": "Pull bleu", "reason": "BACKUP_REPLACED"}}]}""");

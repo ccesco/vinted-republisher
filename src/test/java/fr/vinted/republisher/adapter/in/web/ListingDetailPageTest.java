@@ -105,6 +105,8 @@ class ListingDetailPageTest {
     private final List<String> verifications = new CopyOnWriteArrayList<>();
     private final AtomicInteger manualValidationStatus = new AtomicInteger(200);
     private final AtomicReference<String> manualValidationAnswer = new AtomicReference<>(VALIDATED);
+    private final AtomicReference<String> manualRepublicationAnswer = new AtomicReference<>(VALIDATED);
+    private final List<String> manualRepublications = new CopyOnWriteArrayList<>();
     private final List<String> manualValidations = new CopyOnWriteArrayList<>();
     private Page page;
 
@@ -154,6 +156,11 @@ class ListingDetailPageTest {
         fakeApi.createContext("/api/listings/3/republication/verification", exchange -> {
             verifications.add(exchange.getRequestMethod() + " " + exchange.getRequestURI().getPath());
             respond(exchange, verificationStatus.get(), "application/json", bytes(verificationAnswer.get()));
+        });
+        fakeApi.createContext("/api/listings/3/republication/manual", exchange -> {
+            manualRepublications.add(exchange.getRequestMethod() + " "
+                    + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
+            respond(exchange, 200, "application/json", bytes(manualRepublicationAnswer.get()));
         });
         fakeApi.createContext("/api/listings/3/republication/manual-validation", exchange -> {
             manualValidations.add(exchange.getRequestMethod() + " "
@@ -931,6 +938,59 @@ class ListingDetailPageTest {
             assertThat(manualValidations).containsExactly(
                     "POST {\"published\":true,\"newListingUrl\":\"https://www.vinted.fr/items/77-bonnet\"}");
             assertThat(validation()).isHidden();
+        }
+
+        @Test
+        void member_prepares_a_manual_republication() {
+            // AT-45-04c. Étant donné une annonce « À republier », jamais refusée
+            backup.set(REPUBLISHABLE);
+            manualRepublicationAnswer.set("{\"listing\": " + FAILED + ", \"unfilledFields\": [{\"field\": \"SIZE\","
+                    + " \"optionId\": 588}]}");
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            // Quand le membre ouvre sa fiche
+            open();
+            // Alors il voit « Republier » et « Republier manuellement »
+            assertThat(republishButton()).isVisible();
+            assertThat(manualRepublicationButton()).isEnabled();
+            // Quand il republie manuellement et que la taille n'a pas pu être remplie
+            manualRepublicationButton().click();
+            // Alors la fiche affiche « Formulaire rempli dans Chrome, à compléter : Taille (588). Publiez puis validez
+            //   ici. »
+            assertThat(page.locator("#manual-republication-message")).hasText(
+                    "Formulaire rempli dans Chrome, à compléter : Taille (588). Publiez puis validez ici.");
+            assertThat(manualRepublications).containsExactly("POST {\"savedAt\":\"2026-11-10T10:00:00Z\"}");
+            // Et la fiche propose la validation manuelle
+            assertThat(page.locator("#republication-validation")).isVisible();
+            assertThat(manualRepublicationButton()).isHidden();
+        }
+
+        @Test
+        void manual_republication_unavailable_in_dry_run() {
+            // AT-45-04b. Et sur la fiche le bouton « Republier manuellement » est désactivé, « Indisponible en dry-run »
+            backup.set(REPUBLISHABLE.replace("\"republicationDryRun\": false", "\"republicationDryRun\": true"));
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
+            open();
+            assertThat(manualRepublicationButton()).isDisabled();
+            assertThat(page.locator("#manual-republication-dry-run")).hasText("Indisponible en dry-run");
+        }
+
+        @Test
+        void manual_republication_waits_for_no_timer() {
+            // AT-45-04d. Étant donné une annonce supprimée dont la date de republication est dans 3 minutes
+            backup.set(REPUBLISHABLE);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:02:05Z"));
+            // Quand le membre ouvre sa fiche
+            open();
+            // Alors « Republier sur Vinted » est désactivé avec son compte à rebours
+            assertThat(republishButton()).isDisabled();
+            assertThat(page.locator("#republication-state"))
+                    .hasText("Republication possible dans 3 min 0 s (à 11:05).");
+            // Et « Republier manuellement » est actif
+            assertThat(manualRepublicationButton()).isEnabled();
+        }
+
+        private Locator manualRepublicationButton() {
+            return page.locator("#prepare-manual-republication");
         }
 
         @Test

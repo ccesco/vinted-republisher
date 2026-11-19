@@ -12,13 +12,24 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-/** A listing whose last journal entry is a failure, which gives its cause; never one gone from Vinted. */
+/**
+ * A listing whose last journal entry is a failure, which gives its cause; never one gone from Vinted nor one
+ * republished since, as nothing is left to do on it.
+ */
 public record FailedListing(Listing listing, ListingStage stage, JournalEntry failure) {
 
     public FailedListing {
         Objects.requireNonNull(listing);
         Objects.requireNonNull(stage);
         Objects.requireNonNull(failure);
+    }
+
+    public FailureKind kind() {
+        return switch (failure.record().outcome()) {
+            case IN_DOUBT -> FailureKind.IN_DOUBT;
+            case REFUSED -> FailureKind.REFUSED;
+            default -> FailureKind.OTHER;
+        };
     }
 
     /** {@code lastEntries}: the last journal entry of each listing. Most recent failure first, in journal order. */
@@ -36,7 +47,7 @@ public record FailedListing(Listing listing, ListingStage stage, JournalEntry fa
                                                          Map<VintedListingId, InventoryEntry> byListing) {
         return entry.record().listingId()
                 .map(byListing::get)
-                .filter(known -> known.stage() != ListingStage.GONE)
+                .filter(known -> known.stage() != ListingStage.GONE && known.stage() != ListingStage.REPUBLISHED)
                 .map(known -> new FailedListing(known.listing(), known.stage(), entry));
     }
 }

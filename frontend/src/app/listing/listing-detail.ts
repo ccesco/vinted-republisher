@@ -6,7 +6,7 @@ import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
-import { Observable } from 'rxjs';
+import { Observable, map } from 'rxjs';
 import {
   BackupVerification, DeletionRefusal, LifecycleEvent, ListingBackupContent, ListingBackupService,
   ListingBackupView, ListingDeletionService, ListingDetail as ListingDetailView, ListingDetailService,
@@ -16,6 +16,7 @@ import {
 import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import { dateOf, dayOf, listingLink, priceOf } from '../shared/format';
 import { JournalLine, journalLineOf } from '../shared/journal';
+import { manualRepublicationMessageOf } from '../shared/manual-republication';
 import { STAGE_LABELS } from '../wardrobe/wardrobe-messages';
 import {
   APPLICATION_DOWN_MESSAGE, CONTENT_LABELS, DELETION_FAILED_MESSAGE, DELETION_REFUSALS, DRY_RUN_PASSED, FORM_FIELDS,
@@ -61,6 +62,7 @@ export class ListingDetail {
   protected readonly republicationState = signal('');
   protected readonly republicationWaiting = signal(false);
   protected readonly newListingUrl = signal('');
+  protected readonly manualRepublicationMessage = signal('');
 
   private readonly title = inject(Title);
   private readonly details = inject(ListingDetailService);
@@ -293,6 +295,15 @@ export class ListingDetail {
       refusal => republicationRefusalOf(refusal as unknown as RepublicationRefusal));
   }
 
+  // Le formulaire attend le membre dans Chrome ; la republication en erreur se valide ensuite ici (US-45).
+  protected prepareManualRepublication(): Promise<void> {
+    const savedAt = this.view()?.savedAt ?? '';
+    return this.send(this.republications.prepareManualRepublication(this.listingId, { savedAt }).pipe(map(report => {
+      this.manualRepublicationMessage.set(manualRepublicationMessageOf(report.unfilledFields, 'ici'));
+      return report.listing;
+    })), refusal => republicationRefusalOf(refusal as unknown as RepublicationRefusal));
+  }
+
   protected verifyRepublication(): Promise<void> {
     return this.send(this.republications.verifyListingRepublication(this.listingId),
       refusal => VERIFICATION_FAILED_MESSAGE + (REPUBLICATION_REFUSALS[String(refusal['reason'])] ?? UNEXPECTED_FAILURE),
@@ -395,6 +406,7 @@ export class ListingDetail {
                      refusalMessageOf: (refusal: Record<string, unknown>) => string,
                      onAnswer: (view: ListingBackupView) => void = () => undefined): Promise<void> {
     this.sending.set(true);
+    this.manualRepublicationMessage.set('');
     this.deletionAsked.set(false);
     this.republicationAsked.set(false);
     const opening = this.opening;

@@ -1,15 +1,22 @@
 import { Component, inject, signal } from '@angular/core';
 import { MatButtonModule } from '@angular/material/button';
 import {
-  FailedListing, FailedListingsService, ListingRelaunchService, RelaunchRefusal, RelaunchReport
+  FailedListing, FailedListingsService, ListingBackupService, ListingRelaunchService, ListingRepublicationService,
+  RelaunchRefusal, RelaunchReport
 } from '../../generated/api';
+import { REPUBLICATION_REFUSALS } from '../listing/listing-messages';
 import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import { dateOf, listingLink } from '../shared/format';
 import { actionOf, causeOf, outcomeOf } from '../shared/journal';
+import { manualRepublicationMessageOf } from '../shared/manual-republication';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
 import { RELAUNCH_LABELS, RELAUNCH_FAILED_MESSAGE, STAGE_LABELS } from '../wardrobe/wardrobe-messages';
+import { FailureGroup, failureGroupsOf } from './failure-groups';
 
-// Annonces en échec (US-39) : la dernière action de chacune, sa cause, et la relance comme dans la liste (US-20).
+const MANUAL_REPUBLICATION_FAILED = 'Échec de la republication manuelle : voir la fiche';
+
+// Annonces en échec (US-39) : la dernière action de chacune, sa cause, et la relance comme dans la liste (US-20),
+// groupées selon ce que le membre doit faire, avec la republication manuelle d'une annonce refusée (US-45).
 @Component({
   selector: 'app-failed-listings',
   imports: [MatButtonModule],
@@ -29,9 +36,41 @@ export class FailedListings {
   protected readonly causeOf = causeOf;
   private readonly failedListings = inject(FailedListingsService);
   private readonly relaunches = inject(ListingRelaunchService);
+  private readonly backups = inject(ListingBackupService);
+  private readonly republications = inject(ListingRepublicationService);
 
   constructor() {
     this.load();
+  }
+
+  protected groups(): FailureGroup[] {
+    return failureGroupsOf(this.listings() ?? []);
+  }
+
+  // Supprimée, pas encore republiée : la republication manuelle n'attend pas la date de republication.
+  protected manuallyRepublishable(failed: FailedListing): boolean {
+    return failed.kind === 'REFUSED' && (failed.stage === 'WAITING' || failed.stage === 'TO_REPUBLISH');
+  }
+
+  // Le formulaire est préparé pour la sauvegarde actuelle, lue juste avant ; l'annonce passe ensuite « Dans le doute ».
+  protected async republishManually(failed: FailedListing): Promise<void> {
+    this.relaunching.set(failed.listingId);
+    this.message.set([{ text: `${failed.listingTitle} : ${await this.manualOutcomeOf(failed)}` }]);
+    this.relaunching.set(null);
+    await this.load();
+  }
+
+  private async manualOutcomeOf(failed: FailedListing): Promise<string> {
+    try {
+      const backup = await answerOf(this.backups.showListingBackup(failed.listingId));
+      const report = await answerOf(this.republications.prepareManualRepublication(failed.listingId,
+        { savedAt: backup.savedAt }));
+      return manualRepublicationMessageOf(report.unfilledFields, 'sur la fiche');
+    } catch (failure) {
+      const reason = statusOf(failure) === 0 ? undefined : (await refusalOf<{ reason: string }>(failure))?.reason;
+      const refusal = REPUBLICATION_REFUSALS[reason ?? ''];
+      return refusal ? 'Republication manuelle refusée : ' + refusal : MANUAL_REPUBLICATION_FAILED;
+    }
   }
 
   // L'annonce relancée avec succès quitte la liste relue ; le message reste affiché au-dessus.

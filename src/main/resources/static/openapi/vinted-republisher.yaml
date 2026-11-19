@@ -709,6 +709,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/RepublicationRefusal'
+  /api/listings/{listingId}/republication/manual:
+    post:
+      tags: [listing-republication]
+      operationId: prepareManualRepublication
+      summary: Préparer une republication que le membre publie lui-même (US-45)
+      description: >
+        Mêmes contrôles que republishListing, sauf le délai après la suppression et la limite de cadence, qui ne
+        la refusent jamais ; la préparation compte toutefois dans la cadence des écritures suivantes. Ouvre le formulaire de
+        mise en vente dans un nouvel onglet du Chrome piloté, que l'outil laisse ouvert et ne réutilise jamais (il le
+        referme si la préparation échoue), et le remplit depuis la sauvegarde ; un champ impossible à remplir est
+        laissé vide et le remplissage continue. Ne
+        clique jamais sur « Publier ». Enregistre une republication en erreur (FAILED, attemptedAt = date de la
+        préparation) : l'annonce passe « Republication à vérifier », jusqu'à verifyListingRepublication ou
+        validateListingRepublication. Refusée en dry-run. Répond une fois le formulaire rempli.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RepublicationRequest'
+      responses:
+        '200':
+          description: Formulaire rempli, non publié ; champs laissés vides et aperçu à jour.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualRepublicationReport'
+        '400':
+          description: Corps de la demande invalide.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: L'annonce n'a pas de sauvegarde.
+        '409':
+          description: >
+            Mêmes refus que republishListing, hors délai et cadence (sauvegarde remplacée, non validée, sans
+            suppression confirmée, déjà republiée, en erreur de republication, navigateur occupé), ou
+            dry-run actif (MANUAL_REPUBLICATION_IN_DRY_RUN). Chrome n'est pas ouvert.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '422':
+          description: >
+            Photos gardées absentes, manquantes ou modifiées (Chrome n'est pas ouvert), ou formulaire sans champ titre
+            (FIELD_NOT_FILLABLE, l'onglet est refermé) ; rien n'est enregistré.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '500':
+          description: Échec inattendu (détail dans les logs) ; rien n'est publié, l'aperçu rechargé fait foi.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
+        '502':
+          description: >
+            Navigateur indisponible, Vinted inaccessible, session non connectée ou formulaire de mise en vente
+            illisible ; rien n'est publié ni enregistré.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RepublicationRefusal'
   /api/listings/{listingId}/republication/verification:
     post:
       tags: [listing-republication]
@@ -1229,8 +1295,9 @@ components:
       type: object
       description: >
         Annonce dont la dernière ligne du journal (refus d'attente ignorés) est un refus, un doute, une
-        revérification non faite ou un échec ; cette ligne en donne la cause.
-      required: [listingId, listingTitle, stage, failure]
+        revérification non faite ou un échec ; cette ligne en donne la cause. Jamais une annonce absente de Vinted ni
+        une annonce republiée (US-45).
+      required: [listingId, listingTitle, stage, kind, failure]
       properties:
         listingId:
           type: integer
@@ -1239,8 +1306,43 @@ components:
           type: string
         stage:
           $ref: '#/components/schemas/ListingStage'
+        kind:
+          $ref: '#/components/schemas/FailureKind'
         failure:
           $ref: '#/components/schemas/JournalEntry'
+    FailureKind:
+      type: string
+      description: >
+        Groupe de l'échec, d'après l'issue de sa ligne du journal (US-45) : IN_DOUBT (doute, à vérifier), REFUSED
+        (refus, hors refus d'attente), OTHER (échec ou revérification non faite, à relancer une fois le problème réglé).
+      enum: [IN_DOUBT, REFUSED, OTHER]
+    ManualRepublicationReport:
+      type: object
+      description: Republication manuelle préparée (US-45) ; le membre complète les champs laissés vides puis publie.
+      required: [listing, unfilledFields]
+      properties:
+        listing:
+          $ref: '#/components/schemas/ListingBackupView'
+        unfilledFields:
+          type: array
+          description: >
+            Champs laissés vides, chacun une fois, dans l'ordre du formulaire, puis les détails jamais observés
+            (ISBN, auteur…) ; vide si tout a été rempli.
+          items:
+            $ref: '#/components/schemas/UnfilledField'
+    UnfilledField:
+      type: object
+      required: [field]
+      properties:
+        field:
+          $ref: '#/components/schemas/ListingFormField'
+        optionId:
+          type: integer
+          format: int64
+          description: Identifiant Vinted de l'option introuvable, quand il y en a une.
+      example:
+        field: SIZE
+        optionId: 588
     JournaledAction:
       type: string
       description: >
@@ -2283,7 +2385,8 @@ components:
           enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, TOO_EARLY, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
                  BROWSER_BUSY, PHOTOS_NOT_VERIFIED, FIELD_NOT_FILLABLE, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
                  SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED, NO_REPUBLICATION_TO_VERIFY,
-                 LISTING_UNREADABLE, CADENCE_LIMIT_REACHED, NEW_LISTING_LINK_INVALID, NEW_LISTING_MISMATCH]
+                 LISTING_UNREADABLE, CADENCE_LIMIT_REACHED, NEW_LISTING_LINK_INVALID, NEW_LISTING_MISMATCH,
+                 MANUAL_REPUBLICATION_IN_DRY_RUN]
         republishableAt:
           type: string
           format: date-time
