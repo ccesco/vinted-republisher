@@ -12,7 +12,7 @@ En tant que membre, je veux que l'outil refuse toute écriture sur Vinted qui d�
 ## Comportement attendu
 1. **Écritures comptées** : une écriture est une tentative enregistrée par l'outil juste avant son clic décisif sur Vinted, quelle que soit son issue : suppression (US-09) et republication (US-12), à leur date de tentative. Ne comptent pas : le dry-run (aucun clic, rien d'enregistré), les refus avant le clic, la revérification d'une suppression et la vérification d'une republication (lectures), ni ce que le membre fait lui-même sur Vinted.
 2. **Limites** :
-   - **Intervalle minimal**, propre au type de l'écriture demandée (un pour les suppressions, un pour les republications), compté depuis la dernière écriture de n'importe quel type : la nouvelle écriture n'est possible qu'à partir de la date de la dernière écriture plus l'intervalle de son type.
+   - **Intervalle minimal**, propre au type de l'écriture demandée (un pour les suppressions, un pour les republications), compté depuis la dernière écriture **du même type** (US-46 ; auparavant de n'importe quel type) : la nouvelle écriture n'est possible qu'à partir de la date de la dernière écriture de son type plus l'intervalle de ce type. Une suppression ne retarde pas une republication, ni l'inverse.
    - **Plafond par 24 heures glissantes**, propre à chaque type : au plus N suppressions et au plus M republications dans les 24 heures précédant la demande. Plafond atteint : possible de nouveau 24 heures après l'écriture de ce type qui doit sortir de la fenêtre pour libérer une place.
 3. **Contrôle** : en mode réel seulement, au lancement d'une suppression ou d'une republication, après les contrôles existants et une fois le verrou du navigateur pris (deux demandes ne peuvent pas passer le contrôle ensemble), avant toute navigation dans Chrome.
 4. **Refus** : limite atteinte → refus 409 `CADENCE_LIMIT_REACHED`, avec `allowedAt`, la date la plus tardive imposée par les limites. Rien n'est touché sur Vinted ni enregistré ; le verrou est libéré. La fiche de l'annonce affiche « limite de cadence atteinte (à partir du <date>). »
@@ -20,7 +20,7 @@ En tant que membre, je veux que l'outil refuse toute écriture sur Vinted qui d�
 6. **Configuration** : `cadence.deletion-interval` (1 minute), `cadence.republication-interval` (1 minute), `cadence.daily-deletions` (140), `cadence.daily-republications` (140), dans `application.yml`. Valeur absente, nulle, négative ou illisible, ou intervalle d'au moins 24 heures (seules les écritures des 24 dernières heures sont lues) → l'application ne démarre pas.
 
 ## Critères d'acceptation
-- [x] Une écriture demandée avant la fin de l'intervalle minimal de son type depuis la dernière écriture, quel que soit le type de celle-ci, est refusée avec la date à partir de laquelle elle est possible.
+- [x] Une écriture demandée avant la fin de l'intervalle minimal de son type depuis la dernière écriture du même type est refusée avec la date à partir de laquelle elle est possible (US-46).
 - [x] Une suppression au-delà du plafond de suppressions sur 24 heures glissantes est refusée avec sa date ; de même pour les republications.
 - [x] Les plafonds sont propres à chaque type.
 - [x] Toute tentative enregistrée compte, quelle que soit son issue ; dry-run, refus et vérifications ne comptent pas.
@@ -43,13 +43,13 @@ Alors elle a lieu
 ```
 Test : `DeleteListingAcceptanceTest.refusesDeletionTooSoonAfterAnotherWrite()`
 
-### AT-27-02 – L'intervalle se compte depuis la dernière écriture de n'importe quel type
+### AT-27-02 – L'intervalle se compte depuis la dernière écriture du même type (US-46)
 ```gherkin
 Étant donné une suppression tentée à 10:00
 Quand le membre lance la republication d'une autre annonce à 10:01
-Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:02), rien n'est publié ni enregistré, et le verrou est libéré
+Alors elle a lieu
 ```
-Test : `RepublishListingAcceptanceTest.refusesRepublicationTooSoonAfterADeletion()`
+Test : `RepublishListingAcceptanceTest.republishesRightAfterADeletion()`
 
 ### AT-27-03 – Plafond de suppressions sur 24 heures glissantes
 ```gherkin
@@ -113,16 +113,15 @@ Alors elle refuse de démarrer
 ```
 Test : `CadenceConfigurationTest` (`missingValuePreventsStartup`, `invalidValuePreventsStartup`)
 
-### AT-27-10 – L'intervalle est celui du type de l'écriture demandée
+### AT-27-10 – L'intervalle est celui du type de l'écriture demandée, compté depuis la dernière écriture de ce type
 ```gherkin
-Étant donné une republication tentée à 10:00
-Quand le membre lance une suppression à 10:00:20
-Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:00:30)
-Quand il la relance à 10:00:30
+Étant donné une suppression tentée à 10:00, un intervalle de 2 minutes
+Quand une republication est demandée à 10:00:10
 Alors elle a lieu
-Et une republication lancée à 10:01 est refusée (à partir de 10:02:30)
+Quand une autre suppression est demandée à 10:01
+Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:02)
 ```
-Test : `WriteCadenceTest.each_kind_waits_its_own_interval_after_the_last_write_of_any_kind()`
+Test : `WriteCadenceTest.a_write_only_waits_for_the_interval_of_its_own_type()` (AT-46-05)
 
 ## Cas limites et erreurs
 - Plusieurs limites atteintes : la date annoncée est la plus tardive.
@@ -149,7 +148,7 @@ Test : `WriteCadenceTest.each_kind_waits_its_own_interval_after_the_last_write_o
   - contrôle sous le verrou du navigateur ;
   - aucune table nouvelle : calcul à partir des tentatives enregistrées.
   - intervalle minimal strictement inférieur à 24 heures (relevé par la revue) : seules les écritures des 24 dernières heures sont lues.
-- Intervalle propre aux suppressions, décidé par l'utilisateur (2026-11-18) : 30 secondes avant une suppression, 2 minutes avant une republication, comptées depuis la dernière écriture de n'importe quel type (deux écritures ne se suivent donc jamais à moins de 30 secondes) ; `cadence.minimum-interval` est remplacé par `cadence.deletion-interval` et `cadence.republication-interval`. Plafond de suppressions porté à 140 par 24 heures (tout le dressing en une journée), plafond de republications inchangé (20). Risque anti-robot accepté par l'utilisateur.
+- Intervalle propre aux suppressions, décidé par l'utilisateur (2026-11-18) : 30 secondes avant une suppression, 2 minutes avant une republication, comptées depuis la dernière écriture de n'importe quel type (deux écritures ne se suivent donc jamais à moins de 30 secondes ; remplacé par US-46 : depuis la dernière écriture du même type) ; `cadence.minimum-interval` est remplacé par `cadence.deletion-interval` et `cadence.republication-interval`. Plafond de suppressions porté à 140 par 24 heures (tout le dressing en une journée), plafond de republications inchangé (20). Risque anti-robot accepté par l'utilisateur.
 - Intervalles alignés, décidé par l'utilisateur (2026-11-18) : 1 minute avant toute écriture, suppression comme republication (`cadence.deletion-interval` et `cadence.republication-interval` à 1 minute) ; les deux réglages restent séparés. Plafond de republications porté à 140 par 24 heures, comme les suppressions.
 - Au rebase sur US-23 (2026-11-16), règle du journal appliquée : un refus pour cadence est écrit « refusée » avec le code `CADENCE_LIMIT_REACHED`, comme la réponse de l'API (`DeleteListingAcceptanceTest.refusesDeletionTooSoonAfterAnotherWrite()`).
 

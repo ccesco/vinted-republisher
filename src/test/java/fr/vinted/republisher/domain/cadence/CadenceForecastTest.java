@@ -14,10 +14,10 @@ class CadenceForecastTest {
     private static final WriteCadence CADENCE = new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 2, 3);
 
     @Test
-    void a_write_is_allowed_after_the_interval_since_the_last_write_of_any_kind() {
+    void a_write_is_allowed_after_the_interval_since_the_last_write_of_its_own_type() {
         CadenceForecast forecast = new CadenceForecast(CADENCE, List.of(), List.of(NOW.minusSeconds(10)));
 
-        assertThat(forecast.allowedAt(VintedWrite.DELETION, NOW)).isEqualTo(NOW.plusSeconds(20));
+        assertThat(forecast.allowedAt(VintedWrite.DELETION, NOW)).isEqualTo(NOW);
         assertThat(forecast.allowedAt(VintedWrite.REPUBLICATION, NOW)).isEqualTo(NOW.plusSeconds(110));
     }
 

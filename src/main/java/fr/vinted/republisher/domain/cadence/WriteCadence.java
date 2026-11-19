@@ -8,8 +8,8 @@ import java.util.Optional;
 import java.util.stream.Stream;
 
 /**
- * How fast the tool may write on Vinted: per kind, a minimum interval since the last write of any kind, and a limit
- * over the last 24 hours. Computed from the attempts already recorded, it survives any restart.
+ * How fast the tool may write on Vinted: per kind, a minimum interval since the last write of the same kind (US-46),
+ * and a limit over the last 24 hours. Computed from the attempts already recorded, it survives any restart.
  */
 public record WriteCadence(Duration deletionInterval, Duration republicationInterval, int dailyDeletions,
                            int dailyRepublications) {
@@ -50,12 +50,12 @@ public record WriteCadence(Duration deletionInterval, Duration republicationInte
 
     /** From when the write is allowed, given the same dates as {@link #check}: {@code now} if it is allowed now. */
     public Instant allowedAt(VintedWrite write, List<Instant> deletions, List<Instant> republications, Instant now) {
-        Optional<Instant> afterInterval = Stream.concat(deletions.stream(), republications.stream())
+        boolean deletion = write == VintedWrite.DELETION;
+        List<Instant> sameType = deletion ? deletions : republications;
+        Optional<Instant> afterInterval = sameType.stream()
                 .max(Instant::compareTo)
-                .map(last -> last.plus(write == VintedWrite.DELETION ? deletionInterval : republicationInterval));
-        Optional<Instant> afterLimit = write == VintedWrite.DELETION
-                ? freedPlace(deletions, dailyDeletions, now)
-                : freedPlace(republications, dailyRepublications, now);
+                .map(last -> last.plus(deletion ? deletionInterval : republicationInterval));
+        Optional<Instant> afterLimit = freedPlace(sameType, deletion ? dailyDeletions : dailyRepublications, now);
         return Stream.of(afterInterval, afterLimit).flatMap(Optional::stream).filter(now::isBefore)
                 .max(Instant::compareTo).orElse(now);
     }

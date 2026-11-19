@@ -74,7 +74,7 @@ republication:
   dry-run: ${REPUBLICATION_DRY_RUN:true}
 
 # Limites de cadence (US-27) : une écriture sur Vinted (suppression ou republication réelle) attend l'intervalle de son
-# type (deletion-interval, republication-interval) depuis la dernière écriture, quel que soit le type de celle-ci, et
+# type (deletion-interval, republication-interval) depuis la dernière écriture du même type (US-46), et
 # au plus daily-* de chaque type sur 24 heures glissantes. Absent, nul, négatif ou illisible, l'application ne démarre pas.
 cadence:
   deletion-interval: 1m

@@ -429,18 +429,18 @@ class RepublishListingAcceptanceTest {
     }
 
     @Test
-    void refusesRepublicationTooSoonAfterADeletion() {
+    void republishesRightAfterADeletion() {
         // Étant donné une suppression tentée à 10:00
         aDeletedListing(Duration.ofMinutes(6));
+        vinted.showingOncePublished(REPUBLISHED, anActiveListing(3));
         clock.set(NOW.plus(Duration.ofMinutes(1)));
         deletions.save(ListingDeletion.attempted(aBackup(5, SAVED_AT), NOW));
         // Quand le membre lance la republication d'une autre annonce à 10:01
-        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
-        // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:02), rien n'est publié ni enregistré, et le
-        // verrou est libéré
-        assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
-                limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofMinutes(2))));
-        assertNothingHappened();
+        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        // Alors elle a lieu : chaque type d'écriture n'attend que l'intervalle de son type (US-46)
+        assertThat(vinted.publishClicks()).isEqualTo(1);
+        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.PUBLISHED);
     }
 
     @Test

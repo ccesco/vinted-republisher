@@ -407,8 +407,8 @@ class AutomaticRunAcceptanceTest {
 
     @Test
     void waits_for_the_cadence_limit_before_republishing() {
-        // Étant donné une écriture sur Vinted il y a une minute, intervalle 2 minutes, et une annonce à republier
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        // Étant donné une republication sur Vinted il y a une minute, intervalle 2 minutes, et une annonce à republier
+        republications.save(ListingRepublication.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
         aDeletedListing(ROBE, "Robe bleue", "12.00");
         // Quand la série tourne
         launch();

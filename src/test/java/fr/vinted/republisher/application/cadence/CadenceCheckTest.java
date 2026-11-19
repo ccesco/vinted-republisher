@@ -33,7 +33,7 @@ class CadenceCheckTest {
         clock.advance(Duration.ofSeconds(30));
 
         CadenceLimitReached refused = catchThrowableOfType(CadenceLimitReached.class,
-                () -> cadence.reserve(VintedWrite.REPUBLICATION));
+                () -> cadence.reserve(VintedWrite.DELETION));
 
         assertThat(refused.allowedAt()).isEqualTo(NOW.plusSeconds(120));
     }

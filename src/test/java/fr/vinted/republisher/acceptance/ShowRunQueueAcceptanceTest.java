@@ -102,13 +102,28 @@ class ShowRunQueueAcceptanceTest {
         aValidatedListing(3);
         // Quand le membre affiche la file d'attente
         List<QueuedAction> actions = showRunQueue(REAL).show().actions();
-        // Alors la file commence par : suppression de 1 maintenant, de 2 dans 30 s, republication de 5 dans 2 min 30 s,
-        // suppression de 3 dans 3 min
+        // Alors la file commence par : suppression de 1 maintenant, de 2 dans 30 s, republication de 5 dans 1 min,
+        // suppression de 3 dans 1 min (chaque type d'écriture a sa cadence, US-46)
         assertThat(actions).startsWith(
                 action(1, RelaunchAction.DELETION, NOW, false),
                 action(2, RelaunchAction.DELETION, NOW.plusSeconds(30), false),
-                action(5, RelaunchAction.REPUBLICATION, NOW.plusSeconds(150), false),
-                action(3, RelaunchAction.DELETION, NOW.plusSeconds(180), false));
+                action(5, RelaunchAction.REPUBLICATION, NOW.plusSeconds(60), false),
+                action(3, RelaunchAction.DELETION, NOW.plusSeconds(60), false));
+    }
+
+    @Test
+    void each_write_type_has_its_own_cadence() {
+        // AT-46-13
+        // Étant donné une annonce « À republier » et une « Prête à supprimer » validée, en mode réel, aucune écriture
+        // récente
+        aDeletedListing(5, NOW.minus(Duration.ofMinutes(6)));
+        aValidatedListing(1);
+        // Quand le membre ouvre la file d'attente
+        List<QueuedAction> actions = showRunQueue(REAL).show().actions();
+        // Alors la republication et la suppression sont prévues « maintenant » toutes les deux
+        assertThat(actions).startsWith(
+                action(5, RelaunchAction.REPUBLICATION, NOW, false),
+                action(1, RelaunchAction.DELETION, NOW, false));
     }
 
     @Test

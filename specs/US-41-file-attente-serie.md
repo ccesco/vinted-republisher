@@ -16,7 +16,7 @@ En tant que membre, je veux voir la file d'attente des actions que la série aut
    1. une annonce `WAITING` dont la date de republication est atteinte devient `TO_REPUBLISH` ;
    2. la première annonce dans l'ordre de la série (`REPUBLICATION_TO_CHECK`, `DELETION_TO_CHECK`, `TO_REPUBLISH`, `TO_DELETE`, puis identifiant Vinted croissant) est prise ;
    3. vérification (revérification de la suppression, vérification de la republication) : l'action est prévue tout de suite ;
-   4. écriture réelle (suppression, republication hors dry-run) : si la cadence ne la permet pas encore, l'horloge avance jusqu'à la date permise et le tour recommence (une annonce devenue `TO_REPUBLISH` entre-temps passe alors devant, comme dans la série). Sinon l'action est prévue à cette heure et compte pour la cadence des suivantes ;
+   4. écriture réelle (suppression, republication hors dry-run) : si la cadence ne la permet pas encore, l'horloge avance jusqu'à la date permise et le tour recommence (une annonce devenue `TO_REPUBLISH` entre-temps passe alors devant, comme dans la série). Sinon l'action est prévue à cette heure et compte pour la cadence des suivantes de son type (US-46 : une suppression ne retarde pas une republication) ;
    5. après une suppression réelle prévue, l'annonce revient en `WAITING` jusqu'à l'heure prévue plus le délai de republication : sa republication suivra dans la file ;
    6. écriture en dry-run : l'action est prévue tout de suite, sans cadence ; l'annonce n'a pas de suite (la série l'écarte, US-19) ;
    7. s'il ne reste que des annonces `WAITING`, l'horloge avance jusqu'à la plus proche date de republication.
@@ -70,7 +70,7 @@ Test : `ShowRunQueueAcceptanceTest.real_writes_follow_the_cadence_and_deletions_
 Et l'annonce 5 supprimée, républiable dans 1 minute
 Et les annonces 1, 2 et 3 « Prêtes à supprimer », aucune écriture récente
 Quand le membre affiche la file d'attente
-Alors la file commence par : suppression de 1 maintenant, suppression de 2 dans 30 secondes, republication de 5 dans 2 minutes 30 secondes, suppression de 3 dans 3 minutes
+Alors la file commence par : suppression de 1 maintenant, suppression de 2 dans 30 secondes, republication de 5 dans 1 minute, suppression de 3 dans 1 minute (cadence propre à chaque type, US-46)
 ```
 Test : `ShowRunQueueAcceptanceTest.waiting_listing_goes_first_once_republishable()`
 

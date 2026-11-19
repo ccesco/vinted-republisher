@@ -115,7 +115,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void cadence_limit_is_a_conflict_with_the_date_it_ends() {
         aDeletedListing(Duration.ofMinutes(6));
-        deletions.save(ListingDeletion.attempted(aBackup(5, NOW), NOW.minusSeconds(60)));
+        republications.save(ListingRepublication.attempted(aBackup(5, NOW), NOW.minusSeconds(60)));
 
         assertThat(republish("2026-11-10T10:00:00Z"))
                 .hasStatus(409)
