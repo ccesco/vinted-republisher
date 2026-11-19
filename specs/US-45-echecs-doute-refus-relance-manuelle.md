@@ -1,5 +1,5 @@
 # US-45 – Échecs triés par conduite et republication manuelle pré-remplie
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-39 (annonces en échec), US-20 (relance), US-12 (republication), US-13 (vérification et validation manuelle), US-17 (gestion des échecs), US-27 (limites de cadence)
 
@@ -62,7 +62,9 @@ Dans `vinted-republisher.yaml`, commité avec le code (`kind` requis ne compile 
 - [x] Une republication manuelle se termine par la vérification ou la validation manuelle d'US-13 (« publiée » avec lien, ou « non publiée »).
 - [x] Elle compte dans la limite de cadence et est refusée en dry-run.
 - [x] La vérification et la validation d'une republication sont journalisées ; retrouvée ou validée « publiée », l'annonce quitte la page « Échecs ».
-- [ ] AT-45-07 (vrai compte) vérifié par le membre.
+- [ ] AT-45-07 (vrai compte) : non joué, l'utilisateur a décidé de s'en passer (2026-11-19).
+
+Vérifié (2026-11-19) : `mvn test "-Pbrowser,docker"` vert (1337 tests), `npm test` vert (41 tests) ; AT-45-07 (manuel, vrai compte) non joué sur décision de l'utilisateur.
 
 ## Tests d'acceptation
 ### AT-45-01 – Groupes de la page « Échecs »
