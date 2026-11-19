@@ -47,8 +47,9 @@ export class FailedListings {
     return failureGroupsOf(this.listings() ?? []);
   }
 
+  // Supprimée, pas encore republiée : la republication manuelle n'attend pas la date de republication.
   protected manuallyRepublishable(failed: FailedListing): boolean {
-    return failed.kind === 'REFUSED' && failed.stage === 'TO_REPUBLISH';
+    return failed.kind === 'REFUSED' && (failed.stage === 'WAITING' || failed.stage === 'TO_REPUBLISH');
   }
 
   // Le formulaire est préparé pour la sauvegarde actuelle, lue juste avant ; l'annonce passe ensuite « Dans le doute ».

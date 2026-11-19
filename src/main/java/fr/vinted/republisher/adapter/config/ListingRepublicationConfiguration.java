@@ -104,12 +104,12 @@ public class ListingRepublicationConfiguration {
                                                           ListingDeletionRepository deletions,
                                                           ListingRepublicationRepository republications,
                                                           ListingPublisher publisher, RepublicationMode mode,
-                                                          RepublicationDelay delay, CadenceCheck cadence, Clock clock,
+                                                          RepublicationDelay delay, Clock clock,
                                                           ShowListingRepublication showListingRepublication,
                                                           JournalWriter journal) {
         return new PrepareManualRepublication(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, delay, clock),
-                cadence, republications, publisher, mode, clock, showListingRepublication, journal);
+                republications, publisher, mode, clock, showListingRepublication, journal);
     }
 
     // A verification only reads the newest listings of the wardrobe, and the new listing once: within the request.

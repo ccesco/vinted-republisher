@@ -715,7 +715,8 @@ paths:
       operationId: prepareManualRepublication
       summary: Préparer une republication que le membre publie lui-même (US-45)
       description: >
-        Mêmes contrôles que republishListing, la préparation comptant dans la limite de cadence. Ouvre le formulaire de
+        Mêmes contrôles que republishListing, sauf le délai après la suppression et la limite de cadence, qui ne
+        la refusent jamais ; la préparation compte toutefois dans la cadence des écritures suivantes. Ouvre le formulaire de
         mise en vente dans un nouvel onglet du Chrome piloté, que l'outil laisse ouvert et ne réutilise jamais (il le
         referme si la préparation échoue), et le remplit depuis la sauvegarde ; un champ impossible à remplir est
         laissé vide et le remplissage continue. Ne
@@ -745,8 +746,8 @@ paths:
           description: L'annonce n'a pas de sauvegarde.
         '409':
           description: >
-            Mêmes refus que republishListing (sauvegarde remplacée, non validée, sans suppression confirmée, date non
-            atteinte, déjà republiée, en erreur de republication, navigateur occupé, limite de cadence atteinte), ou
+            Mêmes refus que republishListing, hors délai et cadence (sauvegarde remplacée, non validée, sans
+            suppression confirmée, déjà republiée, en erreur de republication, navigateur occupé), ou
             dry-run actif (MANUAL_REPUBLICATION_IN_DRY_RUN). Chrome n'est pas ouvert.
           content:
             application/json:

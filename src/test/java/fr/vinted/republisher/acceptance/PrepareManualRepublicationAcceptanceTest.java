@@ -13,8 +13,9 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.backup.ListingReading;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
+import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.FailureKind;
@@ -29,7 +30,6 @@ import fr.vinted.republisher.domain.republication.ManualRepublicationReport;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
-import fr.vinted.republisher.domain.republication.RepublicationTooEarly;
 import fr.vinted.republisher.domain.republication.UnfilledField;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
@@ -87,6 +87,8 @@ class PrepareManualRepublicationAcceptanceTest {
     private final FakeListingPublisher vinted = new FakeListingPublisher(new FakeWardrobeReader());
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final CadenceCheck cadence = new CadenceCheck(deletions, republications,
+            new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock);
 
     @Test
     void fills_the_form_leaves_unfillable_fields_empty_and_never_publishes() {
@@ -127,13 +129,32 @@ class PrepareManualRepublicationAcceptanceTest {
 
     @Test
     void refused_like_a_republication() {
-        // Étant donné une annonce dont la date de republication n'est pas atteinte
-        aDeletedListing(Duration.ofMinutes(2));
+        // Étant donné une annonce dont la sauvegarde n'est pas validée
+        deleted(aBackedUpListing(), Duration.ofMinutes(6));
         // Quand le membre la republie manuellement
         // Alors c'est refusé avec la raison de la republication et Chrome n'ouvre aucun formulaire
-        assertRefusedBeforeChrome(RepublicationTooEarly.class, RepublicationMode.REAL);
+        assertRefusedBeforeChrome(BackupNotValidated.class, RepublicationMode.REAL);
         assertThat(journal.records()).extracting(ActionRecord::outcome, ActionRecord::reason)
-                .containsExactly(tuple(ActionOutcome.REFUSED, Optional.of("TOO_EARLY")));
+                .containsExactly(tuple(ActionOutcome.REFUSED, Optional.of("NOT_VALIDATED")));
+    }
+
+    @Test
+    void ignores_the_delay_and_the_cadence_but_counts_in_it() {
+        // Étant donné une annonce supprimée il y a 2 minutes, dont la date de republication n'est pas atteinte
+        aDeletedListing(Duration.ofMinutes(2));
+        // Et la limite de cadence atteinte
+        ListingBackup other = ListingBackup.of(new ListingReading(aContent(9, "Pull", "Laine", "8.00"),
+                List.of(aPhoto("pull"))), SAVED_AT);
+        republications.save(ListingRepublication.attempted(other, NOW.minusSeconds(30)));
+        // Quand le membre la republie manuellement
+        prepare(RepublicationMode.REAL).prepare(LISTING, SAVED_AT);
+        // Alors le formulaire est rempli et la republication en erreur enregistrée
+        assertThat(vinted.filledContent()).contains(ROBE_BLEUE);
+        assertThat(republications.findLatest(LISTING)).hasValueSatisfying(republication ->
+                assertThat(republication.outcome()).isEqualTo(RepublicationOutcome.FAILED));
+        // Et une republication automatique d'une autre annonce est ensuite refusée : la préparation compte dans la
+        //   cadence
+        assertThat(cadence.allowedAt(VintedWrite.REPUBLICATION)).isEqualTo(NOW.plus(Duration.ofMinutes(2)));
     }
 
     @Test
@@ -152,21 +173,6 @@ class PrepareManualRepublicationAcceptanceTest {
                 .isInstanceOf(BrowserBusy.class);
         assertThat(vinted.formsOpened()).isZero();
         assertThat(republications.findAll()).isEmpty();
-    }
-
-    @Test
-    void counts_in_cadence() {
-        // Étant donné la limite de cadence atteinte
-        aDeletedListing(Duration.ofMinutes(6));
-        ListingBackup other = ListingBackup.of(new ListingReading(aContent(9, "Pull", "Laine", "8.00"),
-                List.of(aPhoto("pull"))), SAVED_AT);
-        republications.save(ListingRepublication.attempted(other, NOW.minusSeconds(30)));
-        // Quand le membre republie manuellement une annonce à republier
-        // Alors c'est refusé (CADENCE_LIMIT_REACHED) et Chrome n'ouvre aucun formulaire
-        assertThat(catchThrowable(() -> prepare(RepublicationMode.REAL).prepare(LISTING, SAVED_AT)))
-                .isInstanceOf(CadenceLimitReached.class);
-        assertThat(vinted.formsOpened()).isZero();
-        assertThat(republications.findLatest(LISTING)).isEmpty();
     }
 
     @Test
@@ -213,8 +219,6 @@ class PrepareManualRepublicationAcceptanceTest {
                 mode);
         return new PrepareManualRepublication(session,
                 new RepublicationChecks(listingBackups, photos, validations, deletions, republications, DELAY, clock),
-                new CadenceCheck(deletions, republications,
-                        new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 2, 2), clock),
                 republications, vinted, mode, clock, show, new JournalWriter(journal, clock));
     }
 
@@ -226,18 +230,27 @@ class PrepareManualRepublicationAcceptanceTest {
 
     /** Backed up with two photos kept, validated by the member, absent from the wardrobe: not deleted yet. */
     private ListingBackup aValidatedListing() {
+        ListingBackup backup = aBackedUpListing();
+        validations.save(BackupValidation.of(backup, VALIDATED_AT));
+        return backup;
+    }
+
+    /** Backed up with two photos kept, absent from the wardrobe, never validated. */
+    private ListingBackup aBackedUpListing() {
         listings.saveAll(List.of(Listing.seen(aListing(1, "Robe bleue", "12.00", ACTIVE), SAVED_AT).absent()));
         ListingReading reading = new ListingReading(ROBE_BLEUE, List.of(aPhoto("front"), aPhoto("back")));
         reading.photos().forEach(photo -> photos.store(LISTING, photo));
         ListingBackup backup = ListingBackup.of(reading, SAVED_AT);
         listingBackups.save(backup);
-        validations.save(BackupValidation.of(backup, VALIDATED_AT));
         return backup;
     }
 
     /** Validated, then deleted on Vinted with the deletion proven {@code ago}. */
     private void aDeletedListing(Duration ago) {
-        ListingBackup backup = aValidatedListing();
+        deleted(aValidatedListing(), ago);
+    }
+
+    private void deleted(ListingBackup backup, Duration ago) {
         Instant provenAt = NOW.minus(ago);
         deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5)).confirmed(provenAt));
     }

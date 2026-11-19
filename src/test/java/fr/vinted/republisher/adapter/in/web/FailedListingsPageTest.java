@@ -210,6 +210,16 @@ class FailedListingsPageTest {
         assertThat(group("refused").locator("tbody tr")).hasCount(0);
     }
 
+    @Test
+    void offers_manual_republication_while_waiting() {
+        // AT-45-04d. Étant donné une annonce supprimée en attente de sa date dont la republication a été refusée
+        failedListings.set("{\"listings\": [" + SKIRT_REFUSED.replace("TO_REPUBLISH", "WAITING") + "]}");
+        open();
+        // Alors elle propose « Republier manuellement »
+        assertThat(group("refused").getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
+                .setName("Republier manuellement"))).isVisible();
+    }
+
     private Locator group(String kind) {
         return page.locator("#failures-" + kind);
     }

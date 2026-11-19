@@ -974,6 +974,21 @@ class ListingDetailPageTest {
             assertThat(page.locator("#manual-republication-dry-run")).hasText("Indisponible en dry-run");
         }
 
+        @Test
+        void manual_republication_waits_for_no_timer() {
+            // AT-45-04d. Étant donné une annonce supprimée dont la date de republication est dans 3 minutes
+            backup.set(REPUBLISHABLE);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:02:05Z"));
+            // Quand le membre ouvre sa fiche
+            open();
+            // Alors « Republier sur Vinted » est désactivé avec son compte à rebours
+            assertThat(republishButton()).isDisabled();
+            assertThat(page.locator("#republication-state"))
+                    .hasText("Republication possible dans 3 min 0 s (à 11:05).");
+            // Et « Republier manuellement » est actif
+            assertThat(manualRepublicationButton()).isEnabled();
+        }
+
         private Locator manualRepublicationButton() {
             return page.locator("#prepare-manual-republication");
         }

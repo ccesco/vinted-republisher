@@ -218,7 +218,7 @@
                 [disabled]="sending() || republicationWaiting()" (click)="republicationAsked.set(true)">Republier sur Vinted</button>
         <button id="prepare-manual-republication" matButton="outlined" type="button"
                 [hidden]="!view.deletion?.republishableAt || !republishable(view)"
-                [disabled]="sending() || republicationWaiting() || view.republicationDryRun"
+                [disabled]="sending() || view.republicationDryRun"
                 (click)="prepareManualRepublication()">Republier manuellement</button>
         @if (view.republicationDryRun) {
           <span id="manual-republication-dry-run" class="muted">Indisponible en dry-run</span>
