@@ -13,6 +13,7 @@ import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
+import fr.vinted.republisher.domain.inventory.RepublicationTally;
 import fr.vinted.republisher.domain.inventory.SortDirection;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -44,7 +45,7 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static org.assertj.core.api.Assertions.assertThat;
 
-/** US-18: the member sees every listing, filtered, sorted and searched. */
+/** US-18: the member sees every listing, filtered, sorted and searched; US-44: with its republication tally. */
 class ShowListingInventoryAcceptanceTest {
 
     private static final Instant SCANNED_AT = Instant.parse("2026-11-10T09:00:00Z");
@@ -259,6 +260,95 @@ class ShowListingInventoryAcceptanceTest {
         });
         // Et la prête à supprimer aucune
         assertThat(entryOf(entries, 103).republication()).isEmpty();
+    }
+
+    /** AT-44-01 */
+    @Test
+    void a_listing_never_republished_has_an_empty_tally() {
+        // Étant donné une annonce prête à supprimer, sans aucune republication
+        givenRepublishedToCheckAndToDelete();
+
+        // Quand le membre demande la liste
+        List<InventoryEntry> entries = showListingInventory.show(InventoryCriteria.defaults());
+
+        // Alors elle porte 0 republication réussie et 0 en échec
+        assertThat(entryOf(entries, 103).republicationTally()).isEqualTo(new RepublicationTally(0, 0));
+    }
+
+    /** AT-44-02 */
+    @Test
+    void the_tally_covers_the_whole_republication_chain() {
+        listings.saveAll(List.of(present(101, "a", "1").absent(), present(201, "a", "1").absent(),
+                present(301, "a", "1")));
+        // Étant donné une annonce A dont une première tentative a été constatée non publiée
+        republications.save(notPublished(101, ATTEMPTED_AT));
+        // Et A republiée ensuite en B
+        republications.save(published(101, 201, ATTEMPTED_AT.plusSeconds(600)));
+        // Et B republiée en C
+        republications.save(published(201, 301, ATTEMPTED_AT.plusSeconds(1200)));
+        // Et une tentative de C constatée non publiée
+        republications.save(notPublished(301, ATTEMPTED_AT.plusSeconds(1800)));
+
+        // Quand le membre demande la liste, présence « Toutes »
+        List<InventoryEntry> entries = showListingInventory.show(staged(PresenceFilter.ALL, Optional.empty()));
+
+        // Alors A, B et C portent chacune 2 republications réussies et 2 en échec
+        assertThat(entries).extracting(InventoryEntry::republicationTally)
+                .containsExactly(new RepublicationTally(2, 2), new RepublicationTally(2, 2),
+                        new RepublicationTally(2, 2));
+    }
+
+    /** AT-44-03 */
+    @Test
+    void a_republication_to_check_is_not_counted() {
+        listings.saveAll(List.of(present(101, "a", "1").absent()));
+        // Étant donné une annonce dont une tentative a été constatée non publiée
+        republications.save(notPublished(101, ATTEMPTED_AT));
+        // Et dont la tentative suivante est en erreur, à vérifier
+        ListingRepublication toCheck = ListingRepublication.attempted(aBackup(101, SAVED_AT),
+                ATTEMPTED_AT.plusSeconds(600));
+        republications.save(toCheck);
+
+        // Quand le membre demande la liste
+        InventoryEntry entry = entryOf(showListingInventory.show(staged(PresenceFilter.ALL, Optional.empty())), 101);
+
+        // Alors elle porte 0 republication réussie et 1 en échec
+        assertThat(entry.republicationTally()).isEqualTo(new RepublicationTally(0, 1));
+        // Et sa colonne « Republication » reste « tentée le …, à vérifier »
+        assertThat(entry.stage()).isEqualTo(ListingStage.REPUBLICATION_TO_CHECK);
+        assertThat(entry.republication()).contains(toCheck);
+    }
+
+    /** AT-44-06 */
+    @Test
+    void reads_not_published_attempts_once_whatever_the_number_of_listings() {
+        for (int count : List.of(3, 30)) {
+            // Étant donné 3 annonces, puis 30 annonces, avec des tentatives non publiées
+            InMemoryListingRepublicationRepository attempts = new InMemoryListingRepublicationRepository();
+            InMemoryListingRepository known = new InMemoryListingRepository();
+            IntStream.rangeClosed(1, count).forEach(id -> {
+                known.saveAll(List.of(present(id, "a", "1")));
+                attempts.save(notPublished(id, ATTEMPTED_AT));
+            });
+
+            // Quand le membre demande la liste
+            new ShowListingInventory(known, statistics, backups, validations, new InMemoryListingDeletionRepository(),
+                    attempts, new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
+                    new InMemoryListingTagRepository(), verifications).show(InventoryCriteria.defaults());
+
+            // Alors les tentatives non publiées sont lues une seule fois, dans les deux cas
+            assertThat(attempts.notPublishedCountReads()).isEqualTo(1);
+        }
+    }
+
+    private static ListingRepublication notPublished(long id, Instant attemptedAt) {
+        return ListingRepublication.attempted(aBackup(id, SAVED_AT), attemptedAt)
+                .notPublished(attemptedAt.plusSeconds(60));
+    }
+
+    private static ListingRepublication published(long id, long newListing, Instant attemptedAt) {
+        return ListingRepublication.attempted(aBackup(id, SAVED_AT), attemptedAt)
+                .published(new VintedListingId(newListing), attemptedAt.plusSeconds(60));
     }
 
     private static InventoryEntry entryOf(List<InventoryEntry> entries, long id) {

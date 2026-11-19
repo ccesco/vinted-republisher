@@ -16,6 +16,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
@@ -140,6 +141,30 @@ class JpaListingRepublicationRepositoryTest extends ApplicationWithDatabaseTest 
         assertThat(republications.findAttemptedSince(CLICKED_AT.minusSeconds(3600))).containsExactly(CLICKED_AT);
         assertThat(republications.findAttemptedSince(CLICKED_AT.minusSeconds(3601)))
                 .containsExactlyInAnyOrder(CLICKED_AT.minusSeconds(3600), CLICKED_AT);
+    }
+
+    @Test
+    void the_database_counts_attempts_found_not_published_per_listing() {
+        // Deux tentatives non publiées puis une en erreur pour l'une, une non publiée puis une publiée pour l'autre
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT)
+                .notPublished(PROVEN_AT));
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT.plusSeconds(600))
+                .notPublished(PROVEN_AT.plusSeconds(600)));
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT.plusSeconds(1200)));
+        republications.save(ListingRepublication.attempted(backupOf(PUBLISHED_LISTING), CLICKED_AT)
+                .notPublished(PROVEN_AT));
+        republications.save(ListingRepublication.attempted(backupOf(PUBLISHED_LISTING), CLICKED_AT.plusSeconds(600))
+                .published(NEW_LISTING, PROVEN_AT.plusSeconds(600)));
+
+        assertThat(republications.findNotPublishedCounts())
+                .isEqualTo(Map.of(FAILED_LISTING, 2, PUBLISHED_LISTING, 1));
+    }
+
+    @Test
+    void no_count_without_attempt_found_not_published() {
+        republications.save(ListingRepublication.attempted(backupOf(FAILED_LISTING), CLICKED_AT));
+
+        assertThat(republications.findNotPublishedCounts()).isEmpty();
     }
 
     private ListingBackup backupOf(VintedListingId listing) {

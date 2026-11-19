@@ -17,6 +17,12 @@ interface ListingRepublicationJpaRepository extends JpaRepository<ListingRepubli
             + " where other.listingId = republication.listingId)")
     List<ListingRepublicationJpaEntity> findAllLatest();
 
+    @Query("select new fr.vinted.republisher.adapter.out.persistence.NotPublishedCount(attempt.listingId, count(attempt))"
+            + " from ListingRepublicationJpaEntity attempt"
+            + " where attempt.outcome = fr.vinted.republisher.domain.republication.RepublicationOutcome.NOT_PUBLISHED"
+            + " group by attempt.listingId")
+    List<NotPublishedCount> countNotPublishedPerListing();
+
     @Query("select r.newListingId from ListingRepublicationJpaEntity r where r.newListingId is not null")
     List<Long> findNewListingIds();
 

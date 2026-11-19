@@ -10,6 +10,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingStatisticsDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PresenceFilterDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RepublicationAdviceDto;
+import fr.vinted.republisher.adapter.in.web.api.model.RepublicationTallyDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SortDirectionDto;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupSummary;
@@ -51,7 +52,10 @@ public class ListingInventoryApiController implements ListingInventoryApi {
         return ResponseEntity.ok(new ListingInventoryDto().listings(showListingInventory.show(criteria).stream()
                 .map(entry -> toDto(entry).tags(entry.tags().stream().map(Tag::name).toList())
                         .republication(entry.republication().map(republication ->
-                                ListingBackupApiController.toDto(republication, entry.newListing())).orElse(null)))
+                                ListingBackupApiController.toDto(republication, entry.newListing())).orElse(null))
+                        .republicationTally(new RepublicationTallyDto()
+                                .published(entry.republicationTally().published())
+                                .notPublished(entry.republicationTally().notPublished())))
                 .toList()));
     }
 
@@ -60,7 +64,7 @@ public class ListingInventoryApiController implements ListingInventoryApi {
         return tag == null || tag.isBlank() ? Optional.empty() : Optional.of(new Tag(tag));
     }
 
-    /** Without tags nor republication: only the list shows them, the detail and the relaunch leave them out. */
+    /** Without tags, republication nor tally: only the list shows them, the detail and the relaunch leave them out. */
     static ListingDto toDto(InventoryEntry entry) {
         Listing listing = entry.listing();
         return new ListingDto()
