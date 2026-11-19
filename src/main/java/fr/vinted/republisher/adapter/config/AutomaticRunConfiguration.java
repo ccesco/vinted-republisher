@@ -1,6 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
-import fr.vinted.republisher.adapter.config.ParallelismConfiguration.ParallelListingActions;
+import fr.vinted.republisher.domain.run.ParallelismMode;
 import fr.vinted.republisher.adapter.out.time.SleepingRunWaiting;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
@@ -30,10 +30,10 @@ class AutomaticRunConfiguration {
     @Bean
     LaunchAutomaticRun launchAutomaticRun(ShowListingInventory showListingInventory, RelaunchListing relaunchListing,
                                           Clock clock, @Qualifier("applicationTaskExecutor") Executor background,
-                                          ParallelListingActions parallelism, RelaunchThreads relaunchThreads) {
+                                          ParallelismMode parallelism, RelaunchThreads relaunchThreads) {
         return new LaunchAutomaticRun(showListingInventory, relaunchListing,
                 new SleepingRunWaiting(clock, Duration.ofSeconds(1)), clock, new FailureLoggingExecutor(background),
-                parallelism.count(), relaunchThreads.threads);
+                parallelism.listingActions(), relaunchThreads.threads);
     }
 
     @Bean
@@ -46,8 +46,8 @@ class AutomaticRunConfiguration {
     }
 
     @Bean
-    RelaunchThreads relaunchThreads(ParallelListingActions parallelism) {
-        return new RelaunchThreads(parallelism.count());
+    RelaunchThreads relaunchThreads(ParallelismMode parallelism) {
+        return new RelaunchThreads(parallelism.listingActions());
     }
 
     /**
