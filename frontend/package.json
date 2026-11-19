@@ -2,7 +2,7 @@
   "name": "vinted-republisher-frontend",
   "private": true,
   "scripts": {
-    "generate-api": "mvn -q -f ../pom.xml generate-sources",
+    "generate-api": "openapi-generator-cli generate --generator-key api",
     "prestart": "npm run generate-api",
     "start": "ng serve",
     "prebuild": "npm run generate-api",
@@ -26,6 +26,7 @@
     "@angular/build": "22.2.7",
     "@angular/cli": "22.2.7",
     "@angular/compiler-cli": "22.2.6",
+    "@openapitools/openapi-generator-cli": "2.42.0",
     "typescript": "6.0.3",
     "vitest": "5.1.1"
   }

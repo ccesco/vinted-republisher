@@ -21,6 +21,7 @@
         <java.version>25</java.version>
         <archunit.version>1.5.0</archunit.version>
         <playwright.version>1.63.0</playwright.version>
+        <!-- Même version que frontend/openapitools.json (client TypeScript) -->
         <openapi-generator.version>7.25.0</openapi-generator.version>
         <springdoc.version>3.1.1</springdoc.version>
         <!-- Tests qui démarrent le vrai Chrome : exclus par défaut, inclus avec -Pbrowser -->
@@ -127,23 +128,6 @@
                                 <openApiNullable>false</openApiNullable>
                                 <annotationLibrary>none</annotationLibrary>
                                 <documentationProvider>none</documentationProvider>
-                            </configOptions>
-                        </configuration>
-                    </execution>
-                    <!-- Client de l'interface Angular (US-37) : un écart au contrat ne compile pas côté navigateur non plus -->
-                    <execution>
-                        <id>frontend-api-client</id>
-                        <goals>
-                            <goal>generate</goal>
-                        </goals>
-                        <configuration>
-                            <inputSpec>${project.basedir}/src/main/resources/static/openapi/vinted-republisher.yaml</inputSpec>
-                            <generatorName>typescript-angular</generatorName>
-                            <output>${project.basedir}/frontend/src/generated/api</output>
-                            <configOptions>
-                                <ngVersion>22.0.0</ngVersion>
-                                <fileNaming>kebab-case</fileNaming>
-                                <stringEnums>false</stringEnums>
                             </configOptions>
                         </configuration>
                     </execution>
