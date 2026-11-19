@@ -85,6 +85,7 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `CategoryDetails` | Détails propres à la catégorie | Champs que le formulaire ne demande que dans certaines catégories : ISBN, titre du livre, auteur, fabricant, modèle, mesures. |
 | `ListingEditForm` | Formulaire de modification | Page `/items/<id>/edit` de Vinted, réservée au membre connecté ; l'outil ne fait que la lire, sans rien cliquer, saisir ni soumettre. |
 | `ListingBackup` | Sauvegarde d'une annonce | Contenu d'une annonce, ses photos gardées dans leur ordre et sa date de sauvegarde ; une seule par annonce, remplacée seulement par une lecture complète. Une sauvegarde faite avant la conservation des photos n'en a aucune. |
+| `BackupSummary` | Résumé de sauvegarde | Ce que l'inventaire sait de la sauvegarde d'une annonce (US-42) : identifiant de l'annonce, date de sauvegarde et nombre de photos, sans le contenu ni les photos ; suffit à dire si une validation ou une vérification vaut pour la sauvegarde actuelle. |
 | `ListingReading` | Lecture d'une annonce | Ce qu'une visite d'une annonce lit : son contenu (formulaire de modification) et ses photos téléchargées (page publique), au moins une. |
 | `DownloadedPhoto` | Photo téléchargée | Fichier d'une photo tel que Vinted l'a servi, à l'octet près, avec son type ; jamais réencodé. |
 | `ListingPhoto` | Photo gardée | Photo d'une sauvegarde : son rang dans l'annonce (0 = couverture), l'empreinte SHA-256 et l'extension de son fichier. |
