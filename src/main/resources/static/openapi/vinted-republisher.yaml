@@ -1246,8 +1246,9 @@ components:
       description: >
         Action journalisée : scan du dressing, sauvegarde du dressing, validation d'une sauvegarde, vérification
         d'une sauvegarde sur Vinted (US-40), suppression,
-        revérification d'une suppression, republication, rafraîchissement des vues et favoris.
-      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, BACKUP_VERIFICATION, DELETION, DELETION_RECHECK, REPUBLICATION, STATISTICS_REFRESH]
+        revérification d'une suppression, republication, vérification d'une republication sur Vinted et validation
+        manuelle d'une republication (US-44), rafraîchissement des vues et favoris.
+      enum: [SCAN, WARDROBE_BACKUP, BACKUP_VALIDATION, BACKUP_VERIFICATION, DELETION, DELETION_RECHECK, REPUBLICATION, REPUBLICATION_VERIFICATION, REPUBLICATION_VALIDATION, STATISTICS_REFRESH]
     ActionOutcome:
       type: string
       description: >

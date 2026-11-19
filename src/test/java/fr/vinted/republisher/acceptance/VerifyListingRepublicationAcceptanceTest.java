@@ -22,6 +22,9 @@ import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -63,6 +66,7 @@ import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveLis
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.tuple;
 
 class VerifyListingRepublicationAcceptanceTest {
 
@@ -84,6 +88,8 @@ class VerifyListingRepublicationAcceptanceTest {
     private final FakeListingContentReader contents = new FakeListingContentReader();
     private final VintedSession session = new VintedSession();
     private final AdjustableClock clock = new AdjustableClock(NOW);
+    private final InMemoryActionJournal journal = new InMemoryActionJournal();
+    private JournalWriter journalWriter = new JournalWriter(journal, clock);
 
     @Test
     void failed_republication_found_in_the_wardrobe_becomes_published() {
@@ -326,10 +332,117 @@ class VerifyListingRepublicationAcceptanceTest {
         assertThat(session.overview().currentAction()).isEmpty();
     }
 
+    @Test
+    void verification_that_settles_the_error_is_written() {
+        // US-44 AT-44-01. Étant donné une republication en erreur et une seule nouvelle annonce correspondante
+        aFailedRepublication();
+        wardrobe.holding(REPUBLISHED);
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre clique sur « Vérifier sur Vinted »
+        verify();
+        // Alors le journal contient « Vérification de la republication : réussie »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::listingId,
+                ActionRecord::reason).containsExactly(tuple(JournaledAction.REPUBLICATION_VERIFICATION,
+                ActionOutcome.SUCCEEDED, Optional.of(LISTING), Optional.empty()));
+    }
+
+    @Test
+    void verification_still_in_error_and_comparison_are_written() {
+        // US-44 AT-44-02. Étant donné une republication en erreur sans nouvelle annonce correspondante
+        aFailedRepublication();
+        wardrobe.holding(aListing(3, "Robe bleue", "15.00", ACTIVE));
+        // Quand le membre la vérifie
+        verify();
+        // Alors le journal contient « Vérification de la republication : dans le doute »
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(tuple(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.IN_DOUBT,
+                        Optional.empty()));
+        // Étant donné une republication réussie, quand le membre la vérifie, alors « réussie »
+        VerifyListingRepublicationAcceptanceTest published = new VerifyListingRepublicationAcceptanceTest();
+        published.aPublishedRepublication();
+        published.contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"))));
+        published.verify();
+        assertThat(published.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(tuple(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED));
+    }
+
+    @Test
+    void refused_and_failed_verifications_are_written() {
+        // US-44 AT-44-03. Étant donné une annonce sans republication à vérifier
+        aDeletedListing();
+        // Quand le membre la vérifie
+        assertThatThrownBy(this::verify).isInstanceOf(NoRepublicationToVerify.class);
+        // Alors « refusée », raison « aucune republication à vérifier »
+        assertThat(journal.records()).extracting(ActionRecord::outcome, ActionRecord::reason).containsExactly(
+                tuple(ActionOutcome.REFUSED, Optional.of("NO_REPUBLICATION_TO_VERIFY")));
+        // Étant donné une republication en erreur et le navigateur indisponible
+        VerifyListingRepublicationAcceptanceTest unavailable = new VerifyListingRepublicationAcceptanceTest();
+        unavailable.aFailedRepublication();
+        unavailable.wardrobe.whereBrowserCannotStart();
+        // Quand le membre la vérifie, alors « en échec », raison « navigateur indisponible »
+        assertThatThrownBy(unavailable::verify).isInstanceOf(BrowserUnavailable.class);
+        assertThat(unavailable.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome,
+                ActionRecord::reason).containsExactly(tuple(JournaledAction.REPUBLICATION_VERIFICATION,
+                ActionOutcome.FAILED, Optional.of("BROWSER_UNAVAILABLE")));
+        // Et une page de nouvelle annonce illisible donne la raison de l'API
+        VerifyListingRepublicationAcceptanceTest unreadable = new VerifyListingRepublicationAcceptanceTest();
+        unreadable.aPublishedRepublication();
+        unreadable.contents.whereFormIsUnreadable(2, "no title");
+        assertThatThrownBy(unreadable::verify).isInstanceOf(ListingUnreadable.class);
+        assertThat(unreadable.journal.records()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(tuple(ActionOutcome.FAILED, Optional.of("LISTING_UNREADABLE")));
+    }
+
+    @Test
+    void proof_recorded_before_a_failed_comparison_is_written_succeeded() {
+        // US-44 AT-44-11. Étant donné une republication en erreur dont la nouvelle annonce est retrouvée
+        aFailedRepublication();
+        wardrobe.holding(REPUBLISHED);
+        // Et Vinted inaccessible au moment de la comparaison
+        contents.whereVintedRefuses(2);
+        // Quand le membre la vérifie
+        // Alors la réponse reste l'échec de Vinted
+        assertThatThrownBy(this::verify).isInstanceOf(VintedUnreachable.class);
+        // Et le journal contient « Vérification de la republication : réussie », la preuve étant enregistrée
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(tuple(JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.SUCCEEDED,
+                        Optional.empty()));
+        // Mais une comparaison qui échoue sur une republication déjà réussie reste un échec
+        VerifyListingRepublicationAcceptanceTest compared = new VerifyListingRepublicationAcceptanceTest();
+        compared.aPublishedRepublication();
+        compared.contents.whereVintedRefuses(2);
+        assertThatThrownBy(compared::verify).isInstanceOf(VintedUnreachable.class);
+        assertThat(compared.journal.records()).extracting(ActionRecord::outcome, ActionRecord::reason)
+                .containsExactly(tuple(ActionOutcome.FAILED, Optional.of("VINTED_UNREACHABLE")));
+    }
+
+    @Test
+    void listing_never_backed_up_writes_nothing() {
+        assertThatThrownBy(this::verify).isInstanceOf(ListingNotBackedUp.class);
+        assertThat(journal.records()).isEmpty();
+    }
+
+    @Test
+    void journal_failure_changes_nothing() {
+        // US-44 AT-44-08. Étant donné un journal impossible à écrire
+        journalWriter = new JournalWriter(new InMemoryActionJournal().whereDatabaseIsDown(), clock);
+        aFailedRepublication();
+        wardrobe.holding(REPUBLISHED);
+        contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("a"), aPhoto("b"))));
+        // Quand le membre vérifie une republication en erreur qui se trouve publiée
+        RepublicationReport report = verify();
+        // Alors la réponse et la republication sont celles d'un journal qui marche
+        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.PUBLISHED);
+        assertThat(report.comparison()).contains(List.of());
+        assertThat(republications.findLatest(LISTING)).map(ListingRepublication::newListingId)
+                .contains(Optional.of(NEW_LISTING));
+    }
+
     private RepublicationReport verify() {
         return new VerifyListingRepublication(session, listingBackups, republications, listings,
                 new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(), clock,
-                show()).verify(LISTING);
+                show(), journalWriter).verify(LISTING);
     }
 
     private RepublishListing republishListing(FakeListingPublisher vinted) {
