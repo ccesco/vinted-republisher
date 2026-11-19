@@ -1,5 +1,5 @@
 # US-46 – Workers attitrés par type d'action
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-15 (traitement en parallèle, tournées remplacées), US-19 (série automatique), US-20 (relance), US-21 (pause et stop), US-27 (cadence, modifiée), US-41 (file d'attente, modifiée)
 
