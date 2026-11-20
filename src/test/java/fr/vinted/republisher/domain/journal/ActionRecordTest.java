@@ -43,6 +43,25 @@ class ActionRecordTest {
         assertThat(record(ActionOutcome.FAILED, Optional.of("BROWSER_BUSY")).isWaitingRefusal()).isFalse();
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"NEW_LISTING_NOT_FOUND", "SEVERAL_NEW_LISTINGS"})
+    void search_for_a_new_listing_without_result_leaves_failures_as_they_were(String reason) {
+        ActionRecord search = new ActionRecord(Instant.parse("2026-11-18T10:00:00Z"),
+                JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.NOT_DONE,
+                Optional.of(new VintedListingId(101)), Optional.of(reason));
+
+        assertThat(search.isFailure()).isFalse();
+        assertThat(search.leavesFailuresAsTheyWere()).isTrue();
+    }
+
+    @Test
+    void only_waiting_refusals_and_searches_without_result_leave_failures_as_they_were() {
+        assertThat(record(ActionOutcome.REFUSED, Optional.of("TOO_EARLY")).leavesFailuresAsTheyWere()).isTrue();
+        assertThat(record(ActionOutcome.NOT_DONE, Optional.empty()).leavesFailuresAsTheyWere()).isFalse();
+        assertThat(record(ActionOutcome.REFUSED, Optional.of("NEW_LISTING_NOT_FOUND")).leavesFailuresAsTheyWere())
+                .isFalse();
+    }
+
     private static ActionRecord record(ActionOutcome outcome, Optional<String> reason) {
         return new ActionRecord(Instant.parse("2026-11-18T10:00:00Z"), JournaledAction.DELETION, outcome,
                 Optional.of(new VintedListingId(101)), reason);

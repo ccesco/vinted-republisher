@@ -9,10 +9,12 @@ import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
+import fr.vinted.republisher.domain.republication.NewListingSearchResult;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.republication.RepublicationReport;
@@ -40,6 +42,7 @@ public class VerifyListingRepublication {
     private final VintedSession session;
     private final ListingBackupRepository listingBackups;
     private final ListingRepublicationRepository republications;
+    private final ListingDeletionRepository deletions;
     private final ListingRepository listings;
     private final NewListingSearch newListingSearch;
     private final ListingContentReader contents;
@@ -49,13 +52,15 @@ public class VerifyListingRepublication {
     private final JournalWriter journal;
 
     public VerifyListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
-                                      ListingRepublicationRepository republications, ListingRepository listings,
+                                      ListingRepublicationRepository republications,
+                                      ListingDeletionRepository deletions, ListingRepository listings,
                                       NewListingSearch newListingSearch, ListingContentReader contents,
                                       BackupPace backupPace, Clock clock,
                                       ShowListingRepublication showListingRepublication, JournalWriter journal) {
         this.session = session;
         this.listingBackups = listingBackups;
         this.republications = republications;
+        this.deletions = deletions;
         this.listings = listings;
         this.newListingSearch = newListingSearch;
         this.contents = contents;
@@ -67,11 +72,12 @@ public class VerifyListingRepublication {
 
     /**
      * Throws {@link ListingNotBackedUp}, {@link NoRepublicationToVerify} or {@link BrowserBusy} before opening Chrome.
-     * Several listings matching the backup leave the republication in error.
+     * Several listings matching the backup leave the republication in error, or a listing to link as it was.
      */
     public RepublicationReport verify(VintedListingId id) {
-        Verification verification = journal.journaled(JournaledAction.REPUBLICATION_VERIFICATION, id,
-                () -> verifyNow(id), Verification::outcome, Optional.of("REPUBLICATION_FAILED"));
+        Verification verification = journal.journaledWithReason(JournaledAction.REPUBLICATION_VERIFICATION, id,
+                () -> verifyNow(id), Verification::outcome, Verification::reason,
+                Optional.of("REPUBLICATION_FAILED"));
         verification.comparisonFailure().ifPresent(failure -> {
             throw failure;
         });
@@ -80,14 +86,18 @@ public class VerifyListingRepublication {
 
     private Verification verifyNow(VintedListingId id) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
-        latestToVerify(id);
+        toVerify(id);
         if (!session.start(BrowserAction.REPUBLISHING, id)) {
             throw new BrowserBusy();
         }
         Optional<List<ListingFieldDifference>> comparison;
         try {
             // Read again under the lock: another verification may have settled it meanwhile.
-            ListingRepublication republication = latestToVerify(id);
+            Optional<ListingRepublication> toVerify = toVerify(id);
+            if (toVerify.isEmpty()) {
+                return link(id, backup);
+            }
+            ListingRepublication republication = toVerify.get();
             if (republication.outcome() != RepublicationOutcome.FAILED) {
                 comparison = republication.newListingId().map(newListing -> compare(backup, newListing));
             } else {
@@ -109,19 +119,53 @@ public class VerifyListingRepublication {
     /** {@code comparisonFailure}: the comparison that failed once the republication was proven, passed on after. */
     private record Verification(RepublicationReport report, Optional<RuntimeException> comparisonFailure) {
 
-        /** Published, whether just proven or only compared; otherwise the republication stays in error. */
+        /**
+         * Published, whether just proven, linked or only compared; a listing to link without a single new listing
+         * stays as it was; otherwise the republication stays in error.
+         */
         ActionOutcome outcome() {
+            if (report.newListingSearch().isPresent()) {
+                return ActionOutcome.NOT_DONE;
+            }
             return report.lastRepublication().map(ListingRepublication::outcome)
                     .filter(RepublicationOutcome.PUBLISHED::equals).isPresent()
                     ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
         }
+
+        Optional<String> reason() {
+            return report.newListingSearch().map(NewListingSearchResult::journalReason);
+        }
     }
 
-    private ListingRepublication latestToVerify(VintedListingId id) {
-        ListingRepublication republication = republications.findLatest(id)
-                .orElseThrow(() -> new NoRepublicationToVerify(id));
+    /** The republication in error or published to verify, or none for a listing to link (US-48). */
+    private Optional<ListingRepublication> toVerify(VintedListingId id) {
+        Optional<ListingRepublication> latest = republications.findLatest(id);
+        if (ListingRepublication.toLink(deletions.findLatest(id), latest)) {
+            return Optional.empty();
+        }
+        ListingRepublication republication = latest.orElseThrow(() -> new NoRepublicationToVerify(id));
         republication.requireToVerify();
-        return republication;
+        return Optional.of(republication);
+    }
+
+    /** Only a single new listing is linked: none or several record nothing, the member then pastes its link. */
+    private Verification link(VintedListingId id, ListingBackup backup) {
+        List<ScannedListing> matching = newListingSearch.findAgain(backup.content(), republications.findNewListings());
+        if (matching.size() != 1) {
+            return new Verification(showListingRepublication.searchedWithoutResult(id,
+                    NewListingSearchResult.of(matching.size())), Optional.empty());
+        }
+        ScannedListing found = matching.getFirst();
+        Instant linkedAt = clock.instant();
+        listings.saveAll(List.of(Listing.seen(found, linkedAt)));
+        republications.save(ListingRepublication.linked(backup, found.id(), linkedAt));
+        try {
+            return new Verification(showListingRepublication.verified(id, Optional.of(compare(backup, found.id()))),
+                    Optional.empty());
+        } catch (RuntimeException failure) {
+            // The link is recorded: the verification succeeded, even though the comparison failed.
+            return new Verification(showListingRepublication.verified(id, Optional.empty()), Optional.of(failure));
+        }
     }
 
     private ListingRepublication settle(ListingRepublication failed, ListingBackup backup) {

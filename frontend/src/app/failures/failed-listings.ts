@@ -8,6 +8,7 @@ import { REPUBLICATION_REFUSALS } from '../listing/listing-messages';
 import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import { dateOf, listingLink } from '../shared/format';
 import { actionOf, causeOf, outcomeOf } from '../shared/journal';
+import { newListingSearchMessageOf } from '../shared/listing-link';
 import { manualRepublicationMessageOf } from '../shared/manual-republication';
 import { MessagePart, refusalMessageOf, relaunchMessageOf } from '../shared/relaunch';
 import { RELAUNCH_LABELS, RELAUNCH_FAILED_MESSAGE, STAGE_LABELS } from '../wardrobe/wardrobe-messages';
@@ -16,7 +17,8 @@ import { FailureGroup, failureGroupsOf } from './failure-groups';
 const MANUAL_REPUBLICATION_FAILED = 'Échec de la republication manuelle : voir la fiche';
 
 // Annonces en échec (US-39) : la dernière action de chacune, sa cause, et la relance comme dans la liste (US-20),
-// groupées selon ce que le membre doit faire, avec la republication manuelle d'une annonce refusée (US-45).
+// groupées selon ce que le membre doit faire, avec la republication manuelle d'une annonce refusée (US-45) et la
+// vérification sur Vinted d'une annonce à relier (US-48).
 @Component({
   selector: 'app-failed-listings',
   imports: [MatButtonModule],
@@ -70,6 +72,39 @@ export class FailedListings {
       const reason = statusOf(failure) === 0 ? undefined : (await refusalOf<{ reason: string }>(failure))?.reason;
       const refusal = REPUBLICATION_REFUSALS[reason ?? ''];
       return refusal ? 'Republication manuelle refusée : ' + refusal : MANUAL_REPUBLICATION_FAILED;
+    }
+  }
+
+  // Supprimée, pas encore republiée : sa nouvelle annonce, mise en ligne hors de l'outil, peut être reliée (US-48).
+  protected toLink(failed: FailedListing): boolean {
+    return failed.stage === 'WAITING' || failed.stage === 'TO_REPUBLISH';
+  }
+
+  // Reliée, l'annonce quitte la liste relue ; sinon le message renvoie à la fiche pour coller le lien.
+  protected async verifyLink(failed: FailedListing): Promise<void> {
+    this.relaunching.set(failed.listingId);
+    const outcome = await this.linkOutcomeOf(failed);
+    this.message.set([{ text: `${failed.listingTitle} : ` }, ...outcome]);
+    this.relaunching.set(null);
+    await this.load();
+  }
+
+  private async linkOutcomeOf(failed: FailedListing): Promise<MessagePart[]> {
+    const card = { text: 'la fiche', listingId: failed.listingId };
+    try {
+      const view = await answerOf(this.republications.verifyListingRepublication(failed.listingId));
+      if (view.newListingSearch) {
+        return [{ text: newListingSearchMessageOf(view.newListingSearch) + ' sur ' }, card, { text: '.' }];
+      }
+      const newListingId = view.republication?.newListingId;
+      return newListingId
+        ? [{ text: `Nouvelle annonce ${newListingId} retrouvée sur Vinted et reliée.` }]
+        : [{ text: 'Vérification faite ; voir ' }, card, { text: '.' }];
+    } catch (failure) {
+      const reason = statusOf(failure) === 0 ? undefined : (await refusalOf<{ reason: string }>(failure))?.reason;
+      const refusal = REPUBLICATION_REFUSALS[reason ?? ''];
+      return [{ text: (refusal ? 'Vérification refusée : ' + refusal : 'Échec de la vérification') + ' ; voir ' },
+        card, { text: '.' }];
     }
   }
 

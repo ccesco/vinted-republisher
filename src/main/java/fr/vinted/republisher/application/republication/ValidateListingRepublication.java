@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.backup.ListingFieldDifference;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
@@ -37,13 +38,15 @@ import java.util.function.Supplier;
 
 /**
  * The member looked on Vinted and says what a republication in error became: published, with the link of the new
- * listing, whose page alone is read to check it; or not published, without opening Chrome. Never clicks on Vinted.
+ * listing, whose page alone is read to check it; or not published, without opening Chrome. A listing to link (US-48)
+ * is only validated published, its new listing being linked as of the validation. Never clicks on Vinted.
  */
 public class ValidateListingRepublication {
 
     private final VintedSession session;
     private final ListingBackupRepository listingBackups;
     private final ListingRepublicationRepository republications;
+    private final ListingDeletionRepository deletions;
     private final ListingRepository listings;
     private final ListingContentReader contents;
     private final BackupPace backupPace;
@@ -53,13 +56,15 @@ public class ValidateListingRepublication {
     private final JournalWriter journal;
 
     public ValidateListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
-                                        ListingRepublicationRepository republications, ListingRepository listings,
+                                        ListingRepublicationRepository republications,
+                                        ListingDeletionRepository deletions, ListingRepository listings,
                                         ListingContentReader contents, BackupPace backupPace, Clock clock,
                                         ShowListingRepublication showListingRepublication, URI vintedSite,
                                         JournalWriter journal) {
         this.session = session;
         this.listingBackups = listingBackups;
         this.republications = republications;
+        this.deletions = deletions;
         this.listings = listings;
         this.contents = contents;
         this.backupPace = backupPace;
@@ -80,12 +85,12 @@ public class ValidateListingRepublication {
 
     private RepublicationReport publishedNow(VintedListingId id, Optional<String> link) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
-        latestInError(id);
+        inErrorOrToLink(id);
         NewListingLink newListing = NewListingLink.parse(link, vintedSite);
         // Checked before Chrome is opened, then again under the lock: another validation may have settled it since.
         requireAnotherListing(id, newListing);
         List<ListingFieldDifference> comparison = underLock(id, () -> {
-            ListingRepublication failed = latestInError(id);
+            Optional<ListingRepublication> failed = inErrorOrToLink(id);
             requireAnotherListing(id, newListing);
             ListingReading read = readPage(newListing.id());
             if (!read.content().title().equals(backup.content().title())
@@ -95,7 +100,8 @@ public class ValidateListingRepublication {
             Instant validatedAt = clock.instant();
             listings.saveAll(List.of(Listing.seen(new ScannedListing(new ListingLink(newListing.id(),
                     newListing.url()), read.content().title(), read.content().price(), true), validatedAt)));
-            republications.save(failed.published(newListing.id(), validatedAt));
+            republications.save(failed.map(inError -> inError.published(newListing.id(), validatedAt))
+                    .orElseGet(() -> ListingRepublication.linked(backup, newListing.id(), validatedAt)));
             return ListingFieldDifference.between(backup.content(), backup.photos().size(), read);
         });
         return showListingRepublication.verified(id, Optional.of(comparison));
@@ -124,6 +130,15 @@ public class ValidateListingRepublication {
         if (newListing.id().equals(id) || republications.findNewListings().contains(newListing.id())) {
             throw new NewListingLinkInvalid();
         }
+    }
+
+    /** The republication in error, or none for a listing to link (US-48), which is only ever validated published. */
+    private Optional<ListingRepublication> inErrorOrToLink(VintedListingId id) {
+        Optional<ListingRepublication> latest = republications.findLatest(id);
+        if (ListingRepublication.toLink(deletions.findLatest(id), latest)) {
+            return Optional.empty();
+        }
+        return Optional.of(latestInError(id));
     }
 
     private ListingRepublication latestInError(VintedListingId id) {

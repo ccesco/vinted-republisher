@@ -38,7 +38,7 @@ class JpaActionJournal implements ActionJournal {
 
     @Override
     public List<JournalEntry> lastOfEachListing() {
-        return repository.findLastOfEachListingExcept(ActionRecord.WAITING_REASONS).stream()
+        return repository.findLastOfEachListingExcept(ActionRecord.WAITING_REASONS, ActionRecord.NO_NEW_LISTING_REASONS).stream()
                 .map(ActionJournalJpaEntity::toJournalEntry).toList();
     }
 

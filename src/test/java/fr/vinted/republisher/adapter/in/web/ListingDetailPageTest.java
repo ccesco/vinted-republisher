@@ -916,6 +916,44 @@ class ListingDetailPageTest {
         }
 
         @Test
+        void listing_to_link_offers_verification_and_published_link() {
+            // AT-48-09. Étant donné une annonce à relier (supprimée, sans republication)
+            backup.set(REPUBLISHABLE);
+            manualValidationAnswer.set(PUBLISHED.replace("\"republicationDryRun\": false,",
+                    "\"republicationDryRun\": false, \"republicationComparison\": [],"));
+            // Quand le membre ouvre sa fiche
+            open();
+            // Alors la section Republication propose « Vérifier sur Vinted » et « Publiée » avec le champ du lien,
+            // sans « Non publiée »
+            assertThat(verifyButton()).isVisible();
+            assertThat(validation()).isVisible();
+            assertThat(publishedButton()).isVisible();
+            assertThat(page.locator("#validate-not-published")).isHidden();
+            // Et une liaison réussie affiche l'annonce republiée et la comparaison
+            newListingUrl().fill("https://www.vinted.fr/items/10300000001-pull");
+            publishedButton().click();
+            assertThat(outcome()).containsText("Republiée sur Vinted le");
+            assertThat(page.locator("#republication-comparison")).hasText("Nouvelle annonce identique à la sauvegarde.");
+            assertThat(validation()).isHidden();
+        }
+
+        @Test
+        void verification_without_result_asks_for_the_link() {
+            // AT-48-09. Étant donné une annonce à relier
+            backup.set(REPUBLISHABLE);
+            verificationAnswer.set(REPUBLISHABLE.replace("\"republicationDryRun\": false,",
+                    "\"republicationDryRun\": false, \"newListingSearch\": \"SEVERAL\","));
+            open();
+            // Quand la vérification ne trouve pas une seule nouvelle annonce
+            verifyButton().click();
+            // Alors la fiche invite à coller le lien de la nouvelle annonce
+            assertThat(problem()).hasText("Plusieurs annonces correspondent sur Vinted : collez le lien de la"
+                    + " nouvelle annonce dans « Publiée ».");
+            assertThat(validation()).isVisible();
+            assertThat(verifyButton()).isEnabled();
+        }
+
+        @Test
         void only_a_republication_in_error_offers_the_manual_validation() {
             backup.set(PUBLISHED);
             open();
@@ -1009,7 +1047,9 @@ class ListingDetailPageTest {
             assertThat(manualValidations).containsExactly("POST {\"published\":false}");
             assertThat(republishButton()).isVisible();
             assertThat(republishButton()).isEnabled();
-            assertThat(verifyButton()).isHidden();
+            // US-48 : de nouveau à relier, sa nouvelle annonce peut encore être vérifiée ou collée, sans « Non publiée »
+            assertThat(verifyButton()).isVisible();
+            assertThat(notPublishedButton()).isHidden();
         }
 
         @Test

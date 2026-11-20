@@ -46,7 +46,7 @@ public class InMemoryActionJournal implements ActionJournal {
     @Override
     public synchronized List<JournalEntry> lastOfEachListing() {
         Map<VintedListingId, JournalEntry> last = new HashMap<>();
-        entries.stream().filter(entry -> !entry.record().isWaitingRefusal())
+        entries.stream().filter(entry -> !entry.record().leavesFailuresAsTheyWere())
                 .forEach(entry -> entry.record().listingId().ifPresent(listing -> last.put(listing, entry)));
         return List.copyOf(last.values());
     }

@@ -17,8 +17,8 @@ public interface ActionJournal {
     List<JournalEntry> of(VintedListingId listing);
 
     /**
-     * The most recent entry of each listing named in the journal, in no particular order, refusals that only ask to
-     * wait ({@link ActionRecord#isWaitingRefusal()}) left aside.
+     * The most recent entry of each listing named in the journal, in no particular order, entries that leave the
+     * listing as it was ({@link ActionRecord#leavesFailuresAsTheyWere()}) left aside.
      */
     List<JournalEntry> lastOfEachListing();
 }

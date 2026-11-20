@@ -107,7 +107,12 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
                 Optional.of(OTHER), Optional.of("CADENCE_LIMIT_REACHED"));
         ActionRecord refusedWithoutReason = new ActionRecord(AT.plusSeconds(5), JournaledAction.DELETION,
                 ActionOutcome.REFUSED, Optional.of(THIRD), Optional.empty());
-        List.of(first, other, second, scan, waiting, refusedWithoutReason).forEach(journal::write);
+        // US-48 : une recherche de la nouvelle annonce restée sans résultat ne compte pas non plus
+        ActionRecord searchWithoutResult = new ActionRecord(AT.plusSeconds(6),
+                JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.NOT_DONE, Optional.of(OTHER),
+                Optional.of("NEW_LISTING_NOT_FOUND"));
+        List.of(first, other, second, scan, waiting, refusedWithoutReason, searchWithoutResult)
+                .forEach(journal::write);
 
         assertThat(journal.lastOfEachListing()).extracting(JournalEntry::record)
                 .containsExactlyInAnyOrder(second, other, refusedWithoutReason);

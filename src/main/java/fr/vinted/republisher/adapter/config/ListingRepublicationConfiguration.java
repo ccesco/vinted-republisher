@@ -86,12 +86,13 @@ public class ListingRepublicationConfiguration {
     ValidateListingRepublication validateListingRepublication(VintedSession session,
                                                               ListingBackupRepository listingBackups,
                                                               ListingRepublicationRepository republications,
+                                                              ListingDeletionRepository deletions,
                                                               ListingRepository listings,
                                                               ListingContentReader contents, BackupProperties backup,
                                                               Clock clock, WardrobeProperties wardrobe,
                                                               ShowListingRepublication showListingRepublication,
                                                               JournalWriter journal) {
-        return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
+        return new ValidateListingRepublication(session, listingBackups, republications, deletions, listings, contents,
                 new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()), new Random()), clock,
                 showListingRepublication, wardrobe.wardrobeUrl(), journal);
     }
@@ -116,13 +117,14 @@ public class ListingRepublicationConfiguration {
     @Bean
     VerifyListingRepublication verifyListingRepublication(VintedSession session, ListingBackupRepository listingBackups,
                                                           ListingRepublicationRepository republications,
+                                                          ListingDeletionRepository deletions,
                                                           ListingRepository listings, WardrobeReader wardrobe,
                                                           WardrobeProperties wardrobeProperties,
                                                           ListingContentReader contents, BackupProperties backup,
                                                           Clock clock,
                                                           ShowListingRepublication showListingRepublication,
                                                           JournalWriter journal) {
-        return new VerifyListingRepublication(session, listingBackups, republications, listings,
+        return new VerifyListingRepublication(session, listingBackups, republications, deletions, listings,
                 new NewListingSearch(wardrobe, WardrobeConfiguration.paceOf(wardrobeProperties.scan()), listings),
                 contents, new BackupPace(new PauseRange(backup.minPagePause(), backup.maxPagePause()), new Random()),
                 clock, showListingRepublication, journal);

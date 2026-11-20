@@ -6,6 +6,7 @@ import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
+import fr.vinted.republisher.domain.republication.NewListingSearchResult;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationReport;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
@@ -38,22 +39,27 @@ public class ShowListingRepublication {
 
     /** The given report, such as the one a deletion answers with, completed with what concerns its republication. */
     public RepublicationReport around(DeletionReport report) {
-        return report(report, false, Optional.empty());
+        return report(report, false, Optional.empty(), Optional.empty());
     }
 
     RepublicationReport report(VintedListingId listing, boolean dryRunPassed) {
-        return report(showListingDeletion.show(listing), dryRunPassed, Optional.empty());
+        return report(showListingDeletion.show(listing), dryRunPassed, Optional.empty(), Optional.empty());
     }
 
     RepublicationReport verified(VintedListingId listing, Optional<List<ListingFieldDifference>> comparison) {
-        return report(showListingDeletion.show(listing), false, comparison);
+        return report(showListingDeletion.show(listing), false, comparison, Optional.empty());
+    }
+
+    RepublicationReport searchedWithoutResult(VintedListingId listing, NewListingSearchResult search) {
+        return report(showListingDeletion.show(listing), false, Optional.empty(), Optional.of(search));
     }
 
     private RepublicationReport report(DeletionReport report, boolean dryRunPassed,
-                                       Optional<List<ListingFieldDifference>> comparison) {
+                                       Optional<List<ListingFieldDifference>> comparison,
+                                       Optional<NewListingSearchResult> search) {
         Optional<ListingRepublication> republication = republications.findLatest(report.backup().backup().id());
         return new RepublicationReport(report, republication,
                 republication.flatMap(ListingRepublication::newListingId).flatMap(listings::find), mode, dryRunPassed,
-                comparison);
+                comparison, search);
     }
 }

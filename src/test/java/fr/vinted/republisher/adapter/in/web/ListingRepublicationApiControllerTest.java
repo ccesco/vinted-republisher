@@ -393,9 +393,31 @@ class ListingRepublicationApiControllerTest {
 
     @Test
     void nothing_to_verify_is_a_conflict() {
+        // Ni republication à vérifier, ni annonce à relier (US-48) : l'annonce n'est pas supprimée
+        aValidatedListing();
+
+        assertThat(verify())
+                .hasStatus(409)
+                .bodyJson().isStrictlyEqualTo("{\"reason\": \"NO_REPUBLICATION_TO_VERIFY\"}");
+    }
+
+    // AT-48-02
+    @Test
+    void listing_to_link_without_new_listing_answers_with_the_search() {
         aDeletedListing(Duration.ofMinutes(6));
 
         assertThat(verify())
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("{\"vintedId\": 1, \"newListingSearch\": \"NOT_FOUND\"}");
+        assertThat(republications.findLatest(new VintedListingId(1))).isEmpty();
+    }
+
+    // AT-48-06
+    @Test
+    void listing_to_link_cannot_be_validated_not_published() {
+        aDeletedListing(Duration.ofMinutes(6));
+
+        assertThat(validate("{\"published\": false}"))
                 .hasStatus(409)
                 .bodyJson().isStrictlyEqualTo("{\"reason\": \"NO_REPUBLICATION_TO_VERIFY\"}");
     }
@@ -610,10 +632,11 @@ class ListingRepublicationApiControllerTest {
         ValidateListingRepublication validateListingRepublication(VintedSession session,
                                                                   InMemoryListingBackupRepository listingBackups,
                                                                   InMemoryListingRepublicationRepository republications,
+                                                                  InMemoryListingDeletionRepository deletions,
                                                                   InMemoryListingRepository listings,
                                                                   FakeListingContentReader contents,
                                                                   ShowListingRepublication show) {
-            return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
+            return new ValidateListingRepublication(session, listingBackups, republications, deletions, listings, contents,
                     noBackupPause(), Clock.fixed(NOW, ZoneOffset.UTC), show,
                     URI.create("https://www.vinted.fr/member/42"),
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
@@ -623,11 +646,12 @@ class ListingRepublicationApiControllerTest {
         VerifyListingRepublication verifyListingRepublication(VintedSession session,
                                                               InMemoryListingBackupRepository listingBackups,
                                                               InMemoryListingRepublicationRepository republications,
+                                                              InMemoryListingDeletionRepository deletions,
                                                               InMemoryListingRepository listings,
                                                               FakeWardrobeReader wardrobe,
                                                               FakeListingContentReader contents,
                                                               ShowListingRepublication show) {
-            return new VerifyListingRepublication(session, listingBackups, republications, listings,
+            return new VerifyListingRepublication(session, listingBackups, republications, deletions, listings,
                     new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(),
                     Clock.fixed(NOW, ZoneOffset.UTC), show,
                     new JournalWriter(new InMemoryActionJournal(), Clock.systemUTC()));
