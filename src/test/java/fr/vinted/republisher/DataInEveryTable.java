@@ -78,7 +78,7 @@ public final class DataInEveryTable {
         application.getBean(ListingStatisticsRepository.class).addAll(List.of(
                 new StatisticsReading(new VintedListingId(DELETED_LISTING), new ListingStatistics(42, 3), AT)));
         application.getBean(ListingSaleRepository.class).addAll(List.of(
-                new ListingSale(new VintedListingId(NEW_LISTING), AT.plusSeconds(1800))));
+                ListingSale.noticed(new VintedListingId(NEW_LISTING), AT.plusSeconds(1800))));
         application.getBean(ActionJournal.class).write(new ActionRecord(AT, JournaledAction.SCAN,
                 ActionOutcome.STARTED, Optional.empty(), Optional.empty()));
         application.getBean(ListingTagRepository.class)

@@ -30,6 +30,46 @@
       <p><a id="vinted-link" [href]="detail.listing.url" rel="noopener noreferrer">Voir sur Vinted</a></p>
       <p id="presence">{{ presenceText(detail) }}</p>
       <p id="first-seen">Vue pour la première fois le {{ dateOf(detail.firstSeenAt) }}.</p>
+      <section id="sale-block">
+        @if (detail.sale; as sale) {
+          <p id="sale">Vendue. {{ saleDateOf(sale) }}.</p>
+          @if (sale.origin === 'NOTED') {
+            <p class="actions">
+              <button id="cancel-sale" matButton="outlined" type="button" [disabled]="sending()"
+                      (click)="saleCancellationAsked.set(true)">Annuler la vente</button>
+            </p>
+          }
+        } @else {
+          <p class="actions">
+            <button id="note-sale" matButton="outlined" type="button" [disabled]="sending()"
+                    (click)="saleNoteAsked.set(true)">Noter vendue</button>
+          </p>
+        }
+        <p id="sale-message" role="status">{{ saleMessage() }}</p>
+        <div id="sale-confirmation" class="confirmation" role="dialog" aria-modal="true"
+             aria-labelledby="sale-confirmation-title" [hidden]="!saleNoteAsked()">
+          <div>
+            <h2 id="sale-confirmation-title">Noter cette annonce vendue ?</h2>
+            <p>L'annonce passe à l'étape « Vendue » : l'outil ne la supprime ni ne la republie plus. Rien n'est fait sur
+              Vinted.</p>
+            <p class="actions">
+              <button id="confirm-sale-note" matButton="filled" type="button" (click)="confirmSaleNote()">Noter vendue</button>
+              <button id="cancel-sale-note" matButton type="button" (click)="saleNoteAsked.set(false)">Annuler</button>
+            </p>
+          </div>
+        </div>
+        <div id="sale-cancellation" class="confirmation" role="dialog" aria-modal="true"
+             aria-labelledby="sale-cancellation-title" [hidden]="!saleCancellationAsked()">
+          <div>
+            <h2 id="sale-cancellation-title">Annuler la vente notée ?</h2>
+            <p>L'annonce reprend l'étape qu'elle aurait sans cette vente.</p>
+            <p class="actions">
+              <button id="confirm-sale-cancellation" matButton="filled" type="button" (click)="confirmSaleCancellation()">Annuler la vente</button>
+              <button id="keep-sale" matButton type="button" (click)="saleCancellationAsked.set(false)">Garder la vente</button>
+            </p>
+          </div>
+        </div>
+      </section>
       @if (detail.duplicateTwinIds.length > 0) {
         <section id="duplicate">
           <p id="duplicate-twins"><ng-container *ngTemplateOutlet="sentence; context: { $implicit: twinsSentenceOf(detail.duplicateTwinIds) }" /></p>

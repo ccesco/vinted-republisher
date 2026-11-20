@@ -517,7 +517,7 @@ class AutomaticRunAcceptanceTest {
     void the_run_leaves_sold_listings_alone() {
         // AT-50-02 – Étant donné l'annonce 1 « Vendue » et l'annonce 2 « À supprimer »
         aValidatedListing(ROBE, "Robe bleue", "12.00");
-        sales.addAll(List.of(new ListingSale(ROBE, NOW.minusSeconds(60))));
+        sales.addAll(List.of(ListingSale.noticed(ROBE, NOW.minusSeconds(60))));
         aValidatedListing(PULL, "Pull rayé", "15.00");
         publisher.showingOncePublished(aListing(12, "Pull rayé", "15.00", ACTIVE));
         // Quand je lance la série

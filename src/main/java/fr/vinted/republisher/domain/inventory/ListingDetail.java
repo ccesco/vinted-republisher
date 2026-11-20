@@ -2,6 +2,7 @@ package fr.vinted.republisher.domain.inventory;
 
 import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.journal.JournalEntry;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.wardrobe.PriceChange;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 
@@ -11,11 +12,13 @@ import java.util.Optional;
 
 /**
  * The listing as the inventory shows it, with every statistics reading and every price of it, most recent first,
- * the life of the article it belongs to, and the last verification on Vinted of its current backup (US-40).
+ * the life of the article it belongs to, the last verification on Vinted of its current backup (US-40), and its
+ * sale (US-51).
  */
 public record ListingDetail(InventoryEntry entry, List<StatisticsReading> history, List<JournalEntry> journal,
                             Optional<StatisticsComparison> comparison, List<PriceChange> priceHistory,
-                            ListingLifecycle lifecycle, Optional<VerificationResult> lastVerification) {
+                            ListingLifecycle lifecycle, Optional<VerificationResult> lastVerification,
+                            Optional<ListingSale> sale) {
 
     public ListingDetail {
         Objects.requireNonNull(entry);
@@ -25,5 +28,6 @@ public record ListingDetail(InventoryEntry entry, List<StatisticsReading> histor
         priceHistory = List.copyOf(priceHistory);
         Objects.requireNonNull(lifecycle);
         Objects.requireNonNull(lastVerification);
+        Objects.requireNonNull(sale);
     }
 }

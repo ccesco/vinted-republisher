@@ -330,7 +330,7 @@ class RelaunchListingAcceptanceTest {
             }
             case SOLD -> {
                 aValidatedListing();
-                sales.addAll(List.of(new ListingSale(LISTING, NOW.minusSeconds(60))));
+                sales.addAll(List.of(ListingSale.noticed(LISTING, NOW.minusSeconds(60))));
             }
             default -> throw new IllegalArgumentException(stage.name());
         }

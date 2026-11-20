@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.ApplicationWithDatabaseTest;
+import fr.vinted.republisher.domain.sale.ListingAlreadySold;
 import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.sale.ListingSaleRepository;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -37,8 +38,8 @@ class JpaListingSaleRepositoryTest extends ApplicationWithDatabaseTest {
     void gives_back_the_sales_as_they_were_added() {
         listings.saveAll(List.of(Listing.seen(anActiveListing(1), NOTICED_AT),
                 Listing.seen(anActiveListing(2), NOTICED_AT)));
-        List<ListingSale> added = List.of(new ListingSale(new VintedListingId(1), NOTICED_AT),
-                new ListingSale(new VintedListingId(2), NOTICED_AT.plusSeconds(60)));
+        List<ListingSale> added = List.of(ListingSale.noticed(new VintedListingId(1), NOTICED_AT),
+                ListingSale.noticed(new VintedListingId(2), NOTICED_AT.plusSeconds(60)));
 
         sales.addAll(added);
 
@@ -47,8 +48,60 @@ class JpaListingSaleRepositoryTest extends ApplicationWithDatabaseTest {
 
     @Test
     void only_a_known_listing_can_be_sold() {
-        assertThatThrownBy(() -> sales.addAll(List.of(new ListingSale(new VintedListingId(9), NOTICED_AT))))
+        assertThatThrownBy(() -> sales.addAll(List.of(ListingSale.noticed(new VintedListingId(9), NOTICED_AT))))
                 .isInstanceOf(DataIntegrityViolationException.class);
         assertThat(sales.findAll()).isEmpty();
+    }
+
+    @Test
+    void finds_removes_and_keeps_the_origin_of_a_noted_sale() {
+        listings.saveAll(List.of(Listing.seen(anActiveListing(1), NOTICED_AT),
+                Listing.seen(anActiveListing(2), NOTICED_AT)));
+        ListingSale noted = ListingSale.noted(new VintedListingId(1), NOTICED_AT);
+        ListingSale noticed = ListingSale.noticed(new VintedListingId(2), NOTICED_AT);
+        sales.addAll(List.of(noted, noticed));
+
+        assertThat(sales.find(new VintedListingId(1))).contains(noted);
+        assertThat(sales.find(new VintedListingId(3))).isEmpty();
+
+        sales.removeNoted(new VintedListingId(1));
+
+        assertThat(sales.findAll()).containsExactly(noticed);
+    }
+
+    @Test
+    void a_noted_sale_is_added_once_and_never_replaces_a_sale() {
+        listings.saveAll(List.of(Listing.seen(anActiveListing(1), NOTICED_AT)));
+        ListingSale noticed = ListingSale.noticed(new VintedListingId(1), NOTICED_AT);
+        sales.addAll(List.of(noticed));
+
+        assertThatThrownBy(() -> sales.add(ListingSale.noted(new VintedListingId(1), NOTICED_AT.plusSeconds(60))))
+                .isInstanceOf(ListingAlreadySold.class);
+
+        assertThat(sales.findAll()).containsExactly(noticed);
+    }
+
+    @Test
+    void a_reading_never_overwrites_a_sale() {
+        listings.saveAll(List.of(Listing.seen(anActiveListing(1), NOTICED_AT)));
+        ListingSale noted = ListingSale.noted(new VintedListingId(1), NOTICED_AT);
+        sales.add(noted);
+
+        assertThatThrownBy(() -> sales.addAll(List.of(
+                ListingSale.noticed(new VintedListingId(1), NOTICED_AT.plusSeconds(60)))))
+                .isInstanceOf(DataIntegrityViolationException.class);
+
+        assertThat(sales.findAll()).containsExactly(noted);
+    }
+
+    @Test
+    void removing_the_noted_sale_never_removes_a_noticed_one() {
+        listings.saveAll(List.of(Listing.seen(anActiveListing(1), NOTICED_AT)));
+        ListingSale noticed = ListingSale.noticed(new VintedListingId(1), NOTICED_AT);
+        sales.addAll(List.of(noticed));
+
+        sales.removeNoted(new VintedListingId(1));
+
+        assertThat(sales.findAll()).containsExactly(noticed);
     }
 }

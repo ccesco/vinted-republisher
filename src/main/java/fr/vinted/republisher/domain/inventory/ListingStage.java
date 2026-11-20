@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
+import fr.vinted.republisher.domain.sale.SaleOrigin;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -27,15 +28,19 @@ public enum ListingStage {
     TO_BACK_UP;
 
     /**
-     * The first rule that applies wins, in the order of the constants. {@code sold} means a sale of the listing is
-     * recorded, which leaves nothing to relaunch (US-50). {@code validated} means a validation holds for the current
-     * backup, {@code verificationFailed} that the last verification of the current backup on Vinted failed; a
-     * deletion found not done, or a republication checked not published, counts as none.
+     * The first rule that applies wins, in the order of the constants, but for a sale noted by the member, which wins
+     * over every rule: the article no longer exists, whatever the tool did (US-51). {@code sale} is the origin of the
+     * listing's recorded sale, which leaves nothing to relaunch (US-50). {@code validated} means a validation holds
+     * for the current backup, {@code verificationFailed} that the last verification of the current backup on Vinted
+     * failed; a deletion found not done, or a republication checked not published, counts as none.
      */
-    public static ListingStage of(boolean present, boolean sold, boolean backedUp, boolean validated,
+    public static ListingStage of(boolean present, Optional<SaleOrigin> sale, boolean backedUp, boolean validated,
                                   boolean verificationFailed, Optional<ListingDeletion> lastDeletion,
                                   Optional<ListingRepublication> lastRepublication, RepublicationDelay delay,
                                   Instant now) {
+        if (sale.filter(SaleOrigin.NOTED::equals).isPresent()) {
+            return SOLD;
+        }
         Optional<ListingRepublication> republication =
                 lastRepublication.filter(last -> last.outcome() != RepublicationOutcome.NOT_PUBLISHED);
         if (republication.isPresent()) {
@@ -47,7 +52,7 @@ public enum ListingStage {
                     .map(republishableAt -> now.isBefore(republishableAt) ? WAITING : TO_REPUBLISH)
                     .orElse(DELETION_TO_CHECK);
         }
-        if (sold) {
+        if (sale.isPresent()) {
             return SOLD;
         }
         if (!present) {

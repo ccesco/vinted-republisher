@@ -11,14 +11,29 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * A known listing seen sold in the wardrobe, dated when the tool first noticed it: Vinted's cards do not tell when it
- * was actually sold. Never changed nor removed.
+ * The sale of a known listing: noticed on a "Vendu" card of the wardrobe, dated when the tool first noticed it since
+ * Vinted's cards do not tell when it was actually sold, or noted by the member, dated when noted (US-51). One per
+ * listing, never changed; only a noted sale can be cancelled.
  */
-public record ListingSale(VintedListingId listingId, Instant noticedAt) {
+public record ListingSale(VintedListingId listingId, Instant noticedAt, SaleOrigin origin) {
 
     public ListingSale {
         Objects.requireNonNull(listingId);
         Objects.requireNonNull(noticedAt);
+        Objects.requireNonNull(origin);
+    }
+
+    public static ListingSale noticed(VintedListingId listingId, Instant noticedAt) {
+        return new ListingSale(listingId, noticedAt, SaleOrigin.NOTICED);
+    }
+
+    public static ListingSale noted(VintedListingId listingId, Instant notedAt) {
+        return new ListingSale(listingId, notedAt, SaleOrigin.NOTED);
+    }
+
+    /** A sale noticed on the wardrobe is a fact the tool saw; only the member's own note may be a mistake. */
+    public boolean cancellable() {
+        return origin == SaleOrigin.NOTED;
     }
 
     /** Only known listings: the tool never opens a sold one, and would know neither its title nor its price. */
@@ -27,6 +42,6 @@ public record ListingSale(VintedListingId listingId, Instant noticedAt) {
         Set<VintedListingId> known = inventory.stream().map(Listing::id).collect(Collectors.toSet());
         Set<VintedListingId> alreadySold = recorded.stream().map(ListingSale::listingId).collect(Collectors.toSet());
         return shownSold.stream().distinct().filter(known::contains).filter(listing -> !alreadySold.contains(listing))
-                .map(listing -> new ListingSale(listing, noticedAt)).toList();
+                .map(listing -> noticed(listing, noticedAt)).toList();
     }
 }

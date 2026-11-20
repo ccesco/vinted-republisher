@@ -8,6 +8,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.sale.ListingSale;
+import fr.vinted.republisher.domain.sale.SaleOrigin;
 import fr.vinted.republisher.domain.tag.ListingTag;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -54,7 +55,8 @@ public record ListingInventory(List<InventoryEntry> entries) {
                                       List<BackupValidation> validations, List<VerificationResult> verifications,
                                       List<ListingDeletion> deletions, List<ListingRepublication> republications,
                                       List<ListingSale> sales, RepublicationDelay delay, Instant now) {
-        Set<VintedListingId> sold = sales.stream().map(ListingSale::listingId).collect(Collectors.toSet());
+        Map<VintedListingId, SaleOrigin> saleOf = sales.stream()
+                .collect(Collectors.toMap(ListingSale::listingId, ListingSale::origin));
         Map<VintedListingId, StatisticsReading> readingOf = readings.stream()
                 .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
         Map<VintedListingId, StatisticsReading> baselineOf = baselines.stream()
@@ -79,7 +81,7 @@ public record ListingInventory(List<InventoryEntry> entries) {
             boolean verificationFailed = Optional.ofNullable(verificationOf.get(listing.id()))
                     .filter(result -> backup.filter(result::failsFor).isPresent()).isPresent();
             Optional<ListingRepublication> republication = Optional.ofNullable(republicationOf.get(listing.id()));
-            ListingStage stage = ListingStage.of(listing.present(), sold.contains(listing.id()), backup.isPresent(),
+            ListingStage stage = ListingStage.of(listing.present(), Optional.ofNullable(saleOf.get(listing.id())), backup.isPresent(),
                     validation.isPresent(), verificationFailed, Optional.ofNullable(deletionOf.get(listing.id())),
                     republication, delay, now);
             Optional<StatisticsReading> latest = Optional.ofNullable(readingOf.get(listing.id()));
