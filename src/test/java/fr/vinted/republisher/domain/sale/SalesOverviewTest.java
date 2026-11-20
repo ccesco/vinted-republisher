@@ -21,13 +21,13 @@ class SalesOverviewTest {
     void sales_most_recent_first_with_their_listing() {
         // AT-36-06
         List<Listing> inventory = List.of(listing(1, "Pull rayé", "10", "EUR"), listing(2, "Jean", "25.50", "EUR"));
-        List<ListingSale> sales = List.of(new ListingSale(id(1), NOV_15), new ListingSale(id(2), NOV_17));
+        List<ListingSale> sales = List.of(ListingSale.noticed(id(1), NOV_15), ListingSale.noticed(id(2), NOV_17));
 
         SalesOverview overview = SalesOverview.of(sales, inventory);
 
         assertThat(overview.sales()).containsExactly(
-                new Sale(id(2), "Jean", price("25.50", "EUR"), NOV_17),
-                new Sale(id(1), "Pull rayé", price("10", "EUR"), NOV_15));
+                new Sale(id(2), "Jean", price("25.50", "EUR"), NOV_17, SaleOrigin.NOTICED),
+                new Sale(id(1), "Pull rayé", price("10", "EUR"), NOV_15, SaleOrigin.NOTICED));
         assertThat(overview.totals()).containsExactly(price("35.50", "EUR"));
     }
 
@@ -35,8 +35,8 @@ class SalesOverviewTest {
     void one_total_per_currency_sorted_by_currency() {
         List<Listing> inventory = List.of(listing(1, "Pull", "10", "PLN"), listing(2, "Jean", "5", "EUR"),
                 listing(3, "Robe", "2", "PLN"));
-        List<ListingSale> sales = List.of(new ListingSale(id(1), NOV_15), new ListingSale(id(2), NOV_15),
-                new ListingSale(id(3), NOV_17));
+        List<ListingSale> sales = List.of(ListingSale.noticed(id(1), NOV_15), ListingSale.noticed(id(2), NOV_15),
+                ListingSale.noticed(id(3), NOV_17));
 
         assertThat(SalesOverview.of(sales, inventory).totals())
                 .containsExactly(price("5", "EUR"), price("12", "PLN"));
@@ -46,8 +46,8 @@ class SalesOverviewTest {
     void sales_noticed_together_are_shown_in_a_stable_order() {
         List<Listing> inventory = List.of(listing(1, "Pull", "10", "EUR"), listing(2, "Jean", "5", "EUR"),
                 listing(3, "Robe", "2", "EUR"));
-        List<ListingSale> sales = List.of(new ListingSale(id(2), NOV_17), new ListingSale(id(1), NOV_17),
-                new ListingSale(id(3), NOV_15));
+        List<ListingSale> sales = List.of(ListingSale.noticed(id(2), NOV_17), ListingSale.noticed(id(1), NOV_17),
+                ListingSale.noticed(id(3), NOV_15));
 
         assertThat(SalesOverview.of(sales, inventory).sales()).extracting(Sale::listingId)
                 .containsExactly(id(1), id(2), id(3));

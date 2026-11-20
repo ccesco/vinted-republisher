@@ -52,6 +52,11 @@ class ListingDetailPageTest {
              "duplicateTwinIds": [], "deletableAsDuplicate": false, "deletionDryRun": true}""";
     private static final String DUPLICATE = DETAIL.replace("\"duplicateTwinIds\": [], \"deletableAsDuplicate\": false",
             "\"duplicateTwinIds\": [1], \"deletableAsDuplicate\": true");
+    private static final String NOTED_SOLD = DETAIL.replace("\"present\": true}",
+                    "\"present\": true, \"stage\": \"SOLD\"}")
+            .replace("\"deletionDryRun\": true}",
+                    "\"deletionDryRun\": true, \"sale\": {\"origin\": \"NOTED\", \"noticedAt\": \"2026-11-20T10:00:00Z\"}}");
+    private static final String NOTICED_SOLD = NOTED_SOLD.replace("\"NOTED\"", "\"NOTICED\"");
     private static final String NEVER_READ = """
             {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
@@ -116,6 +121,9 @@ class ListingDetailPageTest {
     private final AtomicReference<String> duplicateDeletionAnswer =
             new AtomicReference<>("{\"outcome\": \"DELETED\", \"twinListingId\": 1}");
     private final List<String> duplicateDeletions = new CopyOnWriteArrayList<>();
+    private final AtomicInteger saleStatus = new AtomicInteger(204);
+    private final AtomicReference<String> saleAnswer = new AtomicReference<>("");
+    private final List<String> saleRequests = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -178,6 +186,13 @@ class ListingDetailPageTest {
         fakeApi.createContext("/api/listings/3/duplicate-deletion", exchange -> {
             duplicateDeletions.add(exchange.getRequestMethod());
             respond(exchange, duplicateDeletionStatus.get(), "application/json", bytes(duplicateDeletionAnswer.get()));
+        });
+        fakeApi.createContext("/api/listings/3/sale", exchange -> {
+            saleRequests.add(exchange.getRequestMethod());
+            if (saleStatus.get() == 204) {
+                detail.set(exchange.getRequestMethod().equals("PUT") ? NOTED_SOLD : DETAIL);
+            }
+            respond(exchange, saleStatus.get(), "application/json", bytes(saleAnswer.get()));
         });
         fakeApi.createContext("/api/duplicates", exchange -> respond(exchange, 200, "application/json",
                 bytes("{\"groups\": [], \"deletionDryRun\": true}")));
@@ -308,13 +323,13 @@ class ListingDetailPageTest {
         backup.set("");
         // Quand le membre ouvre sa fiche
         open();
-        // Alors il voit « Aucun relevé » et « Non sauvegardée », sans bouton
+        // Alors il voit « Aucun relevé » et « Non sauvegardée », sans autre bouton que « Noter vendue » (US-51)
         assertThat(page.locator("#no-reading")).hasText("Aucun relevé");
         assertThat(page.locator("#history")).isHidden();
         assertThat(page.locator("#not-backed-up")).hasText("Non sauvegardée");
         assertThat(page.locator("#backup")).isHidden();
         assertThat(problem()).isHidden();
-        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasCount(0);
+        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasText("Noter vendue");
     }
 
     @Test
@@ -507,6 +522,79 @@ class ListingDetailPageTest {
         assertThat(page.locator("#duplicate-message"))
                 .hasText("Doublon non supprimé : aucune jumelle confirmée en vente sur Vinted.");
         assertThat(page.locator("#duplicate-confirmation")).isHidden();
+    }
+
+    @Test
+    void notes_the_listing_sold_after_confirmation() {
+        // AT-51-09 : sans confirmation rien n'est envoyé ; après confirmation, la fiche montre « Vendue » et la vente
+        open();
+
+        page.locator("#note-sale").click();
+        page.locator("#cancel-sale-note").click();
+        assertThat(page.locator("#sale-confirmation")).isHidden();
+        assertThat(saleRequests).isEmpty();
+
+        page.locator("#note-sale").click();
+        assertThat(page.locator("#sale-confirmation-title")).hasText("Noter cette annonce vendue ?");
+        page.locator("#confirm-sale-note").click();
+
+        assertThat(page.locator("#stage")).hasText("Étape : Vendue");
+        assertThat(page.locator("#sale")).containsText("Vendue. Notée le 20/11/2026");
+        assertThat(page.locator("#note-sale")).hasCount(0);
+        assertThat(page.locator("#cancel-sale")).isVisible();
+        assertThat(saleRequests).containsExactly("PUT");
+    }
+
+    @Test
+    void cancels_a_noted_sale_after_confirmation() {
+        detail.set(NOTED_SOLD);
+        open();
+
+        page.locator("#cancel-sale").click();
+        assertThat(page.locator("#sale-cancellation-title")).hasText("Annuler la vente notée ?");
+        page.locator("#confirm-sale-cancellation").click();
+
+        assertThat(page.locator("#note-sale")).isVisible();
+        assertThat(page.locator("#sale")).hasCount(0);
+        assertThat(saleRequests).containsExactly("DELETE");
+    }
+
+    @Test
+    void a_noticed_sale_offers_neither_note_nor_cancellation() {
+        detail.set(NOTICED_SOLD);
+        open();
+
+        assertThat(page.locator("#sale")).containsText("Vendue. Constatée le 20/11/2026");
+        assertThat(page.locator("#note-sale")).hasCount(0);
+        assertThat(page.locator("#cancel-sale")).hasCount(0);
+    }
+
+    @Test
+    void a_refused_sale_note_says_why() {
+        saleStatus.set(409);
+        saleAnswer.set("{\"reason\": \"ALREADY_SOLD\"}");
+        open();
+
+        page.locator("#note-sale").click();
+        page.locator("#confirm-sale-note").click();
+
+        assertThat(page.locator("#sale-message")).hasText("Cette annonce a déjà une vente.");
+        assertThat(page.locator("#sale-confirmation")).isHidden();
+    }
+
+    @Test
+    void a_refused_sale_cancellation_says_why() {
+        detail.set(NOTED_SOLD);
+        saleStatus.set(409);
+        saleAnswer.set("{\"reason\": \"NOT_NOTED\"}");
+        open();
+
+        page.locator("#cancel-sale").click();
+        page.locator("#confirm-sale-cancellation").click();
+
+        assertThat(page.locator("#sale-message"))
+                .hasText("Cette vente a été constatée dans le dressing : elle ne s'annule pas.");
+        assertThat(page.locator("#sale-cancellation")).isHidden();
     }
 
     @Test

@@ -1,0 +1,23 @@
+# US-51 : une vente est notée par le membre ou constatée sur le dressing ; les ventes déjà enregistrées sont constatées.
+databaseChangeLog:
+  - changeSet:
+      id: 019-listing-sale-origin
+      author: vinted-republisher
+      changes:
+        - addColumn:
+            tableName: listing_sale
+            columns:
+              - column:
+                  name: origin
+                  type: text
+                  defaultValue: NOTICED
+                  constraints: {nullable: false}
+        - dropDefaultValue:
+            tableName: listing_sale
+            columnName: origin
+        - sql:
+            sql: ALTER TABLE listing_sale ADD CONSTRAINT listing_sale_origin_check CHECK (origin IN ('NOTED', 'NOTICED'));
+      rollback:
+        - dropColumn:
+            tableName: listing_sale
+            columnName: origin
