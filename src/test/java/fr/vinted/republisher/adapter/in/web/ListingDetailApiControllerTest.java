@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.in.web;
 
+import fr.vinted.republisher.application.duplicate.ShowDuplicates;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.backup.BackupVerification;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -8,6 +9,7 @@ import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
 import fr.vinted.republisher.domain.backup.VerificationResult;
+import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionId;
@@ -26,6 +28,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,7 +135,10 @@ class ListingDetailApiControllerTest {
                            {"type": "FIRST_SEEN", "listingId": 101, "at": "2026-11-02T09:00:00Z"},
                            {"type": "LEFT_WARDROBE", "listingId": 101, "at": "2026-11-02T09:00:00Z"}],
                          "priceHistory": [
-                           {"price": {"amount": 12.50, "currency": "EUR"}, "changedAt": "2026-11-02T09:00:00Z"}]}""");
+                           {"price": {"amount": 12.50, "currency": "EUR"}, "changedAt": "2026-11-02T09:00:00Z"}],
+                         "duplicateTwinIds": [],
+                         "deletableAsDuplicate": false,
+                         "deletionDryRun": true}""");
     }
 
     @Test
@@ -203,6 +209,18 @@ class ListingDetailApiControllerTest {
     }
 
     @Test
+    void detail_names_the_twins_of_a_duplicate() {
+        // AT-47-13 : la fiche nomme la jumelle et propose la suppression du doublon
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Robe bleue", "12", ACTIVE), FIRST),
+                Listing.seen(aListing(102, "Robe bleue", "12", ACTIVE), SECOND)));
+
+        assertThat(mvc.get().uri("/api/listings/102"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"duplicateTwinIds": [101], "deletableAsDuplicate": true, "deletionDryRun": true}""");
+    }
+
+    @Test
     void unknown_listing_is_not_found() {
         // Étant donné aucune annonce 999
         // Quand la page demande GET /api/listings/999
@@ -251,6 +269,14 @@ class ListingDetailApiControllerTest {
         @Bean
         InMemoryBackupVerificationRepository verifications() {
             return new InMemoryBackupVerificationRepository();
+        }
+
+        @Bean
+        ShowDuplicates showDuplicates(InMemoryListingRepository listings, InMemoryListingBackupRepository backups,
+                                      InMemoryListingDeletionRepository deletions,
+                                      InMemoryListingRepublicationRepository republications) {
+            return new ShowDuplicates(listings, backups, deletions, republications, new InMemoryListingSaleRepository(),
+                    DeletionMode.DRY_RUN);
         }
 
         @Bean

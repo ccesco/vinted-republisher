@@ -5,6 +5,7 @@ import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.duplicate.DuplicateDeletionAttempts;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 
 import java.time.Clock;
@@ -22,14 +23,22 @@ public class CadenceCheck {
 
     private final ListingDeletionRepository deletions;
     private final ListingRepublicationRepository republications;
+    private final DuplicateDeletionAttempts duplicateDeletions;
     private final WriteCadence cadence;
     private final Clock clock;
     private final List<WriteReservation> reservations = new ArrayList<>();
 
     public CadenceCheck(ListingDeletionRepository deletions, ListingRepublicationRepository republications,
                         WriteCadence cadence, Clock clock) {
+        this(deletions, republications, since -> List.of(), cadence, clock);
+    }
+
+    /** Counts the deletions of duplicates (US-47) as deletions. */
+    public CadenceCheck(ListingDeletionRepository deletions, ListingRepublicationRepository republications,
+                        DuplicateDeletionAttempts duplicateDeletions, WriteCadence cadence, Clock clock) {
         this.deletions = deletions;
         this.republications = republications;
+        this.duplicateDeletions = duplicateDeletions;
         this.cadence = cadence;
         this.clock = clock;
     }
@@ -62,7 +71,9 @@ public class CadenceCheck {
 
     private CadenceForecast forecast(Instant now) {
         Instant since = cadence.windowStart(now);
-        return new CadenceForecast(cadence, withReserved(VintedWrite.DELETION, deletions.findAttemptedSince(since)),
+        return new CadenceForecast(cadence, withReserved(VintedWrite.DELETION, Stream.concat(
+                deletions.findAttemptedSince(since).stream(),
+                duplicateDeletions.duplicateDeletionsSince(since).stream()).toList()),
                 withReserved(VintedWrite.REPUBLICATION, republications.findAttemptedSince(since)));
     }
 

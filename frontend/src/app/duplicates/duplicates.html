@@ -1,0 +1,56 @@
+<div class="page-header">
+  <h1>Doublons</h1>
+</div>
+<p class="muted">Annonces présentes au dernier scan avec exactement le même titre et le même prix. Supprimer un doublon
+  le supprime de Vinted, après avoir relu une jumelle en vente, puis l'efface de l'outil.</p>
+<p id="duplicates-problem" role="alert" [hidden]="!unavailable()">Doublons indisponibles.</p>
+<p id="duplicate-message" role="status">{{ message() }}</p>
+@if (duplicates(); as duplicates) {
+  <p id="duplicates-summary">{{ summary() }}</p>
+  <p id="duplicates-mode" class="muted">{{ duplicates.deletionDryRun ? 'Dry-run actif : aucune suppression réelle' : 'Suppressions réelles activées' }}</p>
+  @for (group of duplicates.groups; track $index) {
+    <section class="card table-wrap duplicate-group">
+      <h2>{{ group.title }} · {{ priceOf(group.price) }}</h2>
+      <table class="data">
+        <thead>
+        <tr>
+          <th scope="col">Annonce</th>
+          <th scope="col">Vinted</th>
+          <th scope="col">Vue pour la première fois</th>
+          <th scope="col">Sauvegarde</th>
+          <th scope="col">Suppression</th>
+        </tr>
+        </thead>
+        <tbody>
+          @for (listing of group.listings; track listing.listingId) {
+            <tr [attr.data-listing-id]="listing.listingId">
+              <td><a [href]="listingLink(listing.listingId)">{{ listing.listingId }}</a></td>
+              <td><a [href]="listing.url" rel="noopener noreferrer">Voir sur Vinted</a></td>
+              <td>{{ dateOf(listing.firstSeenAt) }}</td>
+              <td>{{ listing.backedUp ? 'Sauvegardée' : 'Non sauvegardée' }}</td>
+              <td>
+                @if (listing.deletable) {
+                  <button matButton="outlined" class="danger delete-duplicate" type="button" [disabled]="sending()"
+                          (click)="ask(group, listing.listingId)">Supprimer ce doublon</button>
+                } @else {
+                  <span class="muted">Historique à garder</span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  }
+}
+<div id="duplicate-confirmation" class="confirmation" role="dialog" aria-modal="true"
+     aria-labelledby="duplicate-confirmation-title" [hidden]="!asked()">
+  <div>
+    <h2 id="duplicate-confirmation-title">Supprimer ce doublon ?</h2>
+    <p id="duplicate-summary">{{ confirmation() }}</p>
+    <p class="actions">
+      <button id="confirm-duplicate-deletion" matButton="filled" class="danger" type="button" (click)="confirm()">Supprimer le doublon</button>
+      <button id="cancel-duplicate-deletion" matButton type="button" (click)="asked.set(null)">Annuler</button>
+    </p>
+  </div>
+</div>

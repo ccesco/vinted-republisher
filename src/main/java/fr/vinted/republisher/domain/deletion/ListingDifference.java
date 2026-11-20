@@ -15,15 +15,20 @@ import java.util.Objects;
 public sealed interface ListingDifference {
 
     static List<ListingDifference> between(ListingContent saved, ScannedListing read) {
+        return between(saved.title(), saved.price(), read);
+    }
+
+    /** How the listing Vinted shows differs from the title and price the tool knows it by. */
+    static List<ListingDifference> between(String title, Price price, ScannedListing read) {
         List<ListingDifference> differences = new ArrayList<>();
         if (!read.active()) {
             differences.add(new NotActive());
         }
-        if (!saved.title().equals(read.title())) {
-            differences.add(new TitleChanged(saved.title(), read.title()));
+        if (!title.equals(read.title())) {
+            differences.add(new TitleChanged(title, read.title()));
         }
-        if (!saved.price().equals(read.price())) {
-            differences.add(new PriceChanged(saved.price(), read.price()));
+        if (!price.equals(read.price())) {
+            differences.add(new PriceChanged(price, read.price()));
         }
         return List.copyOf(differences);
     }
