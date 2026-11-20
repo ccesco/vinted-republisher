@@ -23,6 +23,7 @@ import { newListingSearchMessageOf, toLink } from '../shared/listing-link';
 import { manualRepublicationMessageOf } from '../shared/manual-republication';
 import { saleDateOf, saleRefusalMessageOf } from '../shared/sale';
 import { STAGE_LABELS } from '../wardrobe/wardrobe-messages';
+import { deletionBlockOf } from './deletion-block';
 import {
   APPLICATION_DOWN_MESSAGE, CONTENT_LABELS, DELETION_FAILED_MESSAGE, DELETION_REFUSALS, DRY_RUN_PASSED, FORM_FIELDS,
   LIFECYCLE_LABELS, RECHECK_FAILED_MESSAGE, REPUBLICATION_DRY_RUN_PASSED, REPUBLICATION_FAILED_MESSAGE,
@@ -278,9 +279,22 @@ export class ListingDetail {
     return view.dryRunPassed ? DRY_RUN_PASSED : '';
   }
 
-  protected deleteDisabled(view: ListingBackupView): boolean {
-    return this.sending() || view.deletion?.outcome === 'UNCONFIRMED' || !view.validatedAt
-      || !view.verification.passed;
+  // « Supprimer de Vinted » en en-tête (US-52) : une fois la sauvegarde lue ou sue absente, jusqu'à la suppression confirmée.
+  protected headerDeletionShown(): boolean {
+    const view = this.view();
+    return this.detail() !== null
+      && (this.notBackedUp() || (view !== null && view.deletion?.outcome !== 'CONFIRMED'));
+  }
+
+  protected deletionBlock(): string {
+    const view = this.view();
+    return deletionBlockOf({
+      sold: this.detail()?.listing.stage === 'SOLD',
+      backedUp: view !== null,
+      unconfirmed: view?.deletion?.outcome === 'UNCONFIRMED',
+      validated: !!view?.validatedAt,
+      verified: !!view?.verification.passed,
+    });
   }
 
   protected republicationMode(view: ListingBackupView): string {
