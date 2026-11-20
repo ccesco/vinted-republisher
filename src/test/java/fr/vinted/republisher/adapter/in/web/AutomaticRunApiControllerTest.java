@@ -269,7 +269,7 @@ class AutomaticRunApiControllerTest {
                             republications, delay, clock), cadence, republications,
                             new FakeListingPublisher(wardrobe), search, listings, RepublicationMode.REAL, clock, show,
                             journalWriter, (instant, interrupted) -> { }, Duration.ZERO),
-                    new VerifyListingRepublication(session, backups, republications, listings, search,
+                    new VerifyListingRepublication(session, backups, republications, deletions, listings, search,
                             new FakeListingContentReader(), noBackupPause(), clock, show, journalWriter));
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
                     deletions, republications, delay, clock, new InMemoryListingTagRepository(),

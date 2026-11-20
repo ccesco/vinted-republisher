@@ -21,6 +21,9 @@ public record ActionRecord(Instant occurredAt, JournaledAction action, ActionOut
     public static final Set<String> WAITING_REASONS =
             Set.of("CADENCE_LIMIT_REACHED", "TOO_EARLY", "BROWSER_BUSY", "MANUAL_REPUBLICATION_IN_DRY_RUN");
 
+    /** Reasons of a search for the new listing of a listing to link that found none, or several (US-48). */
+    public static final Set<String> NO_NEW_LISTING_REASONS = Set.of("NEW_LISTING_NOT_FOUND", "SEVERAL_NEW_LISTINGS");
+
     public ActionRecord {
         Objects.requireNonNull(occurredAt);
         Objects.requireNonNull(action);
@@ -32,8 +35,8 @@ public record ActionRecord(Instant occurredAt, JournaledAction action, ActionOut
     /** A refusal, a doubt, a recheck found not done or a failure: the member has to look at it. */
     public boolean isFailure() {
         return switch (outcome) {
-            case IN_DOUBT, NOT_DONE, FAILED -> true;
-            case REFUSED -> !isWaitingRefusal();
+            case IN_DOUBT, FAILED -> true;
+            case NOT_DONE, REFUSED -> !leavesFailuresAsTheyWere();
             case STARTED, SUCCEEDED, DRY_RUN -> false;
         };
     }
@@ -41,5 +44,11 @@ public record ActionRecord(Instant occurredAt, JournaledAction action, ActionOut
     /** Nothing was done and nothing is wrong with the listing: it changes neither a failure nor a success. */
     public boolean isWaitingRefusal() {
         return outcome == ActionOutcome.REFUSED && reason.filter(WAITING_REASONS::contains).isPresent();
+    }
+
+    /** A waiting refusal, or a search that found no new listing to link: the listing stays as it was. */
+    public boolean leavesFailuresAsTheyWere() {
+        return isWaitingRefusal()
+                || outcome == ActionOutcome.NOT_DONE && reason.filter(NO_NEW_LISTING_REASONS::contains).isPresent();
     }
 }

@@ -863,7 +863,10 @@ paths:
         la sauvegarde → PUBLISHED, reliée ; aucune ou plusieurs → reste FAILED, le membre la valide alors lui-même
         (manual-validation). Une republication
         réussie (PUBLISHED) est comparée champ par champ à la sauvegarde (republicationComparison), sans rien
-        enregistrer ni corriger. Répond une fois l'action finie.
+        enregistrer ni corriger. Une annonce à relier (US-48 : suppression confirmée, ni republication en erreur ni
+        republication réussie) se vérifie par la même lecture : une seule annonce avec le titre et le prix de la
+        sauvegarde → republication PUBLISHED enregistrée, datée de la vérification, reliée et comparée ; aucune ou
+        plusieurs → rien n'est enregistré, la réponse porte newListingSearch. Répond une fois l'action finie.
       parameters:
         - $ref: '#/components/parameters/ListingId'
       responses:
@@ -911,7 +914,9 @@ paths:
         seule page de la nouvelle annonce, à l'adresse qu'il construit depuis l'identifiant lu dans le lien (jamais
         le lien collé), sans cliquer ; titre et prix de la sauvegarde → PUBLISHED, reliée et comparée, sinon refus.
         « Non publiée » (published false) : NOT_PUBLISHED sans ouvrir Chrome, une nouvelle republication redevient
-        possible. Répond une fois l'action finie.
+        possible. Une annonce à relier (US-48) ne se valide que « Publiée » : republication PUBLISHED enregistrée,
+        datée de la validation, reliée et comparée ; « Non publiée » y est refusée (NO_REPUBLICATION_TO_VERIFY).
+        Répond une fois l'action finie.
       parameters:
         - $ref: '#/components/parameters/ListingId'
       requestBody:
@@ -2081,6 +2086,13 @@ components:
             les champs qui diffèrent ; vide si la nouvelle annonce est identique à la sauvegarde.
           items:
             $ref: '#/components/schemas/ListingFieldDifference'
+        newListingSearch:
+          type: string
+          enum: [NOT_FOUND, SEVERAL]
+          description: >
+            Présent seulement dans la réponse d'une vérification d'annonce à relier (US-48) restée sans résultat :
+            aucune (NOT_FOUND) ou plusieurs (SEVERAL) annonces au titre et au prix de la sauvegarde parmi celles
+            affichées à l'ouverture du dressing ; rien n'est enregistré, le membre colle le lien de la nouvelle annonce.
         savedAt:
           type: string
           format: date-time

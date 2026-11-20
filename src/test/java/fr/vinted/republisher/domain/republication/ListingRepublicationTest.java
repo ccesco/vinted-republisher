@@ -1,6 +1,7 @@
 package fr.vinted.republisher.domain.republication;
 
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Nested;
@@ -110,6 +111,54 @@ class ListingRepublicationTest {
         @Test
         void is_allowed_once_checked_not_published() {
             attempt.notPublished(PROVEN_AT).allowNewAttempt();
+        }
+    }
+
+    @Nested
+    class Link {
+
+        private final ListingDeletion deleted =
+                ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT).confirmed(PROVEN_AT);
+
+        @Test
+        void a_deleted_listing_never_republished_is_to_link() {
+            assertThat(ListingRepublication.toLink(Optional.of(deleted), Optional.empty())).isTrue();
+        }
+
+        @Test
+        void a_deleted_listing_whose_republication_was_checked_not_published_is_to_link() {
+            assertThat(ListingRepublication.toLink(Optional.of(deleted), Optional.of(attempt.notPublished(PROVEN_AT))))
+                    .isTrue();
+        }
+
+        @Test
+        void a_listing_without_confirmed_deletion_is_not_to_link() {
+            ListingDeletion unconfirmed = ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT);
+
+            assertThat(ListingRepublication.toLink(Optional.empty(), Optional.empty())).isFalse();
+            assertThat(ListingRepublication.toLink(Optional.of(unconfirmed), Optional.empty())).isFalse();
+            assertThat(ListingRepublication.toLink(Optional.of(unconfirmed.notDone(PROVEN_AT)), Optional.empty()))
+                    .isFalse();
+        }
+
+        @Test
+        void a_listing_with_a_republication_in_error_or_published_is_not_to_link() {
+            assertThat(ListingRepublication.toLink(Optional.of(deleted), Optional.of(attempt))).isFalse();
+            assertThat(ListingRepublication.toLink(Optional.of(deleted),
+                    Optional.of(attempt.published(NEW_LISTING, PROVEN_AT)))).isFalse();
+        }
+
+        @Test
+        void a_linked_republication_is_published_at_the_link_date_with_the_current_backup() {
+            ListingRepublication linked = ListingRepublication.linked(aBackup(1, SAVED_AT), NEW_LISTING, PROVEN_AT);
+
+            assertThat(linked.listingId()).isEqualTo(new VintedListingId(1));
+            assertThat(linked.backupSavedAt()).isEqualTo(SAVED_AT);
+            assertThat(linked.attemptedAt()).isEqualTo(PROVEN_AT);
+            assertThat(linked.outcome()).isEqualTo(RepublicationOutcome.PUBLISHED);
+            assertThat(linked.publishedAt()).contains(PROVEN_AT);
+            assertThat(linked.newListingId()).contains(NEW_LISTING);
+            assertThat(linked.checkedAt()).isEmpty();
         }
     }
 

@@ -302,7 +302,7 @@ class ValidateListingRepublicationAcceptanceTest {
         ShowListingRepublication show = new ShowListingRepublication(new ShowListingDeletion(listings,
                 listingBackups, photos, validations, deletions, DeletionMode.REAL, delay), republications, listings,
                 RepublicationMode.REAL);
-        return new ValidateListingRepublication(session, listingBackups, republications, listings, contents,
+        return new ValidateListingRepublication(session, listingBackups, republications, deletions, listings, contents,
                 noBackupPause(), clock, show, URI.create("https://www.vinted.fr/member/42-cyril"),
                 new JournalWriter(journal, clock));
     }

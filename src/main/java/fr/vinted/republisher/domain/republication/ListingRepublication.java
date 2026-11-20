@@ -2,6 +2,8 @@ package fr.vinted.republisher.domain.republication;
 
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.deletion.DeletionOutcome;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
@@ -35,6 +37,23 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
     public static ListingRepublication attempted(ListingBackup backup, Instant attemptedAt) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), backup.id(), backup.savedAt(),
                 attemptedAt, RepublicationOutcome.FAILED, Optional.empty(), Optional.empty(), Optional.empty());
+    }
+
+    /**
+     * A listing to link (US-48): its deletion is confirmed and no republication is in force, so a new listing put on
+     * Vinted outside the tool can be linked to it.
+     */
+    public static boolean toLink(Optional<ListingDeletion> lastDeletion,
+                                 Optional<ListingRepublication> lastRepublication) {
+        return lastDeletion.filter(deletion -> deletion.outcome() == DeletionOutcome.CONFIRMED).isPresent()
+                && lastRepublication.filter(last -> last.outcome() != RepublicationOutcome.NOT_PUBLISHED).isEmpty();
+    }
+
+    /** A new listing found on Vinted for a listing to link, published as of the link, from the current backup. */
+    public static ListingRepublication linked(ListingBackup backup, VintedListingId newListing, Instant linkedAt) {
+        return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), backup.id(), backup.savedAt(),
+                linkedAt, RepublicationOutcome.PUBLISHED, Optional.of(linkedAt), Optional.of(newListing),
+                Optional.empty());
     }
 
     /** Among the listings the tool did not know, the only one with the saved title and price. */

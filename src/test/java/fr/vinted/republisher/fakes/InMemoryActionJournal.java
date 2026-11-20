@@ -58,7 +58,7 @@ public class InMemoryActionJournal implements ActionJournal, DuplicateDeletionAt
     @Override
     public synchronized List<JournalEntry> lastOfEachListing() {
         Map<VintedListingId, JournalEntry> last = new HashMap<>();
-        entries.stream().filter(entry -> !entry.record().isWaitingRefusal())
+        entries.stream().filter(entry -> !entry.record().leavesFailuresAsTheyWere())
                 .filter(entry -> entry.record().action() != JournaledAction.DUPLICATE_DELETION)
                 .forEach(entry -> entry.record().listingId().ifPresent(listing -> last.put(listing, entry)));
         return List.copyOf(last.values());

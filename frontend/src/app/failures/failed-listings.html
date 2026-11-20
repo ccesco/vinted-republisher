@@ -42,6 +42,10 @@
                     <button matButton="outlined" type="button" [disabled]="relaunching() !== null"
                             (click)="republishManually(failed)">Republier manuellement</button>
                   }
+                  @if (toLink(failed)) {
+                    <button matButton="outlined" type="button" [disabled]="relaunching() !== null"
+                            (click)="verifyLink(failed)">Vérifier sur Vinted</button>
+                  }
                 </td>
               </tr>
             }

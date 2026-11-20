@@ -119,6 +119,13 @@ public class JournalWriter {
     public <T> T journaled(JournaledAction action, VintedListingId listing, Supplier<T> work,
                            Function<T, ActionOutcome> outcomeOf, Optional<String> outcomeReason,
                            Optional<String> failureReason) {
+        return journaledWithReason(action, listing, work, outcomeOf, answer -> outcomeReason, failureReason);
+    }
+
+    /** As above, the reason of the outcome depending on the answer. */
+    public <T> T journaledWithReason(JournaledAction action, VintedListingId listing, Supplier<T> work,
+                                     Function<T, ActionOutcome> outcomeOf, Function<T, Optional<String>> reasonOf,
+                                     Optional<String> failureReason) {
         T answer;
         try {
             answer = work.get();
@@ -137,7 +144,7 @@ public class JournalWriter {
             throw refusalOrFailure;
         }
         try {
-            write(action, Optional.of(listing), outcomeOf.apply(answer), outcomeReason);
+            write(action, Optional.of(listing), outcomeOf.apply(answer), reasonOf.apply(answer));
         } catch (RuntimeException unknownOutcome) {
             LOG.error("Journal not written: outcome of {} on listing {} unknown", action, listing.value(),
                     unknownOutcome);

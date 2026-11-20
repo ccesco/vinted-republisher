@@ -28,9 +28,11 @@ interface ActionJournalJpaRepository extends JpaRepository<ActionJournalJpaEntit
             FROM action_journal_entry
             WHERE listing_id IS NOT NULL
               AND NOT (outcome = 'REFUSED' AND COALESCE(reason, '') IN (:waitingReasons))
+              AND NOT (outcome = 'NOT_DONE' AND COALESCE(reason, '') IN (:noNewListingReasons))
               AND action <> 'DUPLICATE_DELETION'
             ORDER BY listing_id, id DESC""")
-    List<ActionJournalJpaEntity> findLastOfEachListingExcept(Collection<String> waitingReasons);
+    List<ActionJournalJpaEntity> findLastOfEachListingExcept(Collection<String> waitingReasons,
+                                                             Collection<String> noNewListingReasons);
 
     List<ActionJournalJpaEntity> findByListingIdOrderByIdDesc(long listingId);
 }

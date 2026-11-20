@@ -248,11 +248,11 @@
         @if (view.republicationDryRun) {
           <span id="manual-republication-dry-run" class="muted">Indisponible en dry-run</span>
         }
-        <button id="verify-republication" matButton="outlined" type="button" [hidden]="republishable(view)"
+        <button id="verify-republication" matButton="outlined" type="button" [hidden]="republishable(view) && !toLink(view)"
                 [disabled]="sending()" (click)="verifyRepublication()">Vérifier sur Vinted</button>
       </p>
       <p id="manual-republication-message" role="status">{{ manualRepublicationMessage() }}</p>
-      <div id="republication-validation" [hidden]="view.republication?.outcome !== 'FAILED'">
+      <div id="republication-validation" [hidden]="view.republication?.outcome !== 'FAILED' && !toLink(view)">
         <p>Vous avez regardé sur Vinted ? Dites ce que vous y voyez.</p>
         <mat-form-field appearance="outline" class="url">
           <mat-label>Lien de la nouvelle annonce</mat-label>
@@ -261,7 +261,8 @@
         </mat-form-field>
         <p class="actions">
           <button id="validate-published" matButton="tonal" type="button" [disabled]="sending()" (click)="validatePublished()">Publiée</button>
-          <button id="validate-not-published" matButton="outlined" type="button" [disabled]="sending()" (click)="validateNotPublished()">Non publiée</button>
+          <button id="validate-not-published" matButton="outlined" type="button" [hidden]="toLink(view)"
+                  [disabled]="sending()" (click)="validateNotPublished()">Non publiée</button>
         </p>
       </div>
       <div id="republication-confirmation" class="confirmation" role="dialog" aria-modal="true"

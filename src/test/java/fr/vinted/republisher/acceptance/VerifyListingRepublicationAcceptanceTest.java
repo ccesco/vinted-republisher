@@ -251,8 +251,9 @@ class VerifyListingRepublicationAcceptanceTest {
 
     @Test
     void nothing_to_verify_is_refused_without_opening_chrome() {
-        // Étant donné une annonce sans republication, ou « non publiée »
-        aDeletedListing();
+        // Étant donné une annonce sans suppression confirmée (sinon elle est à relier, US-48), sans republication ou
+        // « non publiée »
+        aListingWithAnUnconfirmedDeletion();
         // Quand une vérification est demandée
         // Alors elle est refusée (NO_REPUBLICATION_TO_VERIFY) et Chrome n'est pas ouvert
         assertThatThrownBy(this::verify).isInstanceOf(NoRepublicationToVerify.class);
@@ -368,8 +369,8 @@ class VerifyListingRepublicationAcceptanceTest {
 
     @Test
     void refused_and_failed_verifications_are_written() {
-        // US-44 AT-44-03. Étant donné une annonce sans republication à vérifier
-        aDeletedListing();
+        // US-44 AT-44-03. Étant donné une annonce sans republication à vérifier (ni à relier, US-48)
+        aListingWithAnUnconfirmedDeletion();
         // Quand le membre la vérifie
         assertThatThrownBy(this::verify).isInstanceOf(NoRepublicationToVerify.class);
         // Alors « refusée », raison « aucune republication à vérifier »
@@ -440,7 +441,7 @@ class VerifyListingRepublicationAcceptanceTest {
     }
 
     private RepublicationReport verify() {
-        return new VerifyListingRepublication(session, listingBackups, republications, listings,
+        return new VerifyListingRepublication(session, listingBackups, republications, deletions, listings,
                 new NewListingSearch(wardrobe, noPause(), listings), contents, noBackupPause(), clock,
                 show(), journalWriter).verify(LISTING);
     }
@@ -477,6 +478,11 @@ class VerifyListingRepublicationAcceptanceTest {
         deletions.save(ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600))
                 .confirmed(CLICKED_AT.minusSeconds(3595)));
         return backup;
+    }
+
+    /** Its last deletion waits to be confirmed: it is neither republished nor to link. */
+    private void aListingWithAnUnconfirmedDeletion() {
+        deletions.save(ListingDeletion.attempted(aDeletedListing(), CLICKED_AT.minusSeconds(60)));
     }
 
     private ListingRepublication aFailedRepublication() {

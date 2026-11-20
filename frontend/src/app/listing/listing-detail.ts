@@ -19,6 +19,7 @@ import {
 } from '../shared/duplicates';
 import { dateOf, dayOf, listingLink, priceOf } from '../shared/format';
 import { JournalLine, journalLineOf } from '../shared/journal';
+import { newListingSearchMessageOf, toLink } from '../shared/listing-link';
 import { manualRepublicationMessageOf } from '../shared/manual-republication';
 import { STAGE_LABELS } from '../wardrobe/wardrobe-messages';
 import {
@@ -51,6 +52,7 @@ interface CountRow {
 export class ListingDetail {
   protected readonly dateOf = dateOf;
   protected readonly priceOf = priceOf;
+  protected readonly toLink = toLink;
 
   protected readonly problem = signal('');
   protected readonly detail = signal<ListingDetailView | null>(null);
@@ -351,7 +353,9 @@ export class ListingDetail {
     return this.send(this.republications.verifyListingRepublication(this.listingId),
       refusal => VERIFICATION_FAILED_MESSAGE + (REPUBLICATION_REFUSALS[String(refusal['reason'])] ?? UNEXPECTED_FAILURE),
       view => {
-        if (view.republication?.outcome === 'FAILED') {
+        if (view.newListingSearch) {
+          this.problem.set(newListingSearchMessageOf(view.newListingSearch) + '.');
+        } else if (view.republication?.outcome === 'FAILED') {
           this.problem.set(STILL_IN_ERROR);
         }
       });

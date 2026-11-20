@@ -72,6 +72,8 @@ class FailedListingsPageTest {
     private final AtomicBoolean relaunchRefused = new AtomicBoolean();
     private final List<String> relaunches = new CopyOnWriteArrayList<>();
     private final List<String> manualRepublications = new CopyOnWriteArrayList<>();
+    private final AtomicReference<String> verificationAnswer = new AtomicReference<>(SKIRT_BACKUP);
+    private final List<String> verifications = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -115,6 +117,10 @@ class FailedListingsPageTest {
                     + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             failedListings.set("{\"listings\": [" + SWEATER_IN_DOUBT + "]}");
             respond(exchange, 200, "application/json", SKIRT_PREPARED.getBytes(StandardCharsets.UTF_8));
+        });
+        fakeApi.createContext("/api/listings/6/republication/verification", exchange -> {
+            verifications.add(exchange.getRequestMethod());
+            respond(exchange, 200, "application/json", verificationAnswer.get().getBytes(StandardCharsets.UTF_8));
         });
         fakeApi.start();
         page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
@@ -193,10 +199,11 @@ class FailedListingsPageTest {
         assertThat(group("in-doubt").locator("h2")).hasText("Dans le doute (1)");
         assertThat(group("in-doubt").locator("tbody tr")).containsText("Pull bleu");
         assertThat(group("in-doubt").getByRole(AriaRole.BUTTON)).hasText("Vérifier la republication");
-        // Et « Robe » est dans « Refusées » avec « Republier sur Vinted » et « Republier manuellement »
+        // Et « Robe » est dans « Refusées » avec « Republier sur Vinted » et « Republier manuellement », et
+        //   « Vérifier sur Vinted » (annonce à relier, US-48)
         assertThat(group("refused").locator("tbody tr")).containsText("Robe");
         assertThat(group("refused").getByRole(AriaRole.BUTTON)).hasText(new String[]{"Republier sur Vinted",
-                "Republier manuellement"});
+                "Republier manuellement", "Vérifier sur Vinted"});
         // Et la section « Autres échecs » est affichée avec « Aucune annonce. »
         assertThat(group("other").locator(".no-failure")).hasText("Aucune annonce.");
 
@@ -218,6 +225,40 @@ class FailedListingsPageTest {
         // Alors elle propose « Republier manuellement »
         assertThat(group("refused").getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
                 .setName("Republier manuellement"))).isVisible();
+    }
+
+    @Test
+    void listing_to_link_can_be_verified_from_the_failures_page() {
+        // AT-48-10. Étant donné une annonce refusée à relier et une annonce en échec non supprimée
+        failedListings.set("{\"listings\": [" + SKIRT_REFUSED + ", " + PULL + "]}");
+        verificationAnswer.set(SKIRT_BACKUP.replace("}", ", \"newListingSearch\": \"NOT_FOUND\"}"));
+        // Quand le membre ouvre la page « Échecs »
+        open();
+        // Alors seule l'annonce à relier propose « Vérifier sur Vinted »
+        assertThat(page.getByRole(AriaRole.BUTTON, new Page.GetByRoleOptions().setName("Vérifier sur Vinted")))
+                .hasCount(1);
+        assertThat(pull().getByRole(AriaRole.BUTTON)).hasText("Supprimer de Vinted");
+        // Et après une vérification sans résultat elle reste, le message le dit avec un lien vers sa fiche
+        verifyButton().click();
+        assertThat(page.locator("#relaunch-message")).hasText("Robe : Aucune nouvelle annonce trouvée sur Vinted :"
+                + " collez le lien de la nouvelle annonce dans « Publiée » sur la fiche.");
+        assertThat(page.locator("#relaunch-message").getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/6");
+        assertThat(group("refused").locator("tbody tr")).hasCount(1);
+        assertThat(verifications).containsExactly("POST");
+        // Et après une liaison réussie elle quitte la liste et le message le dit
+        verificationAnswer.set(SKIRT_BACKUP.replace("}", ", \"republication\": {\"outcome\": \"PUBLISHED\","
+                + " \"attemptedAt\": \"2026-11-19T10:00:00Z\", \"publishedAt\": \"2026-11-19T10:00:00Z\","
+                + " \"newListingId\": 10300000001, \"backupSavedAt\": \"2026-11-10T10:00:00Z\"}}"));
+        failedListings.set("{\"listings\": [" + PULL + "]}");
+        verifyButton().click();
+        assertThat(page.locator("#relaunch-message")).hasText(
+                "Robe : Nouvelle annonce 10300000001 retrouvée sur Vinted et reliée.");
+        assertThat(group("refused").locator("tbody tr")).hasCount(0);
+    }
+
+    private Locator verifyButton() {
+        return group("refused").getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
+                .setName("Vérifier sur Vinted"));
     }
 
     private Locator group(String kind) {

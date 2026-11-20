@@ -102,6 +102,8 @@ public class ListingBackupApiController implements ListingBackupApi {
                 .republicationComparison(republicationReport.comparison()
                         .map(differences -> differences.stream().map(ListingBackupApiController::toDto).toList())
                         .orElse(null))
+                .newListingSearch(republicationReport.newListingSearch()
+                        .map(search -> ListingBackupViewDto.NewListingSearchEnum.fromValue(search.name())).orElse(null))
                 .savedAt(view.backup().savedAt().atOffset(ZoneOffset.UTC))
                 .validatedAt(view.validatedAt().map(date -> date.atOffset(ZoneOffset.UTC)).orElse(null))
                 .verification(toDto(view.verification()))

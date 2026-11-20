@@ -113,7 +113,12 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
                 ActionOutcome.REFUSED, Optional.of(THIRD), Optional.empty());
         ActionRecord duplicateDeletion = new ActionRecord(AT.plusSeconds(6), JournaledAction.DUPLICATE_DELETION,
                 ActionOutcome.REFUSED, Optional.of(LISTING), Optional.of("TWIN_NOT_CONFIRMED"));
-        List.of(first, other, second, scan, waiting, refusedWithoutReason, duplicateDeletion).forEach(journal::write);
+        // US-48 : une recherche de la nouvelle annonce restée sans résultat ne compte pas non plus
+        ActionRecord searchWithoutResult = new ActionRecord(AT.plusSeconds(7),
+                JournaledAction.REPUBLICATION_VERIFICATION, ActionOutcome.NOT_DONE, Optional.of(OTHER),
+                Optional.of("NEW_LISTING_NOT_FOUND"));
+        List.of(first, other, second, scan, waiting, refusedWithoutReason, duplicateDeletion, searchWithoutResult)
+                .forEach(journal::write);
 
         // US-47 : les suppressions de doublons restent hors de la page « Échecs »
         assertThat(journal.lastOfEachListing()).extracting(JournalEntry::record)
