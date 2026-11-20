@@ -20,7 +20,7 @@ En tant que membre, je veux ouvrir la fiche d'une annonce depuis la liste, afin 
 2. **Fiche** (`listing.html`), de haut en bas :
    - **Annonce** : titre (en titre de page), prix, lien « Voir sur Vinted », présence : « présente dans le dressing » ou « absente du dressing, vue pour la dernière fois le <date> » (date de la dernière fois que le scan l'a vue).
    - **Vues et favoris** : tableau des relevés, du plus récent au plus ancien, colonnes date, vues, favoris ; tous les relevés gardés ; « Aucun relevé » s'il n'y en a pas.
-   - **Sauvegarde** : la section actuelle de `listing-backup.html`, inchangée (vérification, date, validation et bouton « Valider », suppression, republication, contenu, photos). Si l'annonce n'a pas de sauvegarde (`GET /api/listings/{id}/backup` en 404) : « Non sauvegardée », sans aucune action.
+   - **Sauvegarde** : la section actuelle de `listing-backup.html`, inchangée (vérification, date, validation et bouton « Valider », suppression, republication, contenu, photos). Si l'annonce n'a pas de sauvegarde (`GET /api/listings/{id}/backup` en 404) : « Non sauvegardée », sans aucune action (depuis US-52, seul « Supprimer de Vinted » reste en en-tête, grisé avec sa raison).
    - Un lien « Retour à la liste » vers `wardrobe.html`.
 3. **Annonce inconnue** (identifiant absent, non numérique, ou inconnu de l'outil) : « Annonce inconnue. » et un lien de retour à la liste, rien d'autre.
 4. `listing-backup.html` est supprimée : son contenu et ses tests passent dans `listing.html`.
