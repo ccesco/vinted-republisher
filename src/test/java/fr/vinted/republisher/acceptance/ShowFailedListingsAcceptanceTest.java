@@ -14,6 +14,7 @@ import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
@@ -51,7 +52,8 @@ class ShowFailedListingsAcceptanceTest {
                     new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
                     new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository()));
+                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository(),
+                            new InMemoryListingSaleRepository()));
 
     @Test
     void lists_listings_whose_last_action_failed() {

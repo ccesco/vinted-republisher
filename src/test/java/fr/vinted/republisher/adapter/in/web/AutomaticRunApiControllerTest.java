@@ -33,6 +33,7 @@ import fr.vinted.republisher.domain.run.RunStopReason;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
@@ -223,7 +224,7 @@ class AutomaticRunApiControllerTest {
             validations.save(BackupValidation.of(backup, NOW));
             return new ShowRunQueue(new ShowListingInventory(listings, new InMemoryListingStatisticsRepository(),
                     backups, validations, deletions, republications, delay, clock, new InMemoryListingTagRepository(),
-                    new InMemoryBackupVerificationRepository()),
+                    new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository()),
                     deletions, delay, new CadenceCheck(deletions, republications,
                     new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 20, 20), clock),
                     new WriteModes(DeletionMode.REAL, RepublicationMode.REAL), AutomaticRun::idle, clock);
@@ -259,7 +260,7 @@ class AutomaticRunApiControllerTest {
                     RepublicationMode.REAL);
             RelaunchListing relaunch = new RelaunchListing(new ShowListingDetail(listings, statistics, backups,
                     validations, deletions, republications, delay, clock, journal,
-                    new InMemoryBackupVerificationRepository()), deletions, delay,
+                    new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository()), deletions, delay,
                     new DeleteListing(session, listings, backups, photos, validations, deletions, deleter,
                             DeletionMode.REAL, delay, cadence, clock, journalWriter),
                     new RecheckListingDeletion(session, listings, backups, photos, validations, deletions, deleter,
@@ -272,7 +273,7 @@ class AutomaticRunApiControllerTest {
                             new FakeListingContentReader(), noBackupPause(), clock, show, journalWriter));
             return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, backups, validations,
                     deletions, republications, delay, clock, new InMemoryListingTagRepository(),
-                    new InMemoryBackupVerificationRepository()), relaunch,
+                    new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository()), relaunch,
                     (until, interrupted) -> {
                     }, clock, launched::add, ParallelismMode.SEQUENTIAL, Runnable::run);
         }

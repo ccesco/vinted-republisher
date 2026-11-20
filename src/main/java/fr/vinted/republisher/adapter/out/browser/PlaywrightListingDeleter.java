@@ -50,8 +50,10 @@ public class PlaywrightListingDeleter implements ListingDeleter {
             // Observed on 2026-11-14: the button shows at once, but its click does nothing until the page's scripts
             // have run, which they have by the load event (React wired it at 3.9 s, load came at 4.9 s).
             page.waitForLoadState(LoadState.LOAD);
+            // Asked before looking for the button: a listing sold meanwhile has none, and is refused for itself.
+            boolean agrees = visit.agreesToDelete(read);
             Locator deleteButton = visible(page.locator(DELETE_BUTTON), "no delete button on " + listing.url());
-            if (!visit.agreesToDelete(read)) {
+            if (!agrees) {
                 return Optional.of(read);
             }
             deleteButton.click();

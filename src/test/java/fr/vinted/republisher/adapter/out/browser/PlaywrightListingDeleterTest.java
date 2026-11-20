@@ -49,7 +49,7 @@ class PlaywrightListingDeleterTest {
             <!DOCTYPE html><html><head><title>Pull rayé | Vinted</title>
             <script type="application/ld+json">{"@context": "https://schema.org", "@type": "Product",
               "name": "Pull rayé", "offers": {"@type": "Offer", "price": "12.50", "priceCurrency": "EUR",
-              "availability": "https://schema.org/InStock"}}</script></head><body>
+              "availability": "https://schema.org/%s"}}</script></head><body>
             <h1>Pull rayé</h1>
             <button type="button" data-testid="item-edit-button">Modifier l'annonce</button>
             %s
@@ -94,6 +94,7 @@ class PlaywrightListingDeleterTest {
     private final List<String> requests = new CopyOnWriteArrayList<>();
     private volatile boolean shown = true;
     private volatile boolean goneOnceConfirmed = true;
+    private volatile String availability = "InStock";
     private volatile int deleteButtons = 1;
     private volatile boolean confirmationShows = true;
     private volatile boolean dialogCloses = true;
@@ -129,7 +130,8 @@ class PlaywrightListingDeleterTest {
                 exchange.getResponseHeaders().add("Location", "/items/" + LISTING + "-pull-raye");
                 respond(exchange, 302, "");
             } else {
-                respond(exchange, 200, LISTING_PAGE.formatted(DELETE_BUTTON.repeat(deleteButtons), confirmationShows,
+                respond(exchange, 200, LISTING_PAGE.formatted(availability, DELETE_BUTTON.repeat(deleteButtons),
+                        confirmationShows,
                         dialogCloses, dialogClosesBeforeVintedAnswers));
             }
         });
@@ -239,7 +241,19 @@ class PlaywrightListingDeleterTest {
             assertThatThrownBy(() -> deleter().delete(link(), visit))
                     .isInstanceOf(ListingPageUnreadable.class).hasMessageContaining("delete button");
             assertThat(clicks()).isEmpty();
-            assertThat(visit.steps).isEmpty();
+            assertThat(visit.steps).containsExactly("agrees to delete Pull rayé 12.50 EUR active");
+        }
+
+        @Test
+        void sold_listing_without_delete_button_is_left_to_the_visit_and_nothing_is_clicked() {
+            // AT-50-05: Vinted shows a sold listing without its delete button.
+            availability = "SoldOut";
+            deleteButtons = 0;
+            visit.refusing = true;
+
+            assertThatThrownBy(() -> deleter().delete(link(), visit)).isInstanceOf(VisitRefused.class);
+            assertThat(visit.steps).containsExactly("agrees to delete Pull rayé 12.50 EUR inactive");
+            assertThat(clicks()).isEmpty();
         }
 
         @Test
@@ -249,7 +263,7 @@ class PlaywrightListingDeleterTest {
             assertThatThrownBy(() -> deleter().delete(link(), visit))
                     .isInstanceOf(ListingPageUnreadable.class).hasMessageContaining("2 controls");
             assertThat(clicks()).isEmpty();
-            assertThat(visit.steps).isEmpty();
+            assertThat(visit.steps).containsExactly("agrees to delete Pull rayé 12.50 EUR active");
         }
 
         @Test
@@ -299,6 +313,16 @@ class PlaywrightListingDeleterTest {
             visit.agreeing = false;
 
             assertThat(deleter().delete(link(), visit)).contains(pullRaye());
+            assertThat(clicks()).isEmpty();
+        }
+
+        @Test
+        void page_without_delete_button_never_passes_the_dry_run() {
+            visit.agreeing = false;
+            deleteButtons = 0;
+
+            assertThatThrownBy(() -> deleter().delete(link(), visit))
+                    .isInstanceOf(ListingPageUnreadable.class).hasMessageContaining("delete button");
             assertThat(clicks()).isEmpty();
         }
 

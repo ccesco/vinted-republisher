@@ -83,7 +83,8 @@ class ScanWardrobeAcceptanceTest {
             new InMemoryListingBackupRepository(), new InMemoryBackupValidationRepository(),
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
+                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository(),
+                            new InMemoryListingSaleRepository());
 
     @Test
     void scan_records_every_active_listing() {

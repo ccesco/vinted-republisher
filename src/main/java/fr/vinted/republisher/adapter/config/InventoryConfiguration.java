@@ -10,6 +10,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.sale.ListingSaleRepository;
 import fr.vinted.republisher.domain.tag.ListingTagRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
@@ -29,9 +30,10 @@ class InventoryConfiguration {
                                               ListingRepublicationRepository republications,
                                               RepublicationDelay republicationDelay, Clock clock,
                                               ListingTagRepository tags,
-                                              BackupVerificationRepository verifications) {
+                                              BackupVerificationRepository verifications,
+                                              ListingSaleRepository sales) {
         return new ShowListingInventory(listings, statistics, backups, validations, deletions, republications,
-                republicationDelay, clock, tags, verifications);
+                republicationDelay, clock, tags, verifications, sales);
     }
 
     @Bean
@@ -45,8 +47,9 @@ class InventoryConfiguration {
                                         ListingDeletionRepository deletions,
                                         ListingRepublicationRepository republications,
                                         RepublicationDelay republicationDelay, Clock clock,
-                                        ActionJournal journal, BackupVerificationRepository verifications) {
+                                        ActionJournal journal, BackupVerificationRepository verifications,
+                                        ListingSaleRepository sales) {
         return new ShowListingDetail(listings, statistics, backups, validations, deletions, republications,
-                republicationDelay, clock, journal, verifications);
+                republicationDelay, clock, journal, verifications, sales);
     }
 }

@@ -46,7 +46,9 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
@@ -87,6 +89,7 @@ import static fr.vinted.republisher.domain.backup.BackupFixtures.aContent;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aPhoto;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.noBackupPause;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.INACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -108,6 +111,7 @@ class AutomaticRunAcceptanceTest {
     private final InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
     private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
     private final InMemoryActionJournal journal = new InMemoryActionJournal();
+    private final InMemoryListingSaleRepository sales = new InMemoryListingSaleRepository();
     private final VintedDeleter deleter = new VintedDeleter();
     private final FakeWardrobeReader wardrobe = new FakeWardrobeReader();
     private final FakeListingPublisher publisher = new FakeListingPublisher(wardrobe);
@@ -510,6 +514,42 @@ class AutomaticRunAcceptanceTest {
     }
 
     @Test
+    void the_run_leaves_sold_listings_alone() {
+        // AT-50-02 – Étant donné l'annonce 1 « Vendue » et l'annonce 2 « À supprimer »
+        aValidatedListing(ROBE, "Robe bleue", "12.00");
+        sales.addAll(List.of(new ListingSale(ROBE, NOW.minusSeconds(60))));
+        aValidatedListing(PULL, "Pull rayé", "15.00");
+        publisher.showingOncePublished(aListing(12, "Pull rayé", "15.00", ACTIVE));
+        // Quand je lance la série
+        launch();
+        // Alors seule l'annonce 2 est supprimée
+        assertThat(deletions.findLatest(ROBE)).isEmpty();
+        assertThat(deletions.findLatest(PULL)).map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+        // Et l'annonce 1 n'est jamais ouverte
+        assertThat(deleter.opened()).doesNotContain(ROBE);
+        assertThat(launchAutomaticRun.overview().status()).isEqualTo(RunStatus.FINISHED);
+    }
+
+    @Test
+    void a_listing_sold_meanwhile_is_set_aside_and_the_run_goes_on() {
+        // AT-50-04 – Étant donné l'annonce 1 « À supprimer », que l'outil ne sait pas encore vendue
+        aValidatedListing(ROBE, "Robe bleue", "12.00");
+        // Et sa page sur Vinted la montre vendue
+        deleter.onVinted(aListing(1, "Robe bleue", "12.00", INACTIVE));
+        // Et l'annonce 2 « À supprimer »
+        aValidatedListing(PULL, "Pull rayé", "15.00");
+        publisher.showingOncePublished(aListing(12, "Pull rayé", "15.00", ACTIVE));
+        // Quand je lance la série
+        launch();
+        // Alors la suppression de l'annonce 1 est refusée, sans aucun clic, et l'annonce 1 est écartée de la série
+        assertThat(deletions.findLatest(ROBE)).isEmpty();
+        assertThat(launchAutomaticRun.overview().skippedListings()).containsExactly(ROBE);
+        // Et l'annonce 2 est supprimée
+        assertThat(deletions.findLatest(PULL)).map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+        assertThat(launchAutomaticRun.overview().status()).isEqualTo(RunStatus.FINISHED);
+    }
+
+    @Test
     void listing_still_to_check_is_skipped() {
         // Étant donné une annonce « Republication à vérifier » dont la nouvelle annonce n'est pas dans le dressing
         ListingBackup robe = aDeletedListing(ROBE, "Robe bleue", "12.00");
@@ -890,7 +930,7 @@ class AutomaticRunAcceptanceTest {
         InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
         RelaunchListing relaunch = new RelaunchListing(
                 new ShowListingDetail(listings, statistics, listingBackups, validations, deletions, republications,
-                        delay, clock, journal, new InMemoryBackupVerificationRepository()),
+                        delay, clock, journal, new InMemoryBackupVerificationRepository(), sales),
                 deletions, delay,
                 new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter,
                         deletionMode, delay, cadence, clock, journalWriter),
@@ -905,7 +945,7 @@ class AutomaticRunAcceptanceTest {
                         contents, noBackupPause(), clock, showRepublication, journalWriter));
         return new LaunchAutomaticRun(new ShowListingInventory(listings, statistics, listingBackups, validations,
                 deletions, republications, delay, clock, new InMemoryListingTagRepository(),
-                new InMemoryBackupVerificationRepository()), relaunch, waiting, clock,
+                new InMemoryBackupVerificationRepository(), sales), relaunch, waiting, clock,
                 Runnable::run, mode, relaunchers == null ? Runnable::run : relaunchers);
     }
 

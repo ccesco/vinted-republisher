@@ -9,14 +9,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * A listing whose last journal entry is a failure, which gives its cause; never one gone from Vinted nor one
+ * A listing whose last journal entry is a failure, which gives its cause; never one gone from Vinted, sold or
  * republished since, as nothing is left to do on it.
  */
 public record FailedListing(Listing listing, ListingStage stage, JournalEntry failure) {
+
+    /** Stages where a past failure no longer matters: the listing has left the tool's hands. */
+    private static final Set<ListingStage> SETTLED = Set.of(ListingStage.GONE, ListingStage.SOLD,
+            ListingStage.REPUBLISHED);
 
     public FailedListing {
         Objects.requireNonNull(listing);
@@ -47,7 +52,7 @@ public record FailedListing(Listing listing, ListingStage stage, JournalEntry fa
                                                          Map<VintedListingId, InventoryEntry> byListing) {
         return entry.record().listingId()
                 .map(byListing::get)
-                .filter(known -> known.stage() != ListingStage.GONE && known.stage() != ListingStage.REPUBLISHED)
+                .filter(known -> !SETTLED.contains(known.stage()))
                 .map(known -> new FailedListing(known.listing(), known.stage(), entry));
     }
 }

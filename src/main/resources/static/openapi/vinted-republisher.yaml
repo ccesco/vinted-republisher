@@ -1792,10 +1792,11 @@ components:
       description: >
         Étape de traitement de l'annonce, déduite à chaque lecture (la première règle qui s'applique) : republiée,
         republication à vérifier (en erreur), suppression à vérifier (non confirmée), en attente avant
-        republication (suppression confirmée, délai minimal pas écoulé), à republier, absente de Vinted (sans
-        suppression confirmée), prête à supprimer (sauvegarde actuelle validée), vérification en erreur (dernière
-        vérification sur Vinted de la sauvegarde actuelle échouée, US-40), à valider, à sauvegarder.
-      enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, GONE, TO_DELETE,
+        republication (suppression confirmée, délai minimal pas écoulé), à republier, vendue (vente constatée,
+        US-50), absente de Vinted (sans suppression confirmée), prête à supprimer (sauvegarde actuelle validée),
+        vérification en erreur (dernière vérification sur Vinted de la sauvegarde actuelle échouée, US-40), à valider,
+        à sauvegarder.
+      enum: [REPUBLISHED, REPUBLICATION_TO_CHECK, DELETION_TO_CHECK, WAITING, TO_REPUBLISH, SOLD, GONE, TO_DELETE,
         VERIFICATION_FAILED, TO_VALIDATE, TO_BACK_UP]
     RunStatus:
       type: string

@@ -22,6 +22,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
@@ -290,7 +291,7 @@ class ListingDetailApiControllerTest {
                     new InMemoryBackupValidationRepository(),
                     deletions, republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
-                    new InMemoryActionJournal(), verifications);
+                    new InMemoryActionJournal(), verifications, new InMemoryListingSaleRepository());
         }
     }
 }

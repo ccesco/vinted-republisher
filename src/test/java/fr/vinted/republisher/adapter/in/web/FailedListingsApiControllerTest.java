@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
@@ -98,7 +99,7 @@ class FailedListingsApiControllerTest {
                     new InMemoryBackupValidationRepository(), new InMemoryListingDeletionRepository(),
                     new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)),
                     Clock.systemUTC(), new InMemoryListingTagRepository(),
-                    new InMemoryBackupVerificationRepository()));
+                    new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository()));
         }
     }
 }

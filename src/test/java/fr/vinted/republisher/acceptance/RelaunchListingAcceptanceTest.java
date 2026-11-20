@@ -27,6 +27,7 @@ import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.relaunch.NotRelaunchable;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.relaunch.RelaunchReport;
 import fr.vinted.republisher.domain.relaunch.StageChanged;
@@ -39,6 +40,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
@@ -91,6 +93,7 @@ class RelaunchListingAcceptanceTest {
     private final InMemoryListingDeletionRepository deletions = new InMemoryListingDeletionRepository();
     private final InMemoryListingRepublicationRepository republications = new InMemoryListingRepublicationRepository();
     private final InMemoryActionJournal journal = new InMemoryActionJournal();
+    private final InMemoryListingSaleRepository sales = new InMemoryListingSaleRepository();
     private final FakeListingDeleter deleter = new FakeListingDeleter();
     private final FakeWardrobeReader wardrobe = new FakeWardrobeReader();
     private final FakeListingPublisher publisher = new FakeListingPublisher(wardrobe);
@@ -197,9 +200,10 @@ class RelaunchListingAcceptanceTest {
     }
 
     @ParameterizedTest
-    @EnumSource(value = ListingStage.class, names = {"TO_BACK_UP", "TO_VALIDATE", "GONE", "REPUBLISHED"})
+    @EnumSource(value = ListingStage.class, names = {"TO_BACK_UP", "TO_VALIDATE", "GONE", "REPUBLISHED", "SOLD"})
     void stages_without_next_action_are_not_relaunchable(ListingStage stage) {
-        // Étant donné une annonce « À sauvegarder », « À valider », « Absente de Vinted » ou « Republiée »
+        // Étant donné une annonce « À sauvegarder », « À valider », « Absente de Vinted », « Republiée » ou
+        // « Vendue » (AT-50-03)
         aListingAt(stage);
         // Quand le membre la relance en ayant vu cette étape
         Throwable refusal = catchThrowable(() -> relaunch(stage));
@@ -275,7 +279,7 @@ class RelaunchListingAcceptanceTest {
         return new RelaunchListing(
                 new ShowListingDetail(listings, new InMemoryListingStatisticsRepository(), listingBackups,
                         validations, deletions, republications, delay, clock, journal,
-                        new InMemoryBackupVerificationRepository()),
+                        new InMemoryBackupVerificationRepository(), sales),
                 deletions, delay,
                 new DeleteListing(session, listings, listingBackups, photos, validations, deletions, deleter,
                         deletionMode, delay, cadence, clock, journalWriter),
@@ -323,6 +327,10 @@ class RelaunchListingAcceptanceTest {
                 ListingBackup backup = aDeletedListing(Duration.ofHours(1));
                 republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600))
                         .published(NEW_LISTING, NOW.minusSeconds(595)));
+            }
+            case SOLD -> {
+                aValidatedListing();
+                sales.addAll(List.of(new ListingSale(LISTING, NOW.minusSeconds(60))));
             }
             default -> throw new IllegalArgumentException(stage.name());
         }

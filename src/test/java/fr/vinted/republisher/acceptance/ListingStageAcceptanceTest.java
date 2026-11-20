@@ -15,6 +15,7 @@ import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
@@ -52,7 +53,7 @@ class ListingStageAcceptanceTest {
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), backups, validations, deletions, republications,
             new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
-            new InMemoryBackupVerificationRepository());
+            new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository());
 
     @Test
     void listing_without_backup_is_to_back_up() {
