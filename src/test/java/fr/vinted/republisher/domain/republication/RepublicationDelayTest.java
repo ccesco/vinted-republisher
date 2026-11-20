@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.republication;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -20,7 +21,7 @@ class RepublicationDelayTest {
 
     private final RepublicationDelay fiveMinutes = new RepublicationDelay(Duration.ofMinutes(5));
     private final ListingDeletion attempt =
-            ListingDeletion.attempted(aBackup(1, Instant.parse("2026-11-10T10:00:00Z")), CLICKED_AT);
+            ListingDeletion.attempted(aBackup(1, Instant.parse("2026-11-10T10:00:00Z")), CLICKED_AT, WriteOrigin.RUN);
 
     @Test
     void a_confirmed_deletion_is_republishable_the_delay_after_its_proof() {

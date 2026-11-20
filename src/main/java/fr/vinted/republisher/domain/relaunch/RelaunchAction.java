@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.relaunch;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 
 import java.util.Optional;
@@ -11,8 +12,14 @@ public enum RelaunchAction {
     REPUBLICATION,
     REPUBLICATION_VERIFICATION;
 
-    /** Empty for a stage that waits for the member, for time, or for nothing. */
-    public static Optional<RelaunchAction> after(ListingStage stage) {
+    /**
+     * Empty for a stage that waits for the member, for time, or for nothing. The member's click does not wait for the
+     * republication date (US-49): a waiting listing is republished at once; the run waits for the date.
+     */
+    public static Optional<RelaunchAction> after(ListingStage stage, WriteOrigin origin) {
+        if (stage == ListingStage.WAITING && origin == WriteOrigin.MANUAL) {
+            return Optional.of(REPUBLICATION);
+        }
         return switch (stage) {
             case TO_DELETE -> Optional.of(DELETION);
             case DELETION_TO_CHECK -> Optional.of(DELETION_RECHECK);

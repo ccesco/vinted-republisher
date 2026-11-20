@@ -3,6 +3,7 @@ package fr.vinted.republisher.acceptance;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
@@ -15,13 +16,13 @@ import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
@@ -103,7 +104,7 @@ class ListingStageAcceptanceTest {
     void unconfirmed_deletion_is_to_check() {
         // Étant donné une annonce dont la dernière suppression est non confirmée
         listings.saveAll(List.of(present(101)));
-        deletions.save(ListingDeletion.attempted(validated(101), DELETED_AT));
+        deletions.save(ListingDeletion.attempted(validated(101), DELETED_AT, WriteOrigin.RUN));
 
         // Quand le membre affiche la liste
         // Alors son étape est « Suppression à vérifier »
@@ -114,7 +115,8 @@ class ListingStageAcceptanceTest {
     void deletion_not_done_is_ignored() {
         // Étant donné une annonce présente, validée, dont la dernière suppression est « non faite »
         listings.saveAll(List.of(present(101)));
-        deletions.save(ListingDeletion.attempted(validated(101), DELETED_AT).notDone(DELETED_AT.plusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(validated(101), DELETED_AT,
+                WriteOrigin.RUN).notDone(DELETED_AT.plusSeconds(60)));
 
         // Quand le membre affiche la liste
         // Alors son étape est « Prête à supprimer »
@@ -126,8 +128,9 @@ class ListingStageAcceptanceTest {
         // Étant donné une suppression « non faite » puis une nouvelle suppression non confirmée
         listings.saveAll(List.of(present(101)));
         ListingBackup backup = validated(101);
-        deletions.save(ListingDeletion.attempted(backup, DELETED_AT).notDone(DELETED_AT.plusSeconds(60)));
-        deletions.save(ListingDeletion.attempted(backup, DELETED_AT.plusSeconds(120)));
+        deletions.save(ListingDeletion.attempted(backup, DELETED_AT,
+                WriteOrigin.RUN).notDone(DELETED_AT.plusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(backup, DELETED_AT.plusSeconds(120), WriteOrigin.RUN));
 
         // Quand le membre affiche la liste
         // Alors son étape est « Suppression à vérifier »
@@ -159,7 +162,7 @@ class ListingStageAcceptanceTest {
     @Test
     void failed_republication_is_to_check() {
         // Étant donné une annonce dont la dernière republication est en erreur
-        republications.save(ListingRepublication.attempted(deleted(101), DELETED_AT.plusSeconds(600)));
+        republications.save(ListingRepublication.attempted(deleted(101), DELETED_AT.plusSeconds(600), WriteOrigin.RUN));
         clock.set(DELETED_AT.plusSeconds(900));
 
         // Quand le membre affiche la liste
@@ -170,7 +173,7 @@ class ListingStageAcceptanceTest {
     @Test
     void republished_listing_and_its_new_listing() {
         // Étant donné une annonce dont la republication a réussi
-        republications.save(ListingRepublication.attempted(deleted(101), DELETED_AT.plusSeconds(600))
+        republications.save(ListingRepublication.attempted(deleted(101), DELETED_AT.plusSeconds(600), WriteOrigin.RUN)
                 .published(new VintedListingId(202), DELETED_AT.plusSeconds(610)));
         listings.saveAll(List.of(present(202)));
         clock.set(DELETED_AT.plusSeconds(900));
@@ -204,7 +207,8 @@ class ListingStageAcceptanceTest {
     private ListingBackup deleted(long id) {
         listings.saveAll(List.of(present(id).absent()));
         ListingBackup backup = validated(id);
-        deletions.save(ListingDeletion.attempted(backup, DELETED_AT.minusSeconds(2)).confirmed(DELETED_AT));
+        deletions.save(ListingDeletion.attempted(backup, DELETED_AT.minusSeconds(2),
+                WriteOrigin.RUN).confirmed(DELETED_AT));
         return backup;
     }
 

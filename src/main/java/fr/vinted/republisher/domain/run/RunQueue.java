@@ -2,6 +2,7 @@ package fr.vinted.republisher.domain.run;
 
 import fr.vinted.republisher.domain.cadence.CadenceForecast;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -50,7 +51,7 @@ public record RunQueue(Instant computedAt, List<QueuedAction> actions) {
                     .min(Comparator.comparingInt((QueueCandidate candidate) -> ORDER.indexOf(candidate.stageAt(turn)))
                             .thenComparingLong(candidate -> candidate.listingId().value()))
                     .orElseThrow();
-            Optional<RelaunchAction> action = RelaunchAction.after(next.stageAt(turn));
+            Optional<RelaunchAction> action = RelaunchAction.after(next.stageAt(turn), WriteOrigin.RUN);
             if (action.isEmpty()) {
                 at = nearestRepublication(pending);
                 continue;

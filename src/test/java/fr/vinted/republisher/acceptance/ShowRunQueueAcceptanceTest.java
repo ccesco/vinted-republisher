@@ -6,6 +6,7 @@ import fr.vinted.republisher.application.run.ShowRunQueue;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.relaunch.RelaunchAction;
@@ -13,22 +14,22 @@ import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.run.AutomaticRun;
 import fr.vinted.republisher.domain.run.ParallelismMode;
+import fr.vinted.republisher.domain.run.QueuedAction;
+import fr.vinted.republisher.domain.run.RunQueue;
 import fr.vinted.republisher.domain.run.RunWaitingReason;
 import fr.vinted.republisher.domain.run.RunWorker;
 import fr.vinted.republisher.domain.run.RunWorkerKind;
-import fr.vinted.republisher.domain.run.QueuedAction;
-import fr.vinted.republisher.domain.run.RunQueue;
 import fr.vinted.republisher.domain.run.WriteModes;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
@@ -83,7 +84,7 @@ class ShowRunQueueAcceptanceTest {
     @Test
     void real_writes_follow_the_cadence_and_deletions_lead_to_republications() {
         // Étant donné une suppression faite il y a 10 secondes, sur une annonce déjà traitée
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(10)));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(10), WriteOrigin.RUN));
         // Et les annonces 1 et 2 « Prêtes à supprimer »
         aValidatedListing(1);
         aValidatedListing(2);
@@ -136,8 +137,10 @@ class ShowRunQueueAcceptanceTest {
         // Étant donné un plafond de 2 suppressions par 24 heures
         cadence = new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 2, 140);
         // Et deux suppressions faites il y a 23 heures et 22 heures, sur des annonces déjà traitées
-        deletions.save(ListingDeletion.attempted(aBackup(8, SAVED_AT), NOW.minus(Duration.ofHours(23))));
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minus(Duration.ofHours(22))));
+        deletions.save(ListingDeletion.attempted(aBackup(8, SAVED_AT), NOW.minus(Duration.ofHours(23)),
+                WriteOrigin.RUN));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minus(Duration.ofHours(22)),
+                WriteOrigin.RUN));
         // Et l'annonce 1 « Prête à supprimer »
         aValidatedListing(1);
         // Quand le membre affiche la file d'attente
@@ -227,10 +230,12 @@ class ShowRunQueueAcceptanceTest {
     private void aDeletedListing(long id, Instant provenAt) {
         ListingBackup backup = aValidatedListing(id);
         listings.saveAll(List.of(Listing.seen(aListing(id, "Annonce " + id, "10.00", ACTIVE), SAVED_AT).absent()));
-        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5)).confirmed(provenAt));
+        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5),
+                WriteOrigin.RUN).confirmed(provenAt));
     }
 
     private void aDeletionInDoubt(long id) {
-        deletions.save(ListingDeletion.attempted(aValidatedListing(id), NOW.minus(Duration.ofHours(2))));
+        deletions.save(ListingDeletion.attempted(aValidatedListing(id), NOW.minus(Duration.ofHours(2)),
+                WriteOrigin.RUN));
     }
 }

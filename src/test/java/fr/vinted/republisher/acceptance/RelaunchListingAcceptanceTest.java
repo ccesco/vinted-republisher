@@ -18,6 +18,7 @@ import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -27,7 +28,6 @@ import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.relaunch.NotRelaunchable;
-import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.relaunch.RelaunchReport;
 import fr.vinted.republisher.domain.relaunch.StageChanged;
@@ -35,12 +35,12 @@ import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
@@ -52,6 +52,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
@@ -123,7 +124,7 @@ class RelaunchListingAcceptanceTest {
     void relaunching_a_deletion_to_check_rechecks_it() {
         // Étant donné une annonce dont la suppression est non confirmée
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(60), WriteOrigin.RUN));
         // Et Vinted ne montre plus l'annonce
         deleter.showingNothing();
         // Quand le membre la relance en ayant vu « Suppression à vérifier »
@@ -154,7 +155,7 @@ class RelaunchListingAcceptanceTest {
     void relaunching_a_republication_to_check_verifies_it() {
         // Étant donné une annonce dont la dernière republication est en erreur
         ListingBackup backup = aDeletedListing(Duration.ofHours(1));
-        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600)));
+        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600), WriteOrigin.RUN));
         // Et la nouvelle annonce est dans le dressing
         wardrobe.holding(REPUBLISHED);
         contents.showing(new ListingReading(sameContentAs(NEW_LISTING), List.of(aPhoto("front"), aPhoto("back"))));
@@ -177,7 +178,8 @@ class RelaunchListingAcceptanceTest {
         aValidatedListing();
         deleter.showing(ON_VINTED);
         // Quand le membre la relance
-        RelaunchReport report = relaunchListing(DeletionMode.DRY_RUN).relaunch(LISTING, ListingStage.TO_DELETE);
+        RelaunchReport report = relaunchListing(DeletionMode.DRY_RUN).relaunch(LISTING, ListingStage.TO_DELETE,
+                WriteOrigin.RUN);
         // Alors rien n'est supprimé ni enregistré
         assertThat(deleter.confirmationClicks()).isZero();
         assertThat(deletions.findAll()).isEmpty();
@@ -190,7 +192,7 @@ class RelaunchListingAcceptanceTest {
     void relaunch_is_refused_when_the_stage_changed() {
         // Étant donné une annonce « Suppression à vérifier »
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(60), WriteOrigin.RUN));
         // Quand le membre la relance en ayant vu « Prête à supprimer »
         Throwable refusal = catchThrowable(() -> relaunch(ListingStage.TO_DELETE));
         // Alors la relance est refusée (STAGE_CHANGED, étape actuelle « Suppression à vérifier ») et rien n'est lancé
@@ -216,11 +218,26 @@ class RelaunchListingAcceptanceTest {
     }
 
     @Test
-    void waiting_listing_gives_its_republication_date() {
+    void relaunches_a_waiting_listing_without_waiting() {
+        // Étant donné une annonce supprimée il y a 2 minutes (délai de 5 minutes), à l'étape « En attente » (AT-49-03b)
+        aDeletedListing(Duration.ofMinutes(2));
+        publisher.showingOncePublished(REPUBLISHED);
+        // Quand le membre la relance depuis la liste avec le bouton « Republier sur Vinted »
+        RelaunchReport report = relaunch(ListingStage.WAITING);
+        // Alors elle est republiée sans attendre la date de republication
+        assertThat(report.action()).isEqualTo(RelaunchAction.REPUBLICATION);
+        assertThat(publisher.publishClicks()).isEqualTo(1);
+        assertThat(republications.findLatest(LISTING)).map(ListingRepublication::origin)
+                .contains(WriteOrigin.MANUAL);
+    }
+
+    @Test
+    void waiting_listing_gives_its_republication_date_to_the_run() {
         // Étant donné une annonce supprimée à 10:00, délai de 5 minutes, il est 10:02
         aDeletedListing(Duration.ofMinutes(2));
-        // Quand le membre la relance en ayant vu « En attente avant republication »
-        Throwable refusal = catchThrowable(() -> relaunch(ListingStage.WAITING));
+        // Quand la série la relance en ayant vu « En attente avant republication »
+        Throwable refusal = catchThrowable(() -> relaunchListing(DeletionMode.REAL)
+                .relaunch(LISTING, ListingStage.WAITING, WriteOrigin.RUN));
         // Alors la relance est refusée (NOT_RELAUNCHABLE, à partir de 10:05) et rien n'est lancé
         assertThat(refusal).isInstanceOfSatisfying(NotRelaunchable.class,
                 notRelaunchable -> assertThat(notRelaunchable.allowedAt()).contains(NOW.plus(Duration.ofMinutes(3))));
@@ -228,13 +245,30 @@ class RelaunchListingAcceptanceTest {
     }
 
     @Test
-    void cadence_limit_applies() {
+    void relaunch_ignores_the_cadence() {
+        // Étant donné la limite de cadence de suppression atteinte (AT-49-03)
+        aValidatedListing();
+        deleter.showing(ON_VINTED);
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minus(Duration.ofMinutes(1)),
+                WriteOrigin.RUN));
+        // Quand le membre relance une annonce « Prête à supprimer »
+        RelaunchReport report = relaunch(ListingStage.TO_DELETE);
+        // Alors elle est supprimée
+        assertThat(report.action()).isEqualTo(RelaunchAction.DELETION);
+        assertThat(deletions.findLatest(LISTING)).map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+        assertThat(deletions.findLatest(LISTING)).map(ListingDeletion::origin).contains(WriteOrigin.MANUAL);
+    }
+
+    @Test
+    void the_run_is_held_to_the_cadence() {
         // Étant donné une annonce « Prête à supprimer » et une écriture sur Vinted il y a une minute
         aValidatedListing();
         deleter.showing(ON_VINTED);
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minus(Duration.ofMinutes(1))));
-        // Quand le membre la relance
-        Throwable refusal = catchThrowable(() -> relaunch(ListingStage.TO_DELETE));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minus(Duration.ofMinutes(1)),
+                WriteOrigin.RUN));
+        // Quand la série la relance
+        Throwable refusal = catchThrowable(() -> relaunchListing(DeletionMode.REAL)
+                .relaunch(LISTING, ListingStage.TO_DELETE, WriteOrigin.RUN));
         // Alors la relance est refusée (CADENCE_LIMIT_REACHED, avec la date), rien n'est touché sur Vinted
         assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
                 limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofMinutes(1))));
@@ -257,7 +291,7 @@ class RelaunchListingAcceptanceTest {
     }
 
     private RelaunchReport relaunch(ListingStage seen) {
-        return relaunchListing(DeletionMode.REAL).relaunch(LISTING, seen);
+        return relaunchListing(DeletionMode.REAL).relaunch(LISTING, seen, WriteOrigin.MANUAL);
     }
 
     private void assertNothingLaunched() {
@@ -310,7 +344,8 @@ class RelaunchListingAcceptanceTest {
         ListingBackup backup = aValidatedListing();
         listings.saveAll(List.of(Listing.seen(ON_VINTED, SAVED_AT).absent()));
         Instant provenAt = NOW.minus(ago);
-        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5)).confirmed(provenAt));
+        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5),
+                WriteOrigin.RUN).confirmed(provenAt));
         return backup;
     }
 
@@ -325,7 +360,7 @@ class RelaunchListingAcceptanceTest {
             case GONE -> listings.saveAll(List.of(Listing.seen(ON_VINTED, SAVED_AT).absent()));
             case REPUBLISHED -> {
                 ListingBackup backup = aDeletedListing(Duration.ofHours(1));
-                republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600))
+                republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600), WriteOrigin.RUN)
                         .published(NEW_LISTING, NOW.minusSeconds(595)));
             }
             case SOLD -> {

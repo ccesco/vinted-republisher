@@ -30,8 +30,7 @@ export const DELETION_REFUSALS: Record<string, string> = {
   BROWSER_UNAVAILABLE: 'le navigateur est indisponible.',
   VINTED_UNREACHABLE: 'Vinted est inaccessible.',
   SESSION_DISCONNECTED: "la session Vinted n'est pas connectée : connectez-vous depuis la page de session.",
-  LISTING_PAGE_UNREADABLE: "la page de l'annonce sur Vinted n'est pas celle attendue.",
-  CADENCE_LIMIT_REACHED: 'limite de cadence atteinte'
+  LISTING_PAGE_UNREADABLE: "la page de l'annonce sur Vinted n'est pas celle attendue."
 };
 export const DELETION_FAILED_MESSAGE = "Échec de la suppression : vérifiez l'annonce sur Vinted (détail dans les logs).";
 export const RECHECK_FAILED_MESSAGE = 'Revérification impossible, le doute reste : ';
@@ -41,7 +40,6 @@ export const REPUBLICATION_REFUSALS: Record<string, string> = {
   BACKUP_REPLACED: "la sauvegarde a été remplacée depuis l'ouverture de cette page : rechargez-la.",
   NOT_VALIDATED: "la sauvegarde actuelle n'est pas validée.",
   NOT_DELETED: "l'annonce n'a pas de suppression confirmée de cette sauvegarde.",
-  TOO_EARLY: "la date de republication n'est pas atteinte",
   ALREADY_REPUBLISHED: "l'annonce est déjà republiée.",
   REPUBLICATION_IN_ERROR: 'la republication précédente est en erreur : vérifiez sur Vinted.',
   BROWSER_BUSY: 'une autre action est en cours dans le navigateur : réessayez quand elle sera finie.',
@@ -53,7 +51,6 @@ export const REPUBLICATION_REFUSALS: Record<string, string> = {
   FORM_UNREADABLE: "le formulaire de mise en vente de Vinted n'est pas celui attendu.",
   NO_REPUBLICATION_TO_VERIFY: 'aucune republication en erreur ou réussie à vérifier.',
   LISTING_UNREADABLE: "la page de la nouvelle annonce sur Vinted n'est pas celle attendue.",
-  CADENCE_LIMIT_REACHED: 'limite de cadence atteinte',
   NEW_LISTING_LINK_INVALID: "ce lien n'est pas celui d'une nouvelle annonce sur Vinted.",
   NEW_LISTING_MISMATCH: "la page de ce lien n'a pas le titre et le prix de la sauvegarde.",
   MANUAL_REPUBLICATION_IN_DRY_RUN: 'indisponible en dry-run.'

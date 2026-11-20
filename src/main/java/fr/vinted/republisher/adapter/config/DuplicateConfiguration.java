@@ -1,6 +1,5 @@
 package fr.vinted.republisher.adapter.config;
 
-import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.application.duplicate.DeleteDuplicate;
 import fr.vinted.republisher.application.duplicate.ShowDuplicates;
 import fr.vinted.republisher.application.journal.JournalWriter;
@@ -32,7 +31,7 @@ public class DuplicateConfiguration {
     @Bean
     DeleteDuplicate deleteDuplicate(VintedSession session, ShowDuplicates showDuplicates, ListingRepository listings,
                                     ListingDeleter deleter, ListingEraser eraser, PhotoStorage photos,
-                                    DeletionMode mode, CadenceCheck cadence, JournalWriter journal) {
-        return new DeleteDuplicate(session, showDuplicates, listings, deleter, eraser, photos, mode, cadence, journal);
+                                    DeletionMode mode, JournalWriter journal) {
+        return new DeleteDuplicate(session, showDuplicates, listings, deleter, eraser, photos, mode, journal);
     }
 }

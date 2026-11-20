@@ -7,6 +7,7 @@ import fr.vinted.republisher.application.wardrobe.RefreshStatistics;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingStage;
@@ -140,7 +141,7 @@ class TrackSalesAcceptanceTest {
 
         // Alors l'annonce 1 est « Vendue », et n'est donc plus proposée à la suppression
         assertThat(stageOf(1)).isEqualTo(ListingStage.SOLD);
-        assertThat(RelaunchAction.after(ListingStage.SOLD)).isEmpty();
+        assertThat(RelaunchAction.after(ListingStage.SOLD, WriteOrigin.RUN)).isEmpty();
     }
 
     private ListingStage stageOf(long id) {

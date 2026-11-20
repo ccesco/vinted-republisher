@@ -3,6 +3,7 @@ package fr.vinted.republisher.domain.inventory;
 import fr.vinted.republisher.domain.backup.BackupSummary;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -148,8 +149,9 @@ class ListingInventoryTest {
     void two_deletions_clicked_at_the_same_instant_keep_the_one_not_settled_as_not_done() {
         ListingBackup backup = aBackup(1, SAVED_AT);
         Instant clickedAt = SAVED_AT.plusSeconds(3600);
-        ListingDeletion notDone = ListingDeletion.attempted(backup, clickedAt).notDone(clickedAt.plusSeconds(60));
-        ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
+        ListingDeletion notDone = ListingDeletion.attempted(backup, clickedAt,
+                WriteOrigin.RUN).notDone(clickedAt.plusSeconds(60));
+        ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt, WriteOrigin.RUN);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(),
                 summaries(backup), List.of(), List.of(), List.of(notDone, unconfirmed), List.of(), List.of(),
@@ -163,7 +165,7 @@ class ListingInventoryTest {
     void republished_listing_bears_its_new_listing_when_known() {
         ListingBackup backup = aBackup(1, SAVED_AT);
         Instant clickedAt = SAVED_AT.plusSeconds(3600);
-        ListingRepublication published = ListingRepublication.attempted(backup, clickedAt)
+        ListingRepublication published = ListingRepublication.attempted(backup, clickedAt, WriteOrigin.RUN)
                 .published(new VintedListingId(2), clickedAt.plusSeconds(60));
         Listing newListing = present(2, "a", "1");
 
@@ -192,7 +194,7 @@ class ListingInventoryTest {
     void republication_to_check_is_borne_without_new_listing() {
         ListingBackup backup = aBackup(1, SAVED_AT);
         Instant clickedAt = SAVED_AT.plusSeconds(3600);
-        ListingRepublication toCheck = ListingRepublication.attempted(backup, clickedAt);
+        ListingRepublication toCheck = ListingRepublication.attempted(backup, clickedAt, WriteOrigin.RUN);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
                 List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(toCheck), List.of(),
@@ -209,7 +211,7 @@ class ListingInventoryTest {
     void republication_checked_not_published_is_not_borne() {
         ListingBackup backup = aBackup(1, SAVED_AT);
         Instant clickedAt = SAVED_AT.plusSeconds(3600);
-        ListingRepublication notPublished = ListingRepublication.attempted(backup, clickedAt)
+        ListingRepublication notPublished = ListingRepublication.attempted(backup, clickedAt, WriteOrigin.RUN)
                 .notPublished(clickedAt.plusSeconds(60));
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
@@ -303,7 +305,7 @@ class ListingInventoryTest {
 
     @Test
     void only_published_republications_link_the_chain() {
-        ListingRepublication toCheck = ListingRepublication.attempted(aBackup(1, SAVED_AT), SAVED_AT);
+        ListingRepublication toCheck = ListingRepublication.attempted(aBackup(1, SAVED_AT), SAVED_AT, WriteOrigin.RUN);
         ListingInventory inventory = inventoryOf(List.of(present(1, "a", "1")), List.of(), List.of(), List.of())
                 .withRepublicationTallies(List.of(toCheck), Map.of(id(1), 1));
 
@@ -312,7 +314,7 @@ class ListingInventoryTest {
     }
 
     private static ListingRepublication published(long id, long newListing) {
-        return ListingRepublication.attempted(aBackup(id, SAVED_AT), SAVED_AT)
+        return ListingRepublication.attempted(aBackup(id, SAVED_AT), SAVED_AT, WriteOrigin.RUN)
                 .published(id(newListing), SAVED_AT.plusSeconds(60));
     }
 

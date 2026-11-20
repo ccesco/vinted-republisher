@@ -211,7 +211,6 @@
       <h3>Suppression</h3>
       <p id="deletion-mode" class="muted">{{ deletionMode(view) }}</p>
       <p id="deletion-state">{{ deletionState(view) }}</p>
-      <p id="republication-state">{{ republicationState() }}</p>
       <p class="actions">
         <button id="delete" matButton="outlined" class="danger" type="button" [hidden]="view.deletion?.outcome === 'CONFIRMED'"
                 [disabled]="deleteDisabled(view)" (click)="deletionAsked.set(true)">Supprimer de Vinted</button>
@@ -240,7 +239,7 @@
       <p class="actions">
         <button id="republish" matButton="filled" type="button"
                 [hidden]="!view.deletion?.republishableAt || !republishable(view)"
-                [disabled]="sending() || republicationWaiting()" (click)="republicationAsked.set(true)">Republier sur Vinted</button>
+                [disabled]="sending()" (click)="republicationAsked.set(true)">Republier sur Vinted</button>
         <button id="prepare-manual-republication" matButton="outlined" type="button"
                 [hidden]="!view.deletion?.republishableAt || !republishable(view)"
                 [disabled]="sending() || view.republicationDryRun"

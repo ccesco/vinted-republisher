@@ -1,5 +1,5 @@
 # US-49 – Clics manuels sans cadence ni délai
-**Statut** : validée
+**Statut** : implémentée
 **Priorité** : V2
 **Dépend de** : US-27 (limites de cadence), US-11 (délai avant republication), US-09 (suppression), US-12 (republication), US-20 (relance), US-45 (republication manuelle), US-46 (workers), US-47 (suppression d'un doublon)
 
@@ -19,13 +19,13 @@ En tant que membre, je veux que mes clics sur une annonce s'exécutent sans atte
 7. **Écran inchangé** : l'origine d'une écriture est enregistrée mais affichée nulle part (journal, fiche, aperçu).
 
 ## Critères d'acceptation
-- [ ] Une suppression, une republication, une relance ou une suppression de doublon manuelle n'est refusée ni par l'intervalle ni par le plafond de cadence.
-- [ ] Une republication ou une relance manuelle n'est pas refusée par le délai après la suppression.
-- [ ] Une écriture manuelle ne retarde pas la prochaine écriture de la série et ne compte pas dans son plafond.
-- [ ] La série reste soumise à la cadence et au délai.
-- [ ] Sur la fiche, « Republier sur Vinted » est actif dès la suppression confirmée.
-- [ ] Dans la liste, une annonce `WAITING` se relance (« Republier sur Vinted »).
-- [ ] Les tentatives enregistrées avant US-49 comptent pour la série.
+- [x] Une suppression, une republication, une relance ou une suppression de doublon manuelle n'est refusée ni par l'intervalle ni par le plafond de cadence.
+- [x] Une republication ou une relance manuelle n'est pas refusée par le délai après la suppression.
+- [x] Une écriture manuelle ne retarde pas la prochaine écriture de la série et ne compte pas dans son plafond.
+- [x] La série reste soumise à la cadence et au délai.
+- [x] Sur la fiche, « Republier sur Vinted » est actif dès la suppression confirmée. (`ListingDetailPageTest.republication_is_offered_as_soon_as_the_deletion_is_confirmed()`)
+- [x] Dans la liste, une annonce `WAITING` se relance (« Republier sur Vinted »).
+- [x] Les tentatives enregistrées avant US-49 comptent pour la série.
 
 ## Tests d'acceptation
 ### AT-49-01 – Suppression manuelle sans cadence
@@ -59,7 +59,7 @@ Test : `RelaunchListingAcceptanceTest.relaunch_ignores_the_cadence()`
 Quand le membre la relance depuis la liste avec le bouton « Republier sur Vinted »
 Alors elle est republiée sans attendre la date de republication
 ```
-Test : `RelaunchListingAcceptanceTest.relaunches_a_waiting_listing_without_waiting()` ; page : test de la liste (bouton pour `WAITING`)
+Test : `RelaunchListingAcceptanceTest.relaunches_a_waiting_listing_without_waiting()`  ; page : `WardrobePageTest.offers_republication_for_a_waiting_listing()`
 
 ### AT-49-04 – Une écriture manuelle ne compte pas pour la série
 ```gherkin
@@ -75,7 +75,7 @@ Test : `AutomaticRunAcceptanceTest.manual_writes_do_not_count_in_the_run_cadence
 Quand la série cherche à supprimer une autre annonce
 Alors elle attend la fin de l'intervalle
 ```
-Test : `AutomaticRunAcceptanceTest.run_writes_keep_the_cadence()`
+Test : `AutomaticRunAcceptanceTest.waits_for_the_cadence_limit()` (US-19, inchangé) ; relance par la série : `RelaunchListingAcceptanceTest.the_run_is_held_to_the_cadence()`
 
 ### AT-49-04b – Suppression de doublon sans cadence, hors cadence de la série
 ```gherkin
@@ -84,7 +84,7 @@ Quand le membre supprime un doublon
 Alors il est supprimé sur Vinted
 Et la série peut ensuite supprimer une annonce sans attendre l'intervalle
 ```
-Test : `DeleteDuplicateAcceptanceTest`, nom fixé à l'implémentation
+Test : `DeleteDuplicateAcceptanceTest.ignores_the_cadence_and_does_not_count_in_it()`
 
 ### AT-49-04c – Republication manuelle hors cadence de la série
 ```gherkin
@@ -92,7 +92,7 @@ Test : `DeleteDuplicateAcceptanceTest`, nom fixé à l'implémentation
 Quand la série cherche à republier une autre annonce
 Alors elle la republie sans attendre l'intervalle
 ```
-Test : `PrepareManualRepublicationAcceptanceTest` (remplace `ignores_the_delay_and_the_cadence_but_counts_in_it()`)
+Test : `PrepareManualRepublicationAcceptanceTest.ignores_the_delay_and_the_cadence_and_does_not_count_in_it()` (remplace `ignores_the_delay_and_the_cadence_but_counts_in_it()`)
 
 ### AT-49-06 – Tentatives antérieures comptées pour la série
 ```gherkin
@@ -100,7 +100,7 @@ Test : `PrepareManualRepublicationAcceptanceTest` (remplace `ignores_the_delay_a
 Quand la série cherche à supprimer une annonce
 Alors elle attend la fin de l'intervalle
 ```
-Test : intégration Liquibase sur PostgreSQL (`@Tag("docker")`), nom fixé à l'implémentation
+Test : `WriteOriginMigrationTest.existing_attempts_are_run_writes()` (`@Tag("docker")`) ; la cadence ne compte que `RUN` : `CadenceCheckTest.only_the_run_s_attempts_count()`
 
 ## Cas limites et erreurs
 - Clic manuel pendant qu'une série tourne : le verrou du navigateur (une action par annonce) reste le seul garde-fou ; le clic ne prend ni ne libère aucune réservation de cadence.
@@ -119,6 +119,8 @@ Test : intégration Liquibase sur PostgreSQL (`@Tag("docker")`), nom fixé à l'
 - `WAITING` relançable, recommandation acceptée par l'utilisateur (2026-11-20) : cohérent avec la fiche, où le délai ne s'applique plus au clic ; US-20 (tableau des étapes relançables) mise à jour dans le même commit.
 - Origine non affichée, recommandation acceptée par l'utilisateur (2026-11-20) : enregistrée pour la cadence seulement (YAGNI).
 - « Supprimer le doublon » (US-47) aligné, recommandation acceptée par l'utilisateur (2026-11-20) : clic toujours manuel, donc ni cadence ni comptage pour la série ; US-47 mise à jour dans le même commit.
+- Republication reliée (US-48, `linked`) : enregistrée `MANUAL`, aucune écriture sur Vinted, elle ne compte pas dans la cadence de la série (avant US-49, elle comptait comme une tentative).
+- Refus devenus impossibles pour un clic retirés du contrat (US-49) : `CADENCE_LIMIT_REACHED` (suppression, doublon, republication, relance), `TOO_EARLY` (republication), et les dates `allowedAt` / `republishableAt` de ces refus ; la série journalise toujours ses attentes de cadence et de date (`JournalWriter`). La fiche n'affiche plus la date de republication (seul le compte à rebours la montrait).
 - Statut `validée` : l'utilisateur a demandé (2026-11-20) de suivre les recommandations et de lancer le développement.
 
 ## Questions ouvertes

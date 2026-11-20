@@ -1,9 +1,10 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
-import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
+import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -61,7 +62,7 @@ class JpaListingDeletionRepositoryTest extends ApplicationWithDatabaseTest {
 
     @Test
     void gives_back_an_unconfirmed_and_then_a_confirmed_deletion_as_they_were_saved() {
-        ListingDeletion attempt = ListingDeletion.attempted(backup, CLICKED_AT);
+        ListingDeletion attempt = ListingDeletion.attempted(backup, CLICKED_AT, WriteOrigin.RUN);
         deletions.save(attempt);
         assertThat(deletions.findLatest(LISTING)).contains(attempt);
 
@@ -74,7 +75,7 @@ class JpaListingDeletionRepositoryTest extends ApplicationWithDatabaseTest {
     @Test
     void republicationDateSurvivesRestart() {
         // Étant donné une suppression prouvée à 14:32, enregistrée en base
-        deletions.save(ListingDeletion.attempted(backup, Instant.parse("2026-11-11T14:31:58Z"))
+        deletions.save(ListingDeletion.attempted(backup, Instant.parse("2026-11-11T14:31:58Z"), WriteOrigin.RUN)
                 .confirmed(Instant.parse("2026-11-11T14:32:00Z")));
         // Quand l'outil redémarre à 14:34 (rien n'est gardé en mémoire : tout est relu en base)
         // Alors l'aperçu indique toujours « republiable à partir de 14:37 »
@@ -88,10 +89,11 @@ class JpaListingDeletionRepositoryTest extends ApplicationWithDatabaseTest {
         listings.saveAll(List.of(Listing.seen(anActiveListing(other.value()), SAVED_AT)));
         ListingBackup otherBackup = aBackup(other.value(), SAVED_AT);
         listingBackups.save(otherBackup);
-        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT).notDone(CLICKED_AT.plusSeconds(60)));
-        ListingDeletion second = ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(120));
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT,
+                WriteOrigin.RUN).notDone(CLICKED_AT.plusSeconds(60)));
+        ListingDeletion second = ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(120), WriteOrigin.RUN);
         deletions.save(second);
-        ListingDeletion onOther = ListingDeletion.attempted(otherBackup, CLICKED_AT);
+        ListingDeletion onOther = ListingDeletion.attempted(otherBackup, CLICKED_AT, WriteOrigin.RUN);
         deletions.save(onOther);
 
         assertThat(deletions.findAllLatest()).containsExactlyInAnyOrder(second, onOther);
@@ -99,9 +101,10 @@ class JpaListingDeletionRepositoryTest extends ApplicationWithDatabaseTest {
 
     @Test
     void the_latest_attempt_is_the_last_one_clicked() {
-        ListingDeletion notDone = ListingDeletion.attempted(backup, CLICKED_AT).notDone(CLICKED_AT.plusSeconds(60));
+        ListingDeletion notDone = ListingDeletion.attempted(backup, CLICKED_AT,
+                WriteOrigin.RUN).notDone(CLICKED_AT.plusSeconds(60));
         deletions.save(notDone);
-        ListingDeletion second = ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(120));
+        ListingDeletion second = ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(120), WriteOrigin.RUN);
         deletions.save(second);
 
         assertThat(deletions.findLatest(LISTING)).contains(second);
@@ -109,23 +112,35 @@ class JpaListingDeletionRepositoryTest extends ApplicationWithDatabaseTest {
 
     @Test
     void a_listing_cannot_have_two_confirmed_deletions() {
-        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT).confirmed(CLICKED_AT));
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT, WriteOrigin.RUN).confirmed(CLICKED_AT));
 
         assertThatThrownBy(() -> deletions.save(
-                ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(60)).confirmed(CLICKED_AT)))
+                ListingDeletion.attempted(backup, CLICKED_AT.plusSeconds(60), WriteOrigin.RUN).confirmed(CLICKED_AT)))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void only_the_attempts_of_the_asked_origin_are_read() {
+        // US-49 : la cadence de la série ne compte que ses propres tentatives
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT, WriteOrigin.MANUAL));
+
+        assertThat(deletions.findAttemptedSince(WriteOrigin.RUN, CLICKED_AT.minusSeconds(60))).isEmpty();
+        assertThat(deletions.findAttemptedSince(WriteOrigin.MANUAL, CLICKED_AT.minusSeconds(60)))
+                .containsExactly(CLICKED_AT);
+        assertThat(deletions.findLatest(LISTING)).map(ListingDeletion::origin).contains(WriteOrigin.MANUAL);
     }
 
     @Test
     void attemptsSinceSurviveRestart() {
         // Étant donné des tentatives de suppression enregistrées, quelle que soit leur issue
-        ListingDeletion older = ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600));
+        ListingDeletion older = ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600), WriteOrigin.RUN);
         deletions.save(older.notDone(CLICKED_AT));
-        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT));
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT, WriteOrigin.RUN));
         // Quand l'outil redémarre (tout est relu en base)
         // Alors leurs dates sont relues et comptent toujours, sauf celles d'avant la date demandée
-        assertThat(deletions.findAttemptedSince(CLICKED_AT.minusSeconds(3600))).containsExactly(CLICKED_AT);
-        assertThat(deletions.findAttemptedSince(CLICKED_AT.minusSeconds(3601)))
+        assertThat(deletions.findAttemptedSince(WriteOrigin.RUN, CLICKED_AT.minusSeconds(3600)))
+                .containsExactly(CLICKED_AT);
+        assertThat(deletions.findAttemptedSince(WriteOrigin.RUN, CLICKED_AT.minusSeconds(3601)))
                 .containsExactlyInAnyOrder(CLICKED_AT.minusSeconds(3600), CLICKED_AT);
     }
 }

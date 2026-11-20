@@ -225,6 +225,9 @@ class FailedListingsPageTest {
         // Alors elle propose « Republier manuellement »
         assertThat(group("refused").getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
                 .setName("Republier manuellement"))).isVisible();
+        // Et, clic du membre, « Republier sur Vinted » sans attendre la date (US-49)
+        assertThat(group("refused").getByRole(AriaRole.BUTTON, new Locator.GetByRoleOptions()
+                .setName("Republier sur Vinted"))).isVisible();
     }
 
     @Test

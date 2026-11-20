@@ -1,10 +1,8 @@
 package fr.vinted.republisher.adapter.in.web;
 
-import fr.vinted.republisher.application.cadence.CadenceCheck;
 import fr.vinted.republisher.application.duplicate.DeleteDuplicate;
 import fr.vinted.republisher.application.duplicate.ShowDuplicates;
 import fr.vinted.republisher.application.journal.JournalWriter;
-import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -28,7 +26,6 @@ import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 
 import java.time.Clock;
-import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
@@ -174,8 +171,6 @@ class DuplicateApiControllerTest {
             return new DeleteDuplicate(new VintedSession(), showDuplicates, listings, vinted,
                     new InMemoryListingEraser(listings, new InMemoryListingBackupRepository()),
                     new InMemoryPhotoStorage(), DeletionMode.REAL,
-                    new CadenceCheck(new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-                            journal, new WriteCadence(Duration.ofMinutes(2), Duration.ofMinutes(2), 20, 20), clock),
                     new JournalWriter(journal, clock));
         }
     }

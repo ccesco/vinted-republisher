@@ -13,6 +13,7 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.FailedListing;
@@ -236,7 +237,8 @@ class LinkRepublishedListingAcceptanceTest {
         assertThatThrownBy(() -> validate().published(LISTING, Optional.of(NEW_LISTING_LINK)))
                 .isInstanceOf(NoRepublicationToVerify.class);
         // Et une annonce déjà republiée ne se valide plus (sa vérification la compare, comme US-13)
-        deletions.save(ListingDeletion.attempted(listingBackups.find(LISTING).orElseThrow(), DELETED_AT)
+        deletions.save(ListingDeletion.attempted(listingBackups.find(LISTING).orElseThrow(), DELETED_AT,
+                WriteOrigin.RUN)
                 .confirmed(DELETED_AT.plusSeconds(5)));
         republications.save(ListingRepublication.linked(listingBackups.find(LISTING).orElseThrow(),
                 new VintedListingId(3), DELETED_AT.plusSeconds(600)));
@@ -323,7 +325,8 @@ class LinkRepublishedListingAcceptanceTest {
     private ListingBackup aRefusedListingToLink() {
         ListingBackup backup = aBackedUpListing();
         listings.saveAll(List.of(Listing.seen(aListing(1, "Robe bleue", "12.00", ACTIVE), SAVED_AT).absent()));
-        deletions.save(ListingDeletion.attempted(backup, DELETED_AT).confirmed(DELETED_AT.plusSeconds(5)));
+        deletions.save(ListingDeletion.attempted(backup, DELETED_AT,
+                WriteOrigin.RUN).confirmed(DELETED_AT.plusSeconds(5)));
         journal.write(new ActionRecord(DELETED_AT.plusSeconds(600), JournaledAction.REPUBLICATION,
                 ActionOutcome.REFUSED, Optional.of(LISTING), Optional.of("FIELD_NOT_FILLABLE")));
         return backup;

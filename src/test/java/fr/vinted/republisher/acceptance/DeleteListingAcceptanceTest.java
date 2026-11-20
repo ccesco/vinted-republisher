@@ -2,9 +2,6 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.backup.ShowListingBackup;
 import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
-import fr.vinted.republisher.domain.cadence.WriteCadence;
-import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -12,12 +9,21 @@ import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.BackupValidation;
+import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
+import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
+import fr.vinted.republisher.domain.deletion.DeletionMode;
+import fr.vinted.republisher.domain.deletion.DeletionOutcome;
+import fr.vinted.republisher.domain.deletion.DeletionReport;
+import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingAlreadyDeleted;
 import fr.vinted.republisher.domain.deletion.ListingChanged;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDifference;
-import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
 import fr.vinted.republisher.domain.deletion.NoUnconfirmedDeletion;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
@@ -28,16 +34,10 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
-import fr.vinted.republisher.domain.session.VintedUnreachable;
-import fr.vinted.republisher.domain.wardrobe.Price;
-import fr.vinted.republisher.domain.backup.ListingBackup;
-import fr.vinted.republisher.domain.backup.ListingReading;
-import fr.vinted.republisher.domain.deletion.DeletionMode;
-import fr.vinted.republisher.domain.deletion.DeletionOutcome;
-import fr.vinted.republisher.domain.deletion.DeletionReport;
-import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.session.VintedSession;
+import fr.vinted.republisher.domain.session.VintedUnreachable;
 import fr.vinted.republisher.domain.wardrobe.Listing;
+import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
@@ -46,6 +46,7 @@ import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -53,7 +54,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.math.BigDecimal;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -99,7 +99,7 @@ class DeleteListingAcceptanceTest {
         ListingBackup backup = aValidatedListing();
         vinted.showing(anActiveListing(1));
         // Quand je confirme « Supprimer définitivement » sur la version affichée
-        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors l'outil relit l'annonce, clique sur la suppression puis confirme dans Vinted
         // Et Vinted ne montre plus l'annonce
         // Et la suppression est confirmée, avec sa date et la version de la sauvegarde
@@ -125,7 +125,8 @@ class DeleteListingAcceptanceTest {
         validations.save(new BackupValidation(LISTING, SAVED_AT.minusSeconds(3600), VALIDATED_AT));
         vinted.showing(anActiveListing(1));
         // Quand je demande sa suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (« sauvegarde non validée »)
         // Et Chrome n'est pas ouvert
         assertThat(refusal).isInstanceOf(BackupNotValidated.class);
@@ -140,7 +141,8 @@ class DeleteListingAcceptanceTest {
         listingBackups.save(ListingBackup.of(aReading(1), NOW));
         vinted.showing(anActiveListing(1));
         // Quand je confirme la suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (« sauvegarde remplacée ») et Chrome n'est pas ouvert
         assertThat(refusal).isInstanceOf(BackupReplaced.class);
         assertNothingHappened();
@@ -153,7 +155,8 @@ class DeleteListingAcceptanceTest {
         photos.lose(1, backup.photos().getFirst());
         vinted.showing(anActiveListing(1));
         // Quand je demande sa suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée avec l'échec de vérification « photo N manquante »
         // Et Chrome n'est pas ouvert
         assertThat(refusal).isInstanceOfSatisfying(BackupNotVerified.class, notVerified ->
@@ -168,7 +171,8 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(aListing(1, "Pull rayé 1", "10.00", ACTIVE));
         // Quand je demande sa suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée avec « prix changé : 12,00 € sauvegardé, 10,00 € lu »
         // Et aucun clic n'a été fait sur Vinted
         assertThat(refusal).isInstanceOfSatisfying(ListingChanged.class, changed ->
@@ -183,7 +187,8 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anInactiveListing(1));
         // Quand je demande sa suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée avec « annonce plus active sur Vinted »
         // Et aucun clic n'a été fait sur Vinted
         assertThat(refusal).isInstanceOfSatisfying(ListingChanged.class, changed ->
@@ -196,10 +201,11 @@ class DeleteListingAcceptanceTest {
         // Étant donné une annonce dont la suppression est confirmée
         aValidatedListing();
         vinted.showing(anActiveListing(1));
-        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         int pagesOpened = vinted.pagesOpened();
         // Quand je demande de nouveau sa suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (« déjà supprimée ») et Chrome n'est pas ouvert
         assertThat(refusal).isInstanceOf(ListingAlreadyDeleted.class);
         assertThat(vinted.pagesOpened()).isEqualTo(pagesOpened);
@@ -212,7 +218,8 @@ class DeleteListingAcceptanceTest {
         vinted.showing(anActiveListing(1));
         session.start(BrowserAction.SCANNING);
         // Quand je demande la suppression d'une annonce validée
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (« une action est en cours ») et le scan continue
         assertThat(refusal).isInstanceOf(BrowserBusy.class);
         assertThat(session.overview().currentAction()).contains(BrowserAction.SCANNING);
@@ -252,7 +259,8 @@ class DeleteListingAcceptanceTest {
         vinted.showing(anActiveListing(1));
         failure.accept(this);
         // Quand je demande sa suppression
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée avec <problème>
         // Et aucun clic n'a été fait sur Vinted, aucune suppression n'est enregistrée
         // Et le verrou est libéré
@@ -265,11 +273,11 @@ class DeleteListingAcceptanceTest {
         // Étant donné une suppression réelle qui échoue avant le clic (US-15 : sa réservation de cadence est rendue)
         aValidatedListing();
         vinted.showing(anActiveListing(1)).whereVintedRefuses();
-        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT)))
+        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN)))
                 .isInstanceOf(VintedUnreachable.class);
         // Quand je la redemande aussitôt, Vinted répondant de nouveau
         vinted.showing(anActiveListing(1)).whereVintedAnswersAgain();
-        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors elle a lieu : aucune écriture n'a été tentée, rien ne retient la cadence
         assertThat(report.lastDeletion()).map(ListingDeletion::attemptedAt).contains(NOW);
     }
@@ -281,7 +289,7 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1)).whereTheListingStaysOnceConfirmed();
         // Quand je demande sa suppression
-        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors aucun nouvel essai n'est fait
         // Et la suppression est enregistrée « non confirmée »
         // Et l'aperçu affiche « suppression non confirmée, vérifier sur Vinted »
@@ -289,7 +297,7 @@ class DeleteListingAcceptanceTest {
         assertThat(vinted.confirmationClicks()).isEqualTo(1);
         assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.UNCONFIRMED);
         assertThat(listings.find(LISTING)).map(Listing::present).contains(true);
-        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT)))
+        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN)))
                 .isInstanceOf(DeletionUnconfirmed.class);
         assertThat(vinted.confirmationClicks()).isEqualTo(1);
     }
@@ -301,7 +309,7 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1)).whereBrowserStopsAfterTheConfirmation();
         // Quand je demande sa suppression
-        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors la suppression est enregistrée « non confirmée », sans nouvel essai
         // Et le verrou est libéré
         assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.UNCONFIRMED);
@@ -315,7 +323,7 @@ class DeleteListingAcceptanceTest {
         vinted.showing(anActiveListing(1));
         deletions.whereDatabaseGoesDownAfter(1);
 
-        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
 
         assertThat(vinted.confirmationClicks()).isEqualTo(1);
         assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.UNCONFIRMED);
@@ -330,7 +338,7 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1));
         // Quand je confirme « Supprimer définitivement »
-        DeletionReport report = deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors l'outil relit l'annonce et trouve le bouton de suppression
         // Et aucun clic de suppression n'est fait
         // Et la réponse indique « dry-run réussi, rien supprimé »
@@ -350,7 +358,8 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(aListing(1, "Pull rayé 1", "10.00", ACTIVE));
         // Quand je confirme « Supprimer définitivement »
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors la demande est refusée avec « prix changé », comme une vraie suppression
         // Et aucune suppression n'est enregistrée
         assertThat(refusal).isInstanceOf(ListingChanged.class);
@@ -365,7 +374,8 @@ class DeleteListingAcceptanceTest {
         anotherDeletionAttemptedAt(NOW);
         // Quand le membre lance la suppression d'une autre annonce à 10:00:20
         clock.advance(Duration.ofSeconds(20));
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir de 10:00:30), rien n'est touché sur Vinted ni
         // enregistré, et le verrou est libéré
         assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
@@ -378,8 +388,24 @@ class DeleteListingAcceptanceTest {
         // Quand il la relance à 10:00:30
         clock.advance(Duration.ofSeconds(10));
         // Alors elle a lieu
-        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
+        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN).lastDeletion())
                 .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+    }
+
+    @Test
+    void manual_deletion_ignores_the_cadence() {
+        // Étant donné une suppression faite il y a 10 secondes et le plafond de suppressions atteint (AT-49-01)
+        aValidatedListing();
+        vinted.showing(anActiveListing(1));
+        anotherDeletionAttemptedAt(NOW.minus(Duration.ofHours(1)));
+        anotherDeletionAttemptedAt(NOW.minusSeconds(10));
+        // Quand le membre supprime une autre annonce depuis sa fiche
+        DeletionReport report = deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.MANUAL);
+        // Alors elle est supprimée sur Vinted et journalisée
+        assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
+        assertThat(deletions.findLatest(LISTING)).map(ListingDeletion::origin).contains(WriteOrigin.MANUAL);
+        assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome)
+                .containsExactly(tuple(JournaledAction.DELETION, ActionOutcome.SUCCEEDED));
     }
 
     @Test
@@ -390,7 +416,8 @@ class DeleteListingAcceptanceTest {
         anotherDeletionAttemptedAt(Instant.parse("2026-11-10T11:00:00Z"));
         anotherDeletionAttemptedAt(Instant.parse("2026-11-10T13:00:00Z"));
         // Quand le membre lance une suppression aujourd'hui à 10:00
-        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (CADENCE_LIMIT_REACHED, à partir d'aujourd'hui 11:00)
         assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
                 limit -> assertThat(limit.allowedAt()).isEqualTo(Instant.parse("2026-11-11T11:00:00Z")));
@@ -398,7 +425,7 @@ class DeleteListingAcceptanceTest {
         // Quand il la relance aujourd'hui à 11:00
         clock.set(Instant.parse("2026-11-11T11:00:00Z"));
         // Alors elle a lieu
-        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
+        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN).lastDeletion())
                 .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
     }
 
@@ -409,7 +436,7 @@ class DeleteListingAcceptanceTest {
         vinted.showing(anActiveListing(1));
         anotherDeletionAttemptedAt(NOW.minus(Duration.ofMinutes(1)));
         // Quand le membre lance une suppression
-        DeletionReport report = deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT);
+        DeletionReport report = deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors le dry-run a lieu et rien n'est enregistré
         assertThat(report.dryRunPassed()).isTrue();
         assertThat(deletions.findAll()).hasSize(1);
@@ -446,7 +473,7 @@ class DeleteListingAcceptanceTest {
         assertThat(report.lastDeletion()).map(ListingDeletion::outcome).contains(DeletionOutcome.NOT_DONE);
         vinted.whereTheListingGoesOnceConfirmed();
         clock.advance(Duration.ofMinutes(2));
-        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT).lastDeletion())
+        assertThat(deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN).lastDeletion())
                 .map(ListingDeletion::outcome).contains(DeletionOutcome.CONFIRMED);
     }
 
@@ -498,7 +525,7 @@ class DeleteListingAcceptanceTest {
                 DeletionMode.REAL, new RepublicationDelay(Duration.ofMinutes(5))).show(LISTING).lastDeletion())
                 .map(ListingDeletion::outcome)
                 .contains(DeletionOutcome.UNCONFIRMED);
-        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT)))
+        assertThat(catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN)))
                 .isInstanceOf(DeletionUnconfirmed.class);
     }
 
@@ -508,7 +535,7 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1));
         // Quand le membre demande sa suppression
-        deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT);
+        deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors le journal contient « Suppression : dry-run » pour l'annonce
         assertThat(journal.records()).containsExactly(new ActionRecord(NOW, JournaledAction.DELETION,
                 ActionOutcome.DRY_RUN, Optional.of(LISTING), Optional.empty()));
@@ -519,7 +546,7 @@ class DeleteListingAcceptanceTest {
         // US-23 AT-23-06. Quand la suppression de l'annonce est prouvée
         aValidatedListing();
         vinted.showing(anActiveListing(1));
-        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors le journal contient « Suppression : confirmée »
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.DELETION, ActionOutcome.SUCCEEDED, Optional.empty()));
@@ -539,7 +566,7 @@ class DeleteListingAcceptanceTest {
         // US-23 AT-23-06. Quand la suppression est refusée car la sauvegarde n'est pas validée
         aValidatedListing();
         validations.save(new BackupValidation(LISTING, SAVED_AT.minusSeconds(3600), VALIDATED_AT));
-        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN));
         // Alors le journal contient « Suppression : refusée », raison « sauvegarde non validée »
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.DELETION, ActionOutcome.REFUSED, Optional.of("NOT_VALIDATED")));
@@ -551,7 +578,7 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(anActiveListing(1)).whereSessionIsDisconnected();
         // Quand le membre demande la suppression
-        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN));
         // Alors le journal contient « Suppression : en échec », raison « session non connectée »
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.DELETION, ActionOutcome.FAILED, Optional.of("SESSION_DISCONNECTED")));
@@ -563,7 +590,7 @@ class DeleteListingAcceptanceTest {
         aValidatedListing();
         vinted.showing(aListing(1, "Pull rayé 1", "10.00", ACTIVE));
         // Quand le membre demande la suppression
-        catchThrowable(() -> deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT));
+        catchThrowable(() -> deleteListing(DeletionMode.DRY_RUN).delete(LISTING, SAVED_AT, WriteOrigin.RUN));
         // Alors le journal contient « Suppression : refusée », raison « annonce différente », pas un dry-run
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.DELETION, ActionOutcome.REFUSED, Optional.of("LISTING_CHANGED")));
@@ -597,7 +624,7 @@ class DeleteListingAcceptanceTest {
         vinted.showing(anActiveListing(1));
         deletions.whereDatabaseIsDown();
         // Quand le membre demande sa suppression
-        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT));
+        catchThrowable(() -> deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN));
         // Alors le journal contient « Suppression : échec », raison « échec de la suppression »
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.DELETION, ActionOutcome.FAILED, Optional.of("DELETION_FAILED")));
@@ -606,7 +633,7 @@ class DeleteListingAcceptanceTest {
     private void anUnconfirmedDeletion() {
         aValidatedListing();
         vinted.showing(anActiveListing(1)).whereTheListingStaysOnceConfirmed();
-        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT);
+        deleteListing(DeletionMode.REAL).delete(LISTING, SAVED_AT, WriteOrigin.RUN);
     }
 
     private void assertNothingHappened() {
@@ -616,7 +643,7 @@ class DeleteListingAcceptanceTest {
     }
 
     private void anotherDeletionAttemptedAt(Instant attemptedAt) {
-        deletions.save(ListingDeletion.attempted(aBackup(2, SAVED_AT), attemptedAt));
+        deletions.save(ListingDeletion.attempted(aBackup(2, SAVED_AT), attemptedAt, WriteOrigin.RUN));
     }
 
     private void assertNothingTouchedOnVinted() {

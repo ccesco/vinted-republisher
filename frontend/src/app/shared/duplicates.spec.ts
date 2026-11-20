@@ -39,8 +39,6 @@ describe('duplicates (US-47)', () => {
         { kind: 'PRICE_CHANGED', savedPrice: { amount: 12, currency: 'EUR' }, readPrice: { amount: 10, currency: 'EUR' } }]
     }, 422)).toBe('Doublon non supprimé : annonce différente sur Vinted (plus en vente ; prix 10,00 € lu, '
       + '12,00 € enregistré).');
-    expect(duplicateRefusalMessageOf({ reason: 'CADENCE_LIMIT_REACHED', allowedAt: '2026-11-19T10:00:30Z' }, 409))
-      .toMatch(/^Doublon non supprimé : limite de cadence atteinte, possible à partir du /);
   });
 
   it('says when the listing is unknown or the application does not answer', () => {

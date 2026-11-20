@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.config;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import org.junit.jupiter.api.Test;
@@ -31,7 +32,8 @@ class RepublicationConfigurationTest {
     @Test
     void minimumDelayIsConfigurable() {
         ListingDeletion provenAt1432 = ListingDeletion.attempted(aBackup(1, Instant.parse("2026-11-10T10:00:00Z")),
-                Instant.parse("2026-11-11T14:31:58Z")).confirmed(Instant.parse("2026-11-11T14:32:00Z"));
+                Instant.parse("2026-11-11T14:31:58Z"),
+                        WriteOrigin.RUN).confirmed(Instant.parse("2026-11-11T14:32:00Z"));
 
         application.withPropertyValues("republication.minimum-delay=PT10M")
                 .run(context -> assertThat(context.getBean(RepublicationDelay.class).republishableAt(provenAt1432))

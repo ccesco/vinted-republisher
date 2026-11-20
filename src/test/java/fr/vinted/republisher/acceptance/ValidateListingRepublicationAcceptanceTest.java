@@ -1,14 +1,10 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
-import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.inventory.ShowFailedListings;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
-import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
-import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
-import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
@@ -16,6 +12,7 @@ import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
@@ -38,10 +35,14 @@ import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
+import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 
@@ -125,7 +126,7 @@ class ValidateListingRepublicationAcceptanceTest {
     void invalid_link_is_refused_without_opening_chrome() {
         // Étant donné une annonce en erreur de republication, et une autre déjà republiée en annonce 7
         ListingRepublication failed = aFailedRepublication();
-        republications.save(ListingRepublication.attempted(aDeletedListing(9), CLICKED_AT)
+        republications.save(ListingRepublication.attempted(aDeletedListing(9), CLICKED_AT, WriteOrigin.RUN)
                 .published(new VintedListingId(7), CLICKED_AT.plusSeconds(5)));
         // Quand le membre la valide « publiée » sans lien, avec un lien sans identifiant d'annonce, avec le lien de
         // l'ancienne annonce ou de la nouvelle annonce d'une autre republication
@@ -164,11 +165,13 @@ class ValidateListingRepublicationAcceptanceTest {
         // Alors elle est refusée (NO_REPUBLICATION_TO_VERIFY) et Chrome n'est pas ouvert
         assertThatThrownBy(() -> validate().notPublished(LISTING)).isInstanceOf(NoRepublicationToVerify.class);
         // De même, réussie ou « non publiée »
-        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), CLICKED_AT)
+        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), CLICKED_AT,
+                WriteOrigin.RUN)
                 .published(NEW_LISTING, CLICKED_AT.plusSeconds(5)));
         assertThatThrownBy(() -> validate().published(LISTING, Optional.of("https://www.vinted.fr/items/3-robe")))
                 .isInstanceOf(NoRepublicationToVerify.class);
-        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), NOW)
+        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), NOW,
+                WriteOrigin.RUN)
                 .notPublished(NOW));
         assertThatThrownBy(() -> validate().notPublished(LISTING)).isInstanceOf(NoRepublicationToVerify.class);
         assertThat(contents.opened()).isEmpty();
@@ -322,13 +325,13 @@ class ValidateListingRepublicationAcceptanceTest {
         ListingBackup backup = ListingBackup.of(reading, SAVED_AT);
         listingBackups.save(backup);
         validations.save(BackupValidation.of(backup, SAVED_AT.plusSeconds(60)));
-        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600))
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600), WriteOrigin.RUN)
                 .confirmed(CLICKED_AT.minusSeconds(3595)));
         return backup;
     }
 
     private ListingRepublication aFailedRepublication() {
-        ListingRepublication failed = ListingRepublication.attempted(aDeletedListing(1), CLICKED_AT);
+        ListingRepublication failed = ListingRepublication.attempted(aDeletedListing(1), CLICKED_AT, WriteOrigin.RUN);
         republications.save(failed);
         return failed;
     }

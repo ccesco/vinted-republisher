@@ -6,6 +6,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingBackupViewDto;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,7 +29,8 @@ public class ListingDeletionApiController implements ListingDeletionApi {
     @Override
     public ResponseEntity<ListingBackupViewDto> deleteListing(Long listingId, DeletionRequestDto request) {
         return ResponseEntity.ok(ListingBackupApiController.toDto(showListingRepublication.around(
-                deleteListing.delete(new VintedListingId(listingId), request.getSavedAt().toInstant()))));
+                deleteListing.delete(new VintedListingId(listingId), request.getSavedAt().toInstant(),
+                        WriteOrigin.MANUAL))));
     }
 
     @Override

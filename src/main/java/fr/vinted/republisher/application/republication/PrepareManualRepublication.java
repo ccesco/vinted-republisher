@@ -2,6 +2,7 @@ package fr.vinted.republisher.application.republication;
 
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.RepublicationChecks.RepublishableBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
@@ -56,8 +57,8 @@ public class PrepareManualRepublication {
     /**
      * {@code seen} is the date of the backup the member saw. Checked as a republication, except that neither the
      * republication date nor the write cadence holds it back; then refused in dry-run, before Chrome opens. Once the
-     * form is filled, a republication in error is recorded: it counts in the cadence of the following writes, and the
-     * member's publication is then verified or validated as any other (US-13).
+     * form is filled, a republication in error is recorded, by the member's hand: it does not count in the
+     * run's cadence (US-49), and the member's publication is then verified or validated as any other (US-13).
      */
     public ManualRepublicationReport prepare(VintedListingId id, Instant seen) {
         return journal.journaled(JournaledAction.REPUBLICATION, id, () -> prepareNow(id, seen),
@@ -74,7 +75,8 @@ public class PrepareManualRepublication {
         }
         try {
             List<UnfilledField> unfilled = publisher.prepare(republishable.backup().content(), republishable.photos());
-            republications.save(ListingRepublication.attempted(republishable.backup(), clock.instant()));
+            republications.save(ListingRepublication.attempted(republishable.backup(), clock.instant(),
+                    WriteOrigin.MANUAL));
             return new ManualRepublicationReport(showListingRepublication.report(id, false), unfilled);
         } finally {
             session.finish(id);

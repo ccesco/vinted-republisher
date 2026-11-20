@@ -1,8 +1,6 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.domain.cadence.WriteCadence;
-import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
@@ -10,6 +8,8 @@ import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -24,6 +24,7 @@ import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 
@@ -112,13 +113,13 @@ class RepublicationDelayAcceptanceTest {
     private void aConfirmedDeletion(long listing) {
         aValidatedListing(listing);
         vinted.showing(anActiveListing(listing));
-        deleteListing().delete(new VintedListingId(listing), SAVED_AT);
+        deleteListing().delete(new VintedListingId(listing), SAVED_AT, WriteOrigin.RUN);
     }
 
     private void anUnconfirmedDeletion(long listing) {
         aValidatedListing(listing);
         vinted.showing(anActiveListing(listing)).whereTheListingStaysOnceConfirmed();
-        deleteListing().delete(new VintedListingId(listing), SAVED_AT);
+        deleteListing().delete(new VintedListingId(listing), SAVED_AT, WriteOrigin.RUN);
     }
 
     private ShowListingDeletion showListingDeletion() {

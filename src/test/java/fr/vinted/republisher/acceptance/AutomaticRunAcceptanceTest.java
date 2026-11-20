@@ -19,26 +19,28 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.DeletionVisit;
 import fr.vinted.republisher.domain.deletion.ListingDeleter;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
-import fr.vinted.republisher.domain.journal.ActionOutcome;
+import fr.vinted.republisher.domain.journal.ActionRecord;
+import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
-import fr.vinted.republisher.domain.relaunch.RelaunchAction;
 import fr.vinted.republisher.domain.run.AutomaticRun;
 import fr.vinted.republisher.domain.run.ParallelismMode;
+import fr.vinted.republisher.domain.run.RunStatus;
+import fr.vinted.republisher.domain.run.RunStopReason;
+import fr.vinted.republisher.domain.run.RunWaiting;
 import fr.vinted.republisher.domain.run.RunWaitingReason;
 import fr.vinted.republisher.domain.run.RunWorker;
 import fr.vinted.republisher.domain.run.RunWorkerKind;
 import fr.vinted.republisher.domain.run.RunWorkerState;
-import fr.vinted.republisher.domain.run.RunStatus;
-import fr.vinted.republisher.domain.run.RunStopReason;
-import fr.vinted.republisher.domain.run.RunWaiting;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.session.VintedSession;
@@ -46,9 +48,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingLink;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
-import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
@@ -59,10 +59,10 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
-import fr.vinted.republisher.domain.journal.ActionRecord;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -162,7 +162,7 @@ class AutomaticRunAcceptanceTest {
 
     private ListingBackup aRepublicationToCheck(VintedListingId id, String title, String price, long newId) {
         ListingBackup backup = aDeletedListing(id, title, price);
-        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600)));
+        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600), WriteOrigin.RUN));
         wardrobe.holding(aListing(newId, title, price, ACTIVE));
         contents.showing(new ListingReading(sameAs(backup.content(), newId), List.of(aPhoto("front"))));
         return backup;
@@ -170,7 +170,8 @@ class AutomaticRunAcceptanceTest {
 
     /** Its deletion was tried and is done on Vinted: a recheck confirms it. */
     private void aDeletionToCheck(VintedListingId id, String title, String price) {
-        deletions.save(ListingDeletion.attempted(aValidatedListing(id, title, price), NOW.minusSeconds(600)));
+        deletions.save(ListingDeletion.attempted(aValidatedListing(id, title, price), NOW.minusSeconds(600),
+                WriteOrigin.RUN));
         deleter.gone(id);
     }
 
@@ -479,7 +480,7 @@ class AutomaticRunAcceptanceTest {
     void checks_before_writing() {
         // Étant donné une annonce « Republication à vérifier » dont la nouvelle annonce est dans le dressing
         ListingBackup robe = aDeletedListing(ROBE, "Robe bleue", "12.00");
-        republications.save(ListingRepublication.attempted(robe, NOW.minusSeconds(600)));
+        republications.save(ListingRepublication.attempted(robe, NOW.minusSeconds(600), WriteOrigin.RUN));
         wardrobe.holding(aListing(11, "Robe bleue", "12.00", ACTIVE));
         contents.showing(new ListingReading(sameAs(robe.content(), 11), List.of(aPhoto("front"))));
         // Et une annonce « Prête à supprimer »
@@ -553,7 +554,7 @@ class AutomaticRunAcceptanceTest {
     void listing_still_to_check_is_skipped() {
         // Étant donné une annonce « Republication à vérifier » dont la nouvelle annonce n'est pas dans le dressing
         ListingBackup robe = aDeletedListing(ROBE, "Robe bleue", "12.00");
-        republications.save(ListingRepublication.attempted(robe, NOW.minusSeconds(600)));
+        republications.save(ListingRepublication.attempted(robe, NOW.minusSeconds(600), WriteOrigin.RUN));
         // Quand la série la vérifie et qu'elle reste « à vérifier »
         launch();
         // Alors elle est écartée et la série se termine
@@ -581,7 +582,7 @@ class AutomaticRunAcceptanceTest {
     @Test
     void waits_for_the_cadence_limit() {
         // Étant donné une écriture sur Vinted il y a une minute, intervalle 2 minutes, et une annonce « Prête à supprimer »
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60), WriteOrigin.RUN));
         aValidatedListing(ROBE, "Robe bleue", "12.00");
         // Quand la série tourne
         launch();
@@ -593,9 +594,23 @@ class AutomaticRunAcceptanceTest {
     }
 
     @Test
+    void manual_writes_do_not_count_in_the_run_cadence() {
+        // Étant donné une suppression manuelle faite il y a 10 secondes (AT-49-04)
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(10), WriteOrigin.MANUAL));
+        aValidatedListing(ROBE, "Robe bleue", "12.00");
+        // Quand la série cherche à supprimer une annonce
+        launch();
+        // Alors elle la supprime sans attendre (sa seule attente est ensuite la date de republication)
+        assertThat(waiting.untils()).first().isEqualTo(NOW.plus(Duration.ofMinutes(5)));
+        assertThat(deletions.findLatest(ROBE)).map(ListingDeletion::attemptedAt).contains(NOW);
+        assertThat(deletions.findLatest(ROBE)).map(ListingDeletion::origin).contains(WriteOrigin.RUN);
+    }
+
+    @Test
     void waits_for_the_cadence_limit_before_republishing() {
         // Étant donné une republication sur Vinted il y a une minute, intervalle 2 minutes, et une annonce à republier
-        republications.save(ListingRepublication.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        republications.save(ListingRepublication.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60),
+                WriteOrigin.RUN));
         aDeletedListing(ROBE, "Robe bleue", "12.00");
         // Quand la série tourne
         launch();
@@ -610,7 +625,7 @@ class AutomaticRunAcceptanceTest {
     void dry_run_does_not_wait_for_the_cadence() {
         // Étant donné une écriture sur Vinted il y a une minute, et une annonce « Prête à supprimer » en dry-run
         deletionMode = DeletionMode.DRY_RUN;
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60), WriteOrigin.RUN));
         aValidatedListing(ROBE, "Robe bleue", "12.00");
         // Quand la série tourne
         launch();
@@ -643,7 +658,7 @@ class AutomaticRunAcceptanceTest {
     @Test
     void a_second_launch_is_ignored_while_running() {
         // Étant donné une série en cours (en attente de la cadence)
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60), WriteOrigin.RUN));
         aValidatedListing(ROBE, "Robe bleue", "12.00");
         List<AutomaticRun> seenWhileWaiting = new ArrayList<>();
         waiting.during(() -> {
@@ -828,7 +843,7 @@ class AutomaticRunAcceptanceTest {
     @Test
     void stop_interrupts_a_wait() {
         // Étant donné une série qui attend la fin d'une limite de cadence
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60), WriteOrigin.RUN));
         aValidatedListing(ROBE, "Robe bleue", "12.00");
         // Quand le membre demande l'arrêt
         waiting.during(() -> launchAutomaticRun.stop());
@@ -843,7 +858,7 @@ class AutomaticRunAcceptanceTest {
     @Test
     void pause_interrupts_a_wait() {
         // Étant donné une série qui attend la fin d'une limite de cadence
-        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SAVED_AT), NOW.minusSeconds(60), WriteOrigin.RUN));
         aValidatedListing(ROBE, "Robe bleue", "12.00");
         List<RunStatus> seen = new ArrayList<>();
         waiting.during(() -> {
@@ -968,7 +983,8 @@ class AutomaticRunAcceptanceTest {
         ListingBackup backup = aValidatedListing(id, title, price);
         listings.saveAll(List.of(Listing.seen(aListing(id.value(), title, price, ACTIVE), SAVED_AT).absent()));
         deleter.gone(id);
-        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(3605)).confirmed(NOW.minusSeconds(3600)));
+        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(3605),
+                WriteOrigin.RUN).confirmed(NOW.minusSeconds(3600)));
         return backup;
     }
 

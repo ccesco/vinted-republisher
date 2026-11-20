@@ -2,7 +2,6 @@ package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.adapter.in.web.api.model.DuplicateDeletionRefusalDto;
 import fr.vinted.republisher.adapter.in.web.api.model.DuplicateDeletionRefusalDto.ReasonEnum;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.deletion.ListingChanged;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
 import fr.vinted.republisher.domain.duplicate.ListingHasHistory;
@@ -21,8 +20,6 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
-import java.time.ZoneOffset;
 
 /**
  * Turns the refusals of the deletion of a duplicate into the statuses and bodies the contract declares. The page
@@ -51,12 +48,6 @@ public class DuplicateDeletionRefusals {
     @ExceptionHandler
     ResponseEntity<DuplicateDeletionRefusalDto> busy(BrowserBusy refusal) {
         return refused(HttpStatus.CONFLICT, ReasonEnum.BROWSER_BUSY);
-    }
-
-    @ExceptionHandler
-    ResponseEntity<DuplicateDeletionRefusalDto> cadenceLimitReached(CadenceLimitReached refusal) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new DuplicateDeletionRefusalDto()
-                .reason(ReasonEnum.CADENCE_LIMIT_REACHED).allowedAt(refusal.allowedAt().atOffset(ZoneOffset.UTC)));
     }
 
     @ExceptionHandler

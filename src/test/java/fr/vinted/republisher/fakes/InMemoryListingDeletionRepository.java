@@ -1,5 +1,6 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionId;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
@@ -43,8 +44,9 @@ public class InMemoryListingDeletionRepository implements ListingDeletionReposit
     }
 
     @Override
-    public synchronized List<Instant> findAttemptedSince(Instant since) {
-        return deletions.values().stream().map(ListingDeletion::attemptedAt)
+    public synchronized List<Instant> findAttemptedSince(WriteOrigin origin, Instant since) {
+        return deletions.values().stream().filter(deletion -> deletion.origin() == origin)
+                .map(ListingDeletion::attemptedAt)
                 .filter(attempted -> attempted.isAfter(since))
                 .toList();
     }

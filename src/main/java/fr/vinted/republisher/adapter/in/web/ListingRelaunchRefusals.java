@@ -7,7 +7,6 @@ import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingAlreadyDeleted;
@@ -23,7 +22,6 @@ import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
 import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.RepublicationInError;
-import fr.vinted.republisher.domain.republication.RepublicationTooEarly;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
@@ -39,10 +37,6 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 
 import jakarta.validation.ConstraintViolationException;
-
-import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 
 /**
  * Turns the refusals of a relaunch, and of the use case it launched, into the statuses and bodies the contract
@@ -67,14 +61,7 @@ public class ListingRelaunchRefusals {
     @ExceptionHandler
     ResponseEntity<RelaunchRefusalDto> notRelaunchable(NotRelaunchable refusal) {
         return conflict(new RelaunchRefusalDto().reason(ReasonEnum.NOT_RELAUNCHABLE)
-                .stage(ListingStageDto.valueOf(refusal.stage().name()))
-                .allowedAt(refusal.allowedAt().map(ListingRelaunchRefusals::utc).orElse(null)));
-    }
-
-    @ExceptionHandler
-    ResponseEntity<RelaunchRefusalDto> cadenceLimitReached(CadenceLimitReached refusal) {
-        return conflict(new RelaunchRefusalDto().reason(ReasonEnum.CADENCE_LIMIT_REACHED)
-                .allowedAt(utc(refusal.allowedAt())));
+                .stage(ListingStageDto.valueOf(refusal.stage().name())));
     }
 
     @ExceptionHandler
@@ -84,7 +71,7 @@ public class ListingRelaunchRefusals {
 
     @ExceptionHandler({ListingNotBackedUp.class, BackupReplaced.class, BackupNotValidated.class,
             BackupNotVerified.class, ListingAlreadyDeleted.class, DeletionUnconfirmed.class,
-            NoUnconfirmedDeletion.class, ListingChanged.class, ListingNotDeleted.class, RepublicationTooEarly.class,
+            NoUnconfirmedDeletion.class, ListingChanged.class, ListingNotDeleted.class,
             ListingAlreadyRepublished.class, RepublicationInError.class, FieldNotFillable.class,
             NoRepublicationToVerify.class})
     ResponseEntity<RelaunchRefusalDto> actionRefused(RuntimeException refusal) {
@@ -134,9 +121,5 @@ public class ListingRelaunchRefusals {
 
     private static ResponseEntity<RelaunchRefusalDto> conflict(RelaunchRefusalDto refusal) {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(refusal);
-    }
-
-    private static OffsetDateTime utc(Instant instant) {
-        return instant.atOffset(ZoneOffset.UTC);
     }
 }

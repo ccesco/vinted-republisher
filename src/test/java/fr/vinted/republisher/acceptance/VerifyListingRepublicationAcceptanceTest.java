@@ -20,6 +20,7 @@ import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
@@ -184,7 +185,8 @@ class VerifyListingRepublicationAcceptanceTest {
     void new_listing_of_another_republication_is_never_a_candidate() {
         aFailedRepublication();
         ListingRepublication other = ListingRepublication.attempted(ListingBackup.of(new ListingReading(
-                aContent(5, "Robe bleue", "Autre", "12.00"), List.of(aPhoto("x"))), SAVED_AT), CLICKED_AT)
+                aContent(5, "Robe bleue", "Autre", "12.00"), List.of(aPhoto("x"))), SAVED_AT), CLICKED_AT,
+                        WriteOrigin.RUN)
                 .published(NEW_LISTING, CLICKED_AT);
         republications.save(other);
         listings.saveAll(List.of(Listing.seen(REPUBLISHED, CLICKED_AT)));
@@ -242,7 +244,7 @@ class VerifyListingRepublicationAcceptanceTest {
         FakeListingPublisher vinted = new FakeListingPublisher(wardrobe);
         vinted.showingOncePublished(REPUBLISHED);
         // Quand le membre republie l'annonce
-        RepublicationReport report = republishListing(vinted).republish(LISTING, SAVED_AT);
+        RepublicationReport report = republishListing(vinted).republish(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors une nouvelle tentative est enregistrée et l'ancienne reste en base
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
                 .contains(RepublicationOutcome.PUBLISHED);
@@ -257,7 +259,8 @@ class VerifyListingRepublicationAcceptanceTest {
         // Quand une vérification est demandée
         // Alors elle est refusée (NO_REPUBLICATION_TO_VERIFY) et Chrome n'est pas ouvert
         assertThatThrownBy(this::verify).isInstanceOf(NoRepublicationToVerify.class);
-        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), CLICKED_AT)
+        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), CLICKED_AT,
+                WriteOrigin.RUN)
                 .notPublished(CLICKED_AT));
         assertThatThrownBy(this::verify).isInstanceOf(NoRepublicationToVerify.class);
         assertThat(wardrobe.reads()).isZero();
@@ -475,18 +478,18 @@ class VerifyListingRepublicationAcceptanceTest {
         ListingBackup backup = ListingBackup.of(reading, SAVED_AT);
         listingBackups.save(backup);
         validations.save(BackupValidation.of(backup, SAVED_AT.plusSeconds(60)));
-        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600))
+        deletions.save(ListingDeletion.attempted(backup, CLICKED_AT.minusSeconds(3600), WriteOrigin.RUN)
                 .confirmed(CLICKED_AT.minusSeconds(3595)));
         return backup;
     }
 
     /** Its last deletion waits to be confirmed: it is neither republished nor to link. */
     private void aListingWithAnUnconfirmedDeletion() {
-        deletions.save(ListingDeletion.attempted(aDeletedListing(), CLICKED_AT.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aDeletedListing(), CLICKED_AT.minusSeconds(60), WriteOrigin.RUN));
     }
 
     private ListingRepublication aFailedRepublication() {
-        ListingRepublication failed = ListingRepublication.attempted(aDeletedListing(), CLICKED_AT);
+        ListingRepublication failed = ListingRepublication.attempted(aDeletedListing(), CLICKED_AT, WriteOrigin.RUN);
         republications.save(failed);
         return failed;
     }
