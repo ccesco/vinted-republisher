@@ -1,0 +1,21 @@
+databaseChangeLog:
+  # Le journal accepte la suppression d'un doublon (US-47).
+  - changeSet:
+      id: 018-journal-duplicate-deletion
+      author: vinted-republisher
+      changes:
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry DROP CONSTRAINT action_journal_entry_action_check;
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'BACKUP_VERIFICATION', 'DELETION',
+                                  'DELETION_RECHECK', 'REPUBLICATION', 'REPUBLICATION_VERIFICATION',
+                                  'REPUBLICATION_VALIDATION', 'STATISTICS_REFRESH', 'DUPLICATE_DELETION'));
+      rollback:
+        - sql:
+            sql: >
+              ALTER TABLE action_journal_entry DROP CONSTRAINT action_journal_entry_action_check;
+              ALTER TABLE action_journal_entry ADD CONSTRAINT action_journal_entry_action_check
+                CHECK (action IN ('SCAN', 'WARDROBE_BACKUP', 'BACKUP_VALIDATION', 'BACKUP_VERIFICATION', 'DELETION',
+                                  'DELETION_RECHECK', 'REPUBLICATION', 'REPUBLICATION_VERIFICATION',
+                                  'REPUBLICATION_VALIDATION', 'STATISTICS_REFRESH'));

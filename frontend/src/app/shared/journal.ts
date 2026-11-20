@@ -7,7 +7,8 @@ const JOURNAL_ACTIONS: Record<string, string> = {
   SCAN: 'Scan du dressing', WARDROBE_BACKUP: 'Sauvegarde du dressing', BACKUP_VALIDATION: 'Validation',
   BACKUP_VERIFICATION: 'Vérification de la sauvegarde', DELETION: 'Suppression', DELETION_RECHECK: 'Revérification',
   REPUBLICATION: 'Republication', REPUBLICATION_VERIFICATION: 'Vérification de la republication',
-  REPUBLICATION_VALIDATION: 'Validation de la republication', STATISTICS_REFRESH: 'Rafraîchissement des vues et favoris'
+  REPUBLICATION_VALIDATION: 'Validation de la republication', STATISTICS_REFRESH: 'Rafraîchissement des vues et favoris',
+  DUPLICATE_DELETION: 'Suppression du doublon'
 };
 const JOURNAL_OUTCOMES: Record<string, string> = {
   STARTED: 'lancée', SUCCEEDED: 'réussie', DRY_RUN: 'dry-run réussi', REFUSED: 'refusée',
@@ -37,7 +38,10 @@ const JOURNAL_REASONS: Record<string, string> = {
   NEW_LISTING_MISMATCH: 'nouvelle annonce différente de la sauvegarde',
   // Motifs d'une vérification de la sauvegarde (US-40), séparés par des virgules ; un champ changé suit son code.
   NO_PHOTO: 'aucune photo gardée', PHOTO_MISSING: 'photo manquante', PHOTO_ALTERED: 'photo modifiée',
-  LISTING_ABSENT: 'annonce absente', FIELD_CHANGED: 'champ changé'
+  LISTING_ABSENT: 'annonce absente', FIELD_CHANGED: 'champ changé',
+  // Refus d'une suppression de doublon (US-47).
+  NOT_A_DUPLICATE: 'pas un doublon', HAS_HISTORY: 'historique à garder',
+  TWIN_NOT_CONFIRMED: 'aucune jumelle confirmée sur Vinted', CADENCE_LIMIT_REACHED: 'limite de cadence'
 };
 
 // Une raison peut en réunir plusieurs (« FIELD_CHANGED:SIZE, PHOTO_MISSING ») ; un code inconnu reste tel quel.

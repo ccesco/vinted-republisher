@@ -1,19 +1,22 @@
 import { Component, DestroyRef, inject, signal } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Title } from '@angular/platform-browser';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, Router } from '@angular/router';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import { MatButtonModule } from '@angular/material/button';
 import { MatFormFieldModule } from '@angular/material/form-field';
 import { MatInputModule } from '@angular/material/input';
 import { Observable, map } from 'rxjs';
 import {
-  BackupVerification, DeletionRefusal, LifecycleEvent, ListingBackupContent, ListingBackupService,
+  BackupVerification, DeletionRefusal, DuplicateDeletionRefusal, DuplicatesService, LifecycleEvent, ListingBackupContent, ListingBackupService,
   ListingBackupView, ListingDeletionService, ListingDetail as ListingDetailView, ListingDetailService,
   ListingDifference, ListingFieldDifference, ListingRepublicationService, ListingStatistics, RepublicationAdvice,
   RepublicationRefusal, StatisticsComparison, ValidationRefusal, VerificationFailure
 } from '../../generated/api';
 import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
+import {
+  duplicateConfirmationOf, duplicateOutcomeMessageOf, duplicateRefusalMessageOf, erased, twinsSentenceOf
+} from '../shared/duplicates';
 import { dateOf, dayOf, listingLink, priceOf } from '../shared/format';
 import { JournalLine, journalLineOf } from '../shared/journal';
 import { manualRepublicationMessageOf } from '../shared/manual-republication';
@@ -63,12 +66,17 @@ export class ListingDetail {
   protected readonly republicationWaiting = signal(false);
   protected readonly newListingUrl = signal('');
   protected readonly manualRepublicationMessage = signal('');
+  protected readonly duplicateAsked = signal(false);
+  protected readonly duplicateMessage = signal('');
+  protected readonly twinsSentenceOf = twinsSentenceOf;
 
   private readonly title = inject(Title);
   private readonly details = inject(ListingDetailService);
   private readonly backups = inject(ListingBackupService);
   private readonly deletions = inject(ListingDeletionService);
   private readonly republications = inject(ListingRepublicationService);
+  private readonly duplicates = inject(DuplicatesService);
+  private readonly router = inject(Router);
   private listingId = 0;
   // Numéro de la dernière ouverture : une réponse arrivée après le passage à une autre annonce est ignorée.
   private opening = 0;
@@ -111,6 +119,41 @@ export class ListingDetail {
     this.deletionAsked.set(false);
     this.republicationAsked.set(false);
     this.newListingUrl.set('');
+    this.duplicateAsked.set(false);
+    this.duplicateMessage.set('');
+  }
+
+  // US-47 : la confirmation nomme l'annonce effacée et la ou les jumelles gardées.
+  protected duplicateConfirmation(detail: ListingDetailView): string {
+    return duplicateConfirmationOf(this.listingId, detail.duplicateTwinIds, detail.deletionDryRun);
+  }
+
+  // Un doublon effacé n'a plus de fiche : la page « Doublons » s'ouvre ; sinon la fiche se relit.
+  protected async confirmDuplicateDeletion(): Promise<void> {
+    const opening = this.opening;
+    const listingId = this.listingId;
+    this.duplicateAsked.set(false);
+    this.sending.set(true);
+    try {
+      const report = await answerOf(this.duplicates.deleteDuplicate(listingId));
+      if (opening !== this.opening) {
+        return;
+      }
+      if (erased(report)) {
+        await this.router.navigate(['/duplicates']);
+        return;
+      }
+      this.duplicateMessage.set(duplicateOutcomeMessageOf(listingId, report));
+    } catch (failure) {
+      if (opening === this.opening) {
+        this.duplicateMessage.set(duplicateRefusalMessageOf(
+          await refusalOf<DuplicateDeletionRefusal>(failure), statusOf(failure)));
+      }
+    } finally {
+      if (opening === this.opening) {
+        this.sending.set(false);
+      }
+    }
   }
 
   protected stageText(): string {

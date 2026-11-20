@@ -134,7 +134,7 @@ public class ListingDeletionRefusals {
         return ResponseEntity.status(status).body(new DeletionRefusalDto().reason(reason));
     }
 
-    private static ListingDifferenceDto toDto(ListingDifference difference) {
+    static ListingDifferenceDto toDto(ListingDifference difference) {
         return switch (difference) {
             case ListingDifference.NotActive notActive ->
                     new ListingDifferenceDto().kind(ListingDifferenceDto.KindEnum.NOT_ACTIVE);

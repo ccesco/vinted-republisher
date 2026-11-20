@@ -18,7 +18,8 @@ public interface ActionJournal {
 
     /**
      * The most recent entry of each listing named in the journal, in no particular order, refusals that only ask to
-     * wait ({@link ActionRecord#isWaitingRefusal()}) left aside.
+     * wait ({@link ActionRecord#isWaitingRefusal()}) and deletions of duplicates (US-47, outside the life of a
+     * listing) left aside.
      */
     List<JournalEntry> lastOfEachListing();
 }

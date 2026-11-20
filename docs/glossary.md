@@ -156,6 +156,14 @@ Les termes du code sont en anglais ; les specs restent en français. Un terme an
 | `ListingAlreadyDeleted` | Annonce déjà supprimée | Refus de suppression : une suppression confirmée existe déjà. |
 | `DeletionUnconfirmed` | Suppression non confirmée | Refus d'une nouvelle suppression tant que la dernière reste dans le doute. |
 | `NoUnconfirmedDeletion` | Aucune suppression à revérifier | Seule une suppression non confirmée se règle. |
+| `DuplicateGroup` (`DuplicateGroups`) | Groupe de doublons | Au moins deux annonces présentes au dernier scan avec exactement le même titre et le même prix (US-47). Une annonce absente n'entre dans aucun groupe. |
+| `Twin` | Jumelle | Autre annonce du groupe de doublons ; celle relue en vente sur Vinted, au même titre et au même prix, juste avant la suppression est la jumelle confirmée, qui reste en vente. |
+| `DeleteDuplicate` (`DuplicateDeletionOutcome` : `DELETED` / `ALREADY_GONE` / `DRY_RUN_PASSED` / `UNCONFIRMED`) | Suppression d'un doublon (supprimé et effacé / déjà absent, effacé / dry-run réussi / non confirmée) | Suppression sur Vinted d'une annonce d'un groupe de doublons, puis son effacement de l'outil ; rien n'est enregistré hors du journal, qui la compte dans la cadence des suppressions. |
+| `ListingEraser` | Effacement d'une annonce | Oubli d'une annonce et de tout ce que l'outil en garde, sauf le journal (US-47). |
+| `DuplicateDeletionAttempts` | Suppressions de doublons comptées | Dates des suppressions de doublons réussies ou dans le doute, lues dans le journal, que la cadence compte comme des suppressions (US-47). |
+| `ShowDuplicates` (`DuplicatesView`) | Doublons du dressing | Groupes de doublons lus dans l'outil, sans Vinted, avec les annonces à historique, celles sauvegardées et le mode des suppressions. |
+| `ListingHasHistory` | Historique à garder | L'annonce a une republication (ancienne ou nouvelle annonce), une suppression ou une vente : elle ne s'efface pas comme doublon. |
+| `NotADuplicate` / `TwinNotConfirmed` | Pas un doublon / Aucune jumelle confirmée | Refus d'une suppression de doublon : aucune autre annonce présente de même titre et même prix, ou aucune relue en vente sur Vinted. |
 | `ListingPageUnreadable` | Page de l'annonce illisible | La page de l'annonce n'est pas celle attendue (bouton de suppression introuvable) ; rien n'a été cliqué. |
 | `BrowserBusy` | Navigateur occupé | Une autre action navigateur est en cours : une seule à la fois. |
 | `Tag` (`InvalidTag`) | Tag | Étiquette libre posée par le membre sur des annonces, gardée dans l'outil seulement, jamais envoyée à Vinted : espaces autour retirés, espaces intérieurs réduits à un, minuscules, accents gardés, 1 à 30 caractères. Existe tant qu'une annonce le porte ; rangé par ordre alphabétique français. |

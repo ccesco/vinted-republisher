@@ -7,6 +7,8 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingDetailDto;
 import fr.vinted.republisher.adapter.in.web.api.model.PriceChangeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.StatisticsComparisonDto;
 import fr.vinted.republisher.adapter.in.web.api.model.VerificationResultDto;
+import fr.vinted.republisher.application.duplicate.DuplicatesView;
+import fr.vinted.republisher.application.duplicate.ShowDuplicates;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.backup.VerificationResult;
 import fr.vinted.republisher.domain.inventory.LifecycleEvent;
@@ -25,14 +27,18 @@ import java.util.Optional;
 public class ListingDetailApiController implements ListingDetailApi {
 
     private final ShowListingDetail showListingDetail;
+    private final ShowDuplicates showDuplicates;
 
-    public ListingDetailApiController(ShowListingDetail showListingDetail) {
+    public ListingDetailApiController(ShowListingDetail showListingDetail, ShowDuplicates showDuplicates) {
         this.showListingDetail = showListingDetail;
+        this.showDuplicates = showDuplicates;
     }
 
     @Override
     public ResponseEntity<ListingDetailDto> showListingDetail(Long listingId) {
-        ListingDetail detail = showListingDetail.show(new VintedListingId(listingId));
+        VintedListingId id = new VintedListingId(listingId);
+        ListingDetail detail = showListingDetail.show(id);
+        DuplicatesView duplicates = showDuplicates.show();
         return ResponseEntity.ok(new ListingDetailDto()
                 .listing(ListingInventoryApiController.toDto(detail.entry()))
                 .firstSeenAt(detail.entry().listing().firstSeenAt().atOffset(ZoneOffset.UTC))
@@ -44,7 +50,10 @@ public class ListingDetailApiController implements ListingDetailApi {
                 .statisticsComparison(detail.comparison().map(ListingDetailApiController::toDto).orElse(null))
                 .priceHistory(detail.priceHistory().stream().map(ListingDetailApiController::toDto).toList())
                 .lifecycle(detail.lifecycle().events().stream().map(ListingDetailApiController::toDto).toList())
-                .lastVerification(detail.lastVerification().map(ListingDetailApiController::toDto).orElse(null)));
+                .lastVerification(detail.lastVerification().map(ListingDetailApiController::toDto).orElse(null))
+                .duplicateTwinIds(duplicates.twinsOf(id).stream().map(twin -> twin.id().value()).toList())
+                .deletableAsDuplicate(duplicates.deletable(id))
+                .deletionDryRun(duplicates.dryRun()));
     }
 
     private static VerificationResultDto toDto(VerificationResult result) {

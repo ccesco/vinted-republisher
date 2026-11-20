@@ -11,6 +11,9 @@ import fr.vinted.republisher.domain.deletion.ListingAlreadyDeleted;
 import fr.vinted.republisher.domain.deletion.ListingChanged;
 import fr.vinted.republisher.domain.deletion.ListingPageUnreadable;
 import fr.vinted.republisher.domain.deletion.NoUnconfirmedDeletion;
+import fr.vinted.republisher.domain.duplicate.ListingHasHistory;
+import fr.vinted.republisher.domain.duplicate.NotADuplicate;
+import fr.vinted.republisher.domain.duplicate.TwinNotConfirmed;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
@@ -66,7 +69,10 @@ public class JournalWriter {
             Map.entry(NewListingMismatch.class, "NEW_LISTING_MISMATCH"),
             Map.entry(BrowserBusy.class, "BROWSER_BUSY"),
             Map.entry(CadenceLimitReached.class, "CADENCE_LIMIT_REACHED"),
-            Map.entry(ManualRepublicationInDryRun.class, "MANUAL_REPUBLICATION_IN_DRY_RUN"));
+            Map.entry(ManualRepublicationInDryRun.class, "MANUAL_REPUBLICATION_IN_DRY_RUN"),
+            Map.entry(NotADuplicate.class, "NOT_A_DUPLICATE"),
+            Map.entry(ListingHasHistory.class, "HAS_HISTORY"),
+            Map.entry(TwinNotConfirmed.class, "TWIN_NOT_CONFIRMED"));
 
     /** A republication refuses a backup not verified with its own code, as its API answer does. */
     private static final Map<Class<?>, String> REPUBLICATION_REFUSAL_REASONS =

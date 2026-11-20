@@ -1,6 +1,7 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
 import fr.vinted.republisher.ApplicationWithDatabaseTest;
+import fr.vinted.republisher.domain.duplicate.DuplicateDeletionAttempts;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
@@ -30,6 +31,9 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
 
     @Autowired
     private ActionJournal journal;
+
+    @Autowired
+    private DuplicateDeletionAttempts duplicateDeletions;
 
     @Test
     void entries_survive_restart() {
@@ -107,9 +111,28 @@ class JpaActionJournalTest extends ApplicationWithDatabaseTest {
                 Optional.of(OTHER), Optional.of("CADENCE_LIMIT_REACHED"));
         ActionRecord refusedWithoutReason = new ActionRecord(AT.plusSeconds(5), JournaledAction.DELETION,
                 ActionOutcome.REFUSED, Optional.of(THIRD), Optional.empty());
-        List.of(first, other, second, scan, waiting, refusedWithoutReason).forEach(journal::write);
+        ActionRecord duplicateDeletion = new ActionRecord(AT.plusSeconds(6), JournaledAction.DUPLICATE_DELETION,
+                ActionOutcome.REFUSED, Optional.of(LISTING), Optional.of("TWIN_NOT_CONFIRMED"));
+        List.of(first, other, second, scan, waiting, refusedWithoutReason, duplicateDeletion).forEach(journal::write);
 
+        // US-47 : les suppressions de doublons restent hors de la page « Échecs »
         assertThat(journal.lastOfEachListing()).extracting(JournalEntry::record)
                 .containsExactlyInAnyOrder(second, other, refusedWithoutReason);
+    }
+
+    @Test
+    void duplicate_deletions_that_may_have_clicked_count_in_the_cadence() {
+        // US-47 : la cadence compte les suppressions de doublons réussies ou dans le doute
+        Stream.of(ActionOutcome.SUCCEEDED, ActionOutcome.IN_DOUBT, ActionOutcome.DRY_RUN, ActionOutcome.REFUSED,
+                        ActionOutcome.FAILED)
+                .forEach(outcome -> journal.write(new ActionRecord(AT.plusSeconds(outcome.ordinal()),
+                        JournaledAction.DUPLICATE_DELETION, outcome, Optional.of(LISTING), Optional.empty())));
+        journal.write(new ActionRecord(AT, JournaledAction.DELETION, ActionOutcome.SUCCEEDED, Optional.of(OTHER),
+                Optional.empty()));
+
+        assertThat(duplicateDeletions.duplicateDeletionsSince(AT.minusSeconds(1)))
+                .containsExactlyInAnyOrder(AT.plusSeconds(ActionOutcome.SUCCEEDED.ordinal()),
+                        AT.plusSeconds(ActionOutcome.IN_DOUBT.ordinal()));
+        assertThat(duplicateDeletions.duplicateDeletionsSince(AT.plusSeconds(60))).isEmpty();
     }
 }

@@ -5,6 +5,7 @@ export const routes: Routes = [
   { path: 'listings/:listingId', loadComponent: () => import('./listing/listing-detail').then(m => m.ListingDetail) },
   { path: 'listings', loadComponent: () => import('./listing/listing-detail').then(m => m.ListingDetail) },
   { path: 'failures', loadComponent: () => import('./failures/failed-listings').then(m => m.FailedListings) },
+  { path: 'duplicates', loadComponent: () => import('./duplicates/duplicates').then(m => m.Duplicates) },
   { path: 'queue', loadComponent: () => import('./run-queue/run-queue').then(m => m.RunQueue) },
   { path: 'journal', loadComponent: () => import('./journal/action-journal').then(m => m.ActionJournal) },
   { path: 'sales', loadComponent: () => import('./sales/sales').then(m => m.Sales) },
