@@ -28,6 +28,15 @@
   font: var(--mat-sys-label-large);
 }
 
+.header-deletion {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+
+  p { margin: 4px 0 0; }
+}
+
 .step {
   border-top: 1px solid var(--mat-sys-outline-variant);
   margin-top: 16px;

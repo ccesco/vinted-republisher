@@ -11,6 +11,14 @@
 <p class="back"><a href="#/"><span class="icon" aria-hidden="true">arrow_back</span>Retour à la liste</a></p>
 <div class="page-header">
   <h1 id="listing-title">{{ detail()?.listing?.title ?? 'Annonce' }}</h1>
+  @if (headerDeletionShown()) {
+    <div class="header-deletion">
+      <button id="delete" matButton="outlined" class="danger" type="button"
+              [disabled]="sending() || !!deletionBlock()" [attr.aria-describedby]="deletionBlock() ? 'deletion-block' : null"
+              (click)="deletionAsked.set(true)">Supprimer de Vinted</button>
+      <p id="deletion-block" class="muted">{{ deletionBlock() }}</p>
+    </div>
+  }
 </div>
 <p id="problem" role="alert" [hidden]="!problem()">{{ problem() }}</p>
 
@@ -212,12 +220,11 @@
       <p id="deletion-mode" class="muted">{{ deletionMode(view) }}</p>
       <p id="deletion-state">{{ deletionState(view) }}</p>
       <p id="republication-state">{{ republicationState() }}</p>
-      <p class="actions">
-        <button id="delete" matButton="outlined" class="danger" type="button" [hidden]="view.deletion?.outcome === 'CONFIRMED'"
-                [disabled]="deleteDisabled(view)" (click)="deletionAsked.set(true)">Supprimer de Vinted</button>
-        <button id="recheck" matButton="outlined" type="button" [hidden]="view.deletion?.outcome !== 'UNCONFIRMED'"
-                [disabled]="sending()" (click)="recheck()">Revérifier sur Vinted</button>
-      </p>
+      @if (view.deletion?.outcome === 'UNCONFIRMED') {
+        <p class="actions">
+          <button id="recheck" matButton="outlined" type="button" [disabled]="sending()" (click)="recheck()">Revérifier sur Vinted</button>
+        </p>
+      }
       <div id="deletion-confirmation" class="confirmation" role="dialog" aria-modal="true"
            aria-labelledby="deletion-confirmation-title" [hidden]="!deletionAsked()">
         <div>

@@ -314,7 +314,9 @@ class ListingDetailPageTest {
         assertThat(page.locator("#not-backed-up")).hasText("Non sauvegardée");
         assertThat(page.locator("#backup")).isHidden();
         assertThat(problem()).isHidden();
-        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasCount(0);
+        // US-52 : seul « Supprimer de Vinted », grisé, reste en en-tête
+        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasCount(1);
+        assertThat(page.locator("#delete")).isDisabled();
     }
 
     @Test
@@ -709,6 +711,85 @@ class ListingDetailPageTest {
             assertThat(deletionState()).containsText("Supprimée de Vinted le 11/11/2026");
             assertThat(deleteButton()).isHidden();
             assertThat(recheckButton()).isHidden();
+        }
+
+        @Test
+        void deletes_from_the_header() {
+            // AT-52-01. Étant donné une annonce dont la sauvegarde est validée et vérifiée
+            backup.set(VALIDATED);
+            deletionAnswer.set(VALIDATED.replace("\"deletionDryRun\": true,",
+                    "\"deletionDryRun\": true, \"dryRunPassed\": true,"));
+            // Quand le membre ouvre sa fiche
+            open();
+            // Alors « Supprimer de Vinted » est actif dans l'en-tête, sans raison affichée
+            assertThat(headerDeleteButton()).isEnabled();
+            assertThat(deletionBlock()).isEmpty();
+            // Et la section Suppression n'a plus ce bouton
+            assertThat(page.locator("#deletion button", new Page.LocatorOptions().setHasText("Supprimer de Vinted")))
+                    .hasCount(0);
+            // Quand il clique dessus puis sur « Supprimer définitivement »
+            headerDeleteButton().click();
+            confirmButton().click();
+            // Alors la demande de suppression d'US-09 est envoyée avec la date de la sauvegarde affichée
+            assertThat(deletionState()).containsText("Rien n'a été supprimé.");
+            assertThat(deletions).containsExactly(
+                    "POST /api/listings/3/deletion {\"savedAt\":\"2026-11-10T10:00:00Z\"}");
+        }
+
+        @Test
+        void header_deletion_shows_why_it_is_disabled() {
+            // AT-52-02. Étant donné une annonce <situation>, quand le membre ouvre sa fiche,
+            // alors « Supprimer de Vinted » est grisé dans l'en-tête avec sa raison
+            detail.set(DETAIL.replace("\"present\": true", "\"present\": true, \"stage\": \"SOLD\""));
+            backup.set(VALIDATED);
+            open();
+            assertDisabledBecause("Annonce vendue : rien à supprimer.");
+            headerDeleteButton().click(new Locator.ClickOptions().setForce(true));
+            assertThat(confirmation()).isHidden();
+
+            detail.set(DETAIL);
+            backupStatus.set(404);
+            open();
+            assertDisabledBecause("Aucune sauvegarde : sauvegarder d'abord.");
+
+            backupStatus.set(200);
+            backup.set(UNCONFIRMED);
+            open();
+            assertDisabledBecause("Suppression non confirmée : revérifier sur Vinted.");
+
+            backup.set(VERIFIED);
+            open();
+            assertDisabledBecause("Sauvegarde non validée : valider d'abord.");
+
+            backup.set(VALIDATED.replace("{\"passed\": true, \"failures\": []}", FAILED_VERIFICATION));
+            open();
+            assertDisabledBecause("Vérification de la sauvegarde en échec.");
+            assertThat(deletions).isEmpty();
+        }
+
+        @Test
+        void header_hides_deletion_once_confirmed() {
+            // AT-52-03. Étant donné une annonce dont la suppression est confirmée, quand le membre ouvre sa fiche,
+            // alors l'en-tête n'a pas de bouton « Supprimer de Vinted »
+            backup.set(CONFIRMED);
+            open();
+            assertThat(headerDeleteButton()).isHidden();
+            assertThat(deletionBlock()).isHidden();
+        }
+
+        private void assertDisabledBecause(String reason) {
+            assertThat(headerDeleteButton()).isDisabled();
+            assertThat(deletionBlock()).hasText(reason);
+            assertThat(headerDeleteButton()).hasAccessibleDescription(reason);
+        }
+
+        private Locator headerDeleteButton() {
+            return page.locator(".page-header").getByRole(AriaRole.BUTTON,
+                    new Locator.GetByRoleOptions().setName("Supprimer de Vinted"));
+        }
+
+        private Locator deletionBlock() {
+            return page.locator("#deletion-block");
         }
 
         @Test
