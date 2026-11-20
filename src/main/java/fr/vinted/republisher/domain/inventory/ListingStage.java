@@ -19,6 +19,7 @@ public enum ListingStage {
     DELETION_TO_CHECK,
     WAITING,
     TO_REPUBLISH,
+    SOLD,
     GONE,
     TO_DELETE,
     VERIFICATION_FAILED,
@@ -26,12 +27,13 @@ public enum ListingStage {
     TO_BACK_UP;
 
     /**
-     * The first rule that applies wins, in the order of the constants. {@code validated} means a validation holds for
-     * the current backup, {@code verificationFailed} that the last verification of the current backup on Vinted
-     * failed; a deletion found not done, or a republication checked not published, counts as none.
+     * The first rule that applies wins, in the order of the constants. {@code sold} means a sale of the listing is
+     * recorded, which leaves nothing to relaunch (US-50). {@code validated} means a validation holds for the current
+     * backup, {@code verificationFailed} that the last verification of the current backup on Vinted failed; a
+     * deletion found not done, or a republication checked not published, counts as none.
      */
-    public static ListingStage of(boolean present, boolean backedUp, boolean validated, boolean verificationFailed,
-                                  Optional<ListingDeletion> lastDeletion,
+    public static ListingStage of(boolean present, boolean sold, boolean backedUp, boolean validated,
+                                  boolean verificationFailed, Optional<ListingDeletion> lastDeletion,
                                   Optional<ListingRepublication> lastRepublication, RepublicationDelay delay,
                                   Instant now) {
         Optional<ListingRepublication> republication =
@@ -44,6 +46,9 @@ public enum ListingStage {
             return deletion.flatMap(delay::republishableAt)
                     .map(republishableAt -> now.isBefore(republishableAt) ? WAITING : TO_REPUBLISH)
                     .orElse(DELETION_TO_CHECK);
+        }
+        if (sold) {
+            return SOLD;
         }
         if (!present) {
             return GONE;

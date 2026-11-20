@@ -35,6 +35,12 @@ class ListingDifferenceTest {
                         new PriceChanged(euros("12.00"), euros("10.00")));
     }
 
+    @Test
+    void a_duplicate_compares_with_the_title_and_price_of_its_last_scan() {
+        assertThat(ListingDifference.between("Robe bleue", euros("12.00"), aListing(2, "Robe bleue", "10.00", ACTIVE)))
+                .containsExactly(new PriceChanged(euros("12.00"), euros("10.00")));
+    }
+
     private static Price euros(String amount) {
         return new Price(new BigDecimal(amount), "EUR");
     }

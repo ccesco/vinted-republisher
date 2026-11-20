@@ -1,18 +1,22 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.duplicate.DuplicateDeletionAttempts;
 import fr.vinted.republisher.domain.journal.ActionJournal;
+import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournalEntry;
 import fr.vinted.republisher.domain.journal.JournalPage;
+import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalLong;
 
-public class InMemoryActionJournal implements ActionJournal {
+public class InMemoryActionJournal implements ActionJournal, DuplicateDeletionAttempts {
 
     private final List<JournalEntry> entries = new ArrayList<>();
     private boolean databaseDown;
@@ -25,6 +29,14 @@ public class InMemoryActionJournal implements ActionJournal {
     /** What was written, oldest first. */
     public synchronized List<ActionRecord> records() {
         return entries.stream().map(JournalEntry::record).toList();
+    }
+
+    @Override
+    public synchronized List<Instant> duplicateDeletionsSince(Instant since) {
+        return records().stream()
+                .filter(record -> record.action() == JournaledAction.DUPLICATE_DELETION)
+                .filter(record -> record.outcome() == ActionOutcome.SUCCEEDED || record.outcome() == ActionOutcome.IN_DOUBT)
+                .map(ActionRecord::occurredAt).filter(at -> at.isAfter(since)).toList();
     }
 
     @Override
@@ -47,6 +59,7 @@ public class InMemoryActionJournal implements ActionJournal {
     public synchronized List<JournalEntry> lastOfEachListing() {
         Map<VintedListingId, JournalEntry> last = new HashMap<>();
         entries.stream().filter(entry -> !entry.record().leavesFailuresAsTheyWere())
+                .filter(entry -> entry.record().action() != JournaledAction.DUPLICATE_DELETION)
                 .forEach(entry -> entry.record().listingId().ifPresent(listing -> last.put(listing, entry)));
         return List.copyOf(last.values());
     }

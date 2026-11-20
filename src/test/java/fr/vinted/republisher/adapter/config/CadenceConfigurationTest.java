@@ -2,7 +2,9 @@ package fr.vinted.republisher.adapter.config;
 
 import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.duplicate.DuplicateDeletionAttempts;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import org.junit.jupiter.api.Test;
@@ -27,6 +29,7 @@ class CadenceConfigurationTest {
             .withUserConfiguration(CadenceConfiguration.class)
             .withBean(ListingDeletionRepository.class, InMemoryListingDeletionRepository::new)
             .withBean(ListingRepublicationRepository.class, InMemoryListingRepublicationRepository::new)
+            .withBean(DuplicateDeletionAttempts.class, InMemoryActionJournal::new)
             .withBean(Clock.class, Clock::systemUTC);
 
     @Test

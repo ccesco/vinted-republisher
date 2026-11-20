@@ -18,6 +18,7 @@ import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
+import fr.vinted.republisher.domain.sale.ListingSaleRepository;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
@@ -49,12 +50,13 @@ public class ShowListingDetail {
     private final Clock clock;
     private final ActionJournal journal;
     private final BackupVerificationRepository verifications;
+    private final ListingSaleRepository sales;
 
     public ShowListingDetail(ListingRepository listings, ListingStatisticsRepository statistics,
                              ListingBackupRepository backups, BackupValidationRepository validations,
                              ListingDeletionRepository deletions, ListingRepublicationRepository republications,
                              RepublicationDelay delay, Clock clock, ActionJournal journal,
-                             BackupVerificationRepository verifications) {
+                             BackupVerificationRepository verifications, ListingSaleRepository sales) {
         this.listings = listings;
         this.statistics = statistics;
         this.backups = backups;
@@ -65,6 +67,7 @@ public class ShowListingDetail {
         this.clock = clock;
         this.journal = journal;
         this.verifications = verifications;
+        this.sales = sales;
     }
 
     public ListingDetail show(VintedListingId id) {
@@ -77,8 +80,8 @@ public class ShowListingDetail {
                 history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
                 backups.find(id).map(ListingBackup::summary).stream().toList(), validations.find(id).stream().toList(),
                 verification.stream().toList(),
-                deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(), delay,
-                clock.instant());
+                deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(),
+                sales.findAll().stream().filter(sale -> sale.listingId().equals(id)).toList(), delay, now);
         Set<VintedListingId> seen = new HashSet<>(Set.of(id));
         List<VintedListingId> previous = previousListings(id, seen);
         List<VintedListingId> next = nextListings(id, seen);

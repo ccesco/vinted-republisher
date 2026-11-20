@@ -48,13 +48,17 @@ class ListingDetailPageTest {
                {"viewCount": 5, "favouriteCount": 1, "readAt": "2026-11-01T09:00:00Z"}],
              "priceHistory": [
                {"price": {"amount": 10, "currency": "EUR"}, "changedAt": "2026-11-02T09:00:00Z"},
-               {"price": {"amount": 12.5, "currency": "EUR"}, "changedAt": "2026-11-01T09:00:00Z"}]}""";
+               {"price": {"amount": 12.5, "currency": "EUR"}, "changedAt": "2026-11-01T09:00:00Z"}],
+             "duplicateTwinIds": [], "deletableAsDuplicate": false, "deletionDryRun": true}""";
+    private static final String DUPLICATE = DETAIL.replace("\"duplicateTwinIds\": [], \"deletableAsDuplicate\": false",
+            "\"duplicateTwinIds\": [1], \"deletableAsDuplicate\": true");
     private static final String NEVER_READ = """
             {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
              "firstSeenAt": "2026-11-01T09:00:00Z",
              "lifecycle": [{"type": "FIRST_SEEN", "listingId": 3, "at": "2026-11-01T09:00:00Z"}],
-             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": [], "priceHistory": [], "journal": []}""";
+             "lastSeenAt": "2026-11-03T09:00:00Z", "statisticsHistory": [], "priceHistory": [], "journal": [],
+             "duplicateTwinIds": [], "deletableAsDuplicate": false, "deletionDryRun": true}""";
     private static final String ABSENT = NEVER_READ.replace("\"present\": true", "\"present\": false");
 
     private static final String VERIFIED = """
@@ -108,6 +112,10 @@ class ListingDetailPageTest {
     private final AtomicReference<String> manualRepublicationAnswer = new AtomicReference<>(VALIDATED);
     private final List<String> manualRepublications = new CopyOnWriteArrayList<>();
     private final List<String> manualValidations = new CopyOnWriteArrayList<>();
+    private final AtomicInteger duplicateDeletionStatus = new AtomicInteger(200);
+    private final AtomicReference<String> duplicateDeletionAnswer =
+            new AtomicReference<>("{\"outcome\": \"DELETED\", \"twinListingId\": 1}");
+    private final List<String> duplicateDeletions = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -167,6 +175,12 @@ class ListingDetailPageTest {
                     + new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
             respond(exchange, manualValidationStatus.get(), "application/json", bytes(manualValidationAnswer.get()));
         });
+        fakeApi.createContext("/api/listings/3/duplicate-deletion", exchange -> {
+            duplicateDeletions.add(exchange.getRequestMethod());
+            respond(exchange, duplicateDeletionStatus.get(), "application/json", bytes(duplicateDeletionAnswer.get()));
+        });
+        fakeApi.createContext("/api/duplicates", exchange -> respond(exchange, 200, "application/json",
+                bytes("{\"groups\": [], \"deletionDryRun\": true}")));
         fakeApi.start();
         page = chrome.newPage(new Browser.NewPageOptions().setTimezoneId("Europe/Paris"));
     }
@@ -421,6 +435,14 @@ class ListingDetailPageTest {
     }
 
     @Test
+    void shows_the_sold_stage() {
+        // AT-50-07. Étant donné une annonce « Vendue », quand le membre ouvre sa fiche, il voit « Vendue »
+        detail.set(ABSENT.replace("\"present\": false", "\"present\": false, \"stage\": \"SOLD\""));
+        open();
+        assertThat(page.locator("#stage")).hasText("Étape : Vendue");
+    }
+
+    @Test
     void shows_the_journal_of_the_listing() {
         // US-23 AT-23-14. Étant donné une annonce avec une validation et une suppression en dry-run
         detail.set(NEVER_READ.replace("\"journal\": []", """
@@ -452,6 +474,47 @@ class ListingDetailPageTest {
             assertThat(page.getByRole(AriaRole.LINK, new Page.GetByRoleOptions().setName("Retour à la liste")))
                     .hasAttribute("href", "#/");
         }
+    }
+
+    @Test
+    void deletes_a_duplicate_from_its_detail() {
+        // AT-47-13 : la fiche nomme la jumelle, confirme, puis ouvre la page « Doublons » une fois le doublon effacé
+        detail.set(DUPLICATE);
+        open();
+
+        assertThat(page.locator("#duplicate-twins")).containsText("Même titre et même prix que");
+        assertThat(page.locator("#duplicate-twins a")).hasText("l'annonce 1");
+        assertThat(page.locator("#duplicate-twins a")).hasAttribute("href", "#/listings/1");
+        page.locator("#delete-duplicate").click();
+        assertThat(page.locator("#duplicate-summary")).containsText("L'annonce 1 reste en vente. Irréversible.");
+        assertThat(page.locator("#duplicate-summary")).containsText("Dry-run : rien ne sera supprimé.");
+        page.locator("#confirm-duplicate-deletion").click();
+
+        page.waitForURL("**/#/duplicates");
+        assertThat(duplicateDeletions).containsExactly("POST");
+    }
+
+    @Test
+    void a_refused_duplicate_deletion_says_why_and_stays_on_the_detail() {
+        detail.set(DUPLICATE);
+        duplicateDeletionStatus.set(422);
+        duplicateDeletionAnswer.set("{\"reason\": \"TWIN_NOT_CONFIRMED\"}");
+        open();
+
+        page.locator("#delete-duplicate").click();
+        page.locator("#confirm-duplicate-deletion").click();
+
+        assertThat(page.locator("#duplicate-message"))
+                .hasText("Doublon non supprimé : aucune jumelle confirmée en vente sur Vinted.");
+        assertThat(page.locator("#duplicate-confirmation")).isHidden();
+    }
+
+    @Test
+    void a_listing_without_twin_offers_no_duplicate_deletion() {
+        open();
+
+        assertThat(page.locator("#listing-title")).isVisible();
+        assertThat(page.locator("#duplicate")).hasCount(0);
     }
 
     @Test

@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.duplicate.DuplicateDeletionAttempts;
 import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournalEntry;
@@ -8,16 +9,22 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.data.domain.Limit;
 import org.springframework.stereotype.Repository;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.OptionalLong;
 
 @Repository
-class JpaActionJournal implements ActionJournal {
+class JpaActionJournal implements ActionJournal, DuplicateDeletionAttempts {
 
     private final ActionJournalJpaRepository repository;
 
     JpaActionJournal(ActionJournalJpaRepository repository) {
         this.repository = repository;
+    }
+
+    @Override
+    public List<Instant> duplicateDeletionsSince(Instant since) {
+        return repository.findDuplicateDeletionsSince(since);
     }
 
     @Override

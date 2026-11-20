@@ -6,6 +6,7 @@ import fr.vinted.republisher.application.inventory.ShowFailedListings;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.application.republication.ValidateListingRepublication;
@@ -214,7 +215,7 @@ class ValidateListingRepublicationAcceptanceTest {
         return new ShowFailedListings(journal, new ShowListingInventory(listings,
                 new InMemoryListingStatisticsRepository(), listingBackups, validations, deletions, republications,
                 new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
-                new InMemoryBackupVerificationRepository()));
+                new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository()));
     }
 
     @Test

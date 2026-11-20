@@ -17,6 +17,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
@@ -55,7 +56,8 @@ class AdviseRepublicationAcceptanceTest {
     private final ShowListingInventory showListingInventory = new ShowListingInventory(listings, statistics, backups,
             new InMemoryBackupValidationRepository(), deletions, republications,
             new RepublicationDelay(Duration.ofMinutes(5)), new AdjustableClock(NOV_17),
-            new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
+            new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository(),
+                    new InMemoryListingSaleRepository());
 
     @Test
     void advises_a_dormant_listing() {

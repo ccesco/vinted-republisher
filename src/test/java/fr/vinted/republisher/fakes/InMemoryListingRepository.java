@@ -22,6 +22,12 @@ public class InMemoryListingRepository implements ListingRepository {
         return this;
     }
 
+    /** As the eraser of duplicates does (US-47). */
+    public synchronized void remove(VintedListingId listing) {
+        listings.remove(listing);
+        priceChanges.removeIf(change -> change.listingId().equals(listing));
+    }
+
     @Override
     public synchronized List<Listing> findAll() {
         return List.copyOf(listings.values());

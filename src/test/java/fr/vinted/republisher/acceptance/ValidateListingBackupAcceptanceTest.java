@@ -30,6 +30,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
@@ -82,7 +83,8 @@ class ValidateListingBackupAcceptanceTest {
             new InMemoryListingStatisticsRepository(), listingBackups, validations,
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository());
+                    new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository(),
+                            new InMemoryListingSaleRepository());
 
     @Test
     void preview_shows_a_verified_backup() {

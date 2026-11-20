@@ -20,6 +20,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -240,7 +241,7 @@ class ListingInventoryApiControllerTest {
         assertThat(mvc.get().uri("/api/listings?stage=TO_BACK_UP"))
                 .bodyJson().doesNotHavePath("$.listings[0].republication");
         // Et une étape inconnue est refusée
-        assertThat(mvc.get().uri("/api/listings?stage=SOLD")).hasStatus(400);
+        assertThat(mvc.get().uri("/api/listings?stage=ARCHIVED")).hasStatus(400);
     }
 
     @Test
@@ -288,7 +289,7 @@ class ListingInventoryApiControllerTest {
             return new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC), tags,
-                    new InMemoryBackupVerificationRepository());
+                    new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository());
         }
 
         @Bean

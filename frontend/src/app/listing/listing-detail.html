@@ -22,6 +22,31 @@
       <p><a id="vinted-link" [href]="detail.listing.url" rel="noopener noreferrer">Voir sur Vinted</a></p>
       <p id="presence">{{ presenceText(detail) }}</p>
       <p id="first-seen">Vue pour la première fois le {{ dateOf(detail.firstSeenAt) }}.</p>
+      @if (detail.duplicateTwinIds.length > 0) {
+        <section id="duplicate">
+          <p id="duplicate-twins"><ng-container *ngTemplateOutlet="sentence; context: { $implicit: twinsSentenceOf(detail.duplicateTwinIds) }" /></p>
+          @if (detail.deletableAsDuplicate) {
+            <p class="actions">
+              <button id="delete-duplicate" matButton="outlined" class="danger" type="button" [disabled]="sending()"
+                      (click)="duplicateAsked.set(true)">Supprimer ce doublon</button>
+            </p>
+          } @else {
+            <p id="duplicate-history" class="muted">Historique à garder : ce doublon ne se supprime pas d'ici.</p>
+          }
+          <p id="duplicate-message" role="status">{{ duplicateMessage() }}</p>
+          <div id="duplicate-confirmation" class="confirmation" role="dialog" aria-modal="true"
+               aria-labelledby="duplicate-confirmation-title" [hidden]="!duplicateAsked()">
+            <div>
+              <h2 id="duplicate-confirmation-title">Supprimer ce doublon ?</h2>
+              <p id="duplicate-summary">{{ duplicateConfirmation(detail) }}</p>
+              <p class="actions">
+                <button id="confirm-duplicate-deletion" matButton="filled" class="danger" type="button" (click)="confirmDuplicateDeletion()">Supprimer le doublon</button>
+                <button id="cancel-duplicate-deletion" matButton type="button" (click)="duplicateAsked.set(false)">Annuler</button>
+              </p>
+            </div>
+          </div>
+        </section>
+      }
     </div>
 
     <div class="card">

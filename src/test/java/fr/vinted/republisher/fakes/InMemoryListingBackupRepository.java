@@ -32,6 +32,11 @@ public class InMemoryListingBackupRepository implements ListingBackupRepository 
         return Optional.ofNullable(backups.get(new VintedListingId(listing)));
     }
 
+    /** As the eraser of duplicates does (US-47). */
+    public synchronized void remove(VintedListingId listing) {
+        backups.remove(listing);
+    }
+
     @Override
     public synchronized List<ListingBackup> findAll() {
         return List.copyOf(backups.values());

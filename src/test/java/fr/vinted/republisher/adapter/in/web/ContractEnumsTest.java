@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.in.web;
 
+import fr.vinted.republisher.adapter.in.web.api.model.DuplicateDeletionOutcomeDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BackupProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BackupVerificationStatusDto;
 import fr.vinted.republisher.adapter.in.web.api.model.BackupVerificationStopReasonDto;
@@ -15,6 +16,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.ScanProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionProblemDto;
 import fr.vinted.republisher.adapter.in.web.api.model.SessionStatusDto;
 import fr.vinted.republisher.adapter.in.web.api.model.StatisticsRefreshProblemDto;
+import fr.vinted.republisher.domain.duplicate.DuplicateDeletionOutcome;
 import fr.vinted.republisher.domain.backup.BackupProblem;
 import fr.vinted.republisher.domain.backup.BackupVerificationStatus;
 import fr.vinted.republisher.domain.backup.BackupVerificationStopReason;
@@ -38,6 +40,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /** The API maps domain values by name: the contract must know every one of them. */
 class ContractEnumsTest {
+
+    @Test
+    void contract_knows_every_duplicate_deletion_outcome() {
+        assertThat(names(DuplicateDeletionOutcomeDto.values()))
+                .containsExactlyInAnyOrder(names(DuplicateDeletionOutcome.values()));
+    }
 
     @Test
     void contract_knows_every_session_status() {

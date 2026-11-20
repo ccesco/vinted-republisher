@@ -17,6 +17,7 @@ import fr.vinted.republisher.domain.tag.TagOperation;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -53,7 +54,7 @@ class EditListingTagsAcceptanceTest {
             new InMemoryListingStatisticsRepository(), new InMemoryListingBackupRepository(),
             new InMemoryBackupValidationRepository(), new InMemoryListingDeletionRepository(),
             new InMemoryListingRepublicationRepository(), new RepublicationDelay(Duration.ofMinutes(5)),
-            Clock.systemUTC(), tags, new InMemoryBackupVerificationRepository());
+            Clock.systemUTC(), tags, new InMemoryBackupVerificationRepository(), new InMemoryListingSaleRepository());
 
     @Test
     void adds_a_tag_to_every_selected_listing() {

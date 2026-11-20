@@ -1,9 +1,17 @@
 package fr.vinted.republisher.acceptance;
 
+import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.sale.NoticeSales;
 import fr.vinted.republisher.application.wardrobe.RefreshStatistics;
 import fr.vinted.republisher.application.wardrobe.ScanWardrobe;
+import fr.vinted.republisher.domain.backup.BackupValidation;
+import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.inventory.InventoryCriteria;
+import fr.vinted.republisher.domain.inventory.InventoryEntry;
+import fr.vinted.republisher.domain.inventory.ListingStage;
+import fr.vinted.republisher.domain.relaunch.RelaunchAction;
+import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.LastScanProblem;
@@ -14,9 +22,15 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
+import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
+import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
+import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryWardrobeScanRepository;
 import org.junit.jupiter.api.Test;
 
@@ -25,6 +39,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.concurrent.Executor;
 
+import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.anActiveListing;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.noPause;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -40,6 +55,8 @@ class TrackSalesAcceptanceTest {
     private final InMemoryListingRepository listings = new InMemoryListingRepository();
     private final InMemoryListingStatisticsRepository statistics = new InMemoryListingStatisticsRepository();
     private final InMemoryListingSaleRepository sales = new InMemoryListingSaleRepository();
+    private final InMemoryListingBackupRepository backups = new InMemoryListingBackupRepository();
+    private final InMemoryBackupValidationRepository validations = new InMemoryBackupValidationRepository();
     private final FakeWardrobeReader reader = new FakeWardrobeReader();
     private final AdjustableClock clock = new AdjustableClock(NOW);
     private final JournalWriter journal = new JournalWriter(new InMemoryActionJournal(), clock);
@@ -106,6 +123,34 @@ class TrackSalesAcceptanceTest {
         reader.announcing(2, anActiveListing(1)).showing(1, new ListingStatistics(10, 1)).sold(1);
         refreshStatistics.refresh();
         assertThat(sales.findAll()).isEmpty();
+    }
+
+    @Test
+    void a_listing_noticed_sold_is_no_longer_to_delete() {
+        // AT-50-01. Étant donné l'annonce 1, présente, sauvegardée et validée (« À supprimer »)
+        knowListings(1, 2);
+        ListingBackup backup = aBackup(1, EARLIER);
+        backups.save(backup);
+        validations.save(BackupValidation.of(backup, EARLIER));
+        assertThat(stageOf(1)).isEqualTo(ListingStage.TO_DELETE);
+
+        // Quand un rafraîchissement des vues et favoris la montre « Vendu »
+        reader.holding(anActiveListing(2)).showing(2, new ListingStatistics(10, 1)).sold(1);
+        refreshStatistics.refresh();
+
+        // Alors l'annonce 1 est « Vendue », et n'est donc plus proposée à la suppression
+        assertThat(stageOf(1)).isEqualTo(ListingStage.SOLD);
+        assertThat(RelaunchAction.after(ListingStage.SOLD)).isEmpty();
+    }
+
+    private ListingStage stageOf(long id) {
+        ShowListingInventory inventory = new ShowListingInventory(listings, statistics, backups, validations,
+                new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
+                new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
+                new InMemoryBackupVerificationRepository(), sales);
+        return inventory.show(InventoryCriteria.everyListing()).stream()
+                .filter(entry -> entry.listing().id().equals(new VintedListingId(id)))
+                .map(InventoryEntry::stage).findFirst().orElseThrow();
     }
 
     private void knowListings(long... ids) {

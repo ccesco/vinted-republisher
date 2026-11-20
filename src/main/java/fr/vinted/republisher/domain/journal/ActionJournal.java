@@ -18,7 +18,8 @@ public interface ActionJournal {
 
     /**
      * The most recent entry of each listing named in the journal, in no particular order, entries that leave the
-     * listing as it was ({@link ActionRecord#leavesFailuresAsTheyWere()}) left aside.
+     * listing as it was ({@link ActionRecord#leavesFailuresAsTheyWere()}) and deletions of duplicates (US-47,
+     * outside the life of a listing) left aside.
      */
     List<JournalEntry> lastOfEachListing();
 }
