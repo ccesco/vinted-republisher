@@ -10,6 +10,7 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
@@ -206,7 +207,7 @@ class BackupVerificationApiControllerTest {
                     new InMemoryListingStatisticsRepository(), listingBackups, validations,
                     new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
                     new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(),
-                    verifications);
+                    verifications, new InMemoryListingSaleRepository());
             return new VerifyAndValidateBackups(session, automaticRunInProgress::get, inventory, reader,
                     listingBackups, photos, validations, verifications, noBackupPause(), clock, background,
                     new JournalWriter(new InMemoryActionJournal(), clock));

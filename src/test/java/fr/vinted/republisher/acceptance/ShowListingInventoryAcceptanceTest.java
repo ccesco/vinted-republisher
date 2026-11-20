@@ -22,6 +22,7 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -63,7 +64,7 @@ class ShowListingInventoryAcceptanceTest {
             new ShowListingInventory(listings, statistics, backups, validations,
                     new InMemoryListingDeletionRepository(), republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository(), verifications);
+                    new InMemoryListingTagRepository(), verifications, new InMemoryListingSaleRepository());
 
     /** AT-42-05 */
     @Test
@@ -346,7 +347,8 @@ class ShowListingInventoryAcceptanceTest {
             // Quand le membre demande la liste
             new ShowListingInventory(known, statistics, backups, validations, new InMemoryListingDeletionRepository(),
                     attempts, new RepublicationDelay(Duration.ofMinutes(5)), Clock.systemUTC(),
-                    new InMemoryListingTagRepository(), verifications).show(InventoryCriteria.defaults());
+                    new InMemoryListingTagRepository(), verifications,
+                            new InMemoryListingSaleRepository()).show(InventoryCriteria.defaults());
 
             // Alors les tentatives non publiées sont lues une seule fois, dans les deux cas
             assertThat(attempts.notPublishedCountReads()).isEqualTo(1);

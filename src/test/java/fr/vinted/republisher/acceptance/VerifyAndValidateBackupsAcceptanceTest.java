@@ -38,6 +38,7 @@ import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.PauseRange;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
@@ -91,7 +92,8 @@ class VerifyAndValidateBackupsAcceptanceTest {
     private final ShowListingInventory inventory = new ShowListingInventory(listings,
             new InMemoryListingStatisticsRepository(), listingBackups, validations,
             new InMemoryListingDeletionRepository(), new InMemoryListingRepublicationRepository(),
-            new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(), verifications);
+            new RepublicationDelay(Duration.ofMinutes(5)), clock, new InMemoryListingTagRepository(), verifications,
+                    new InMemoryListingSaleRepository());
     private final BackupPace pace = new BackupPace(
             new PauseRange(Duration.ofSeconds(5), Duration.ofSeconds(10)), new Random(42));
     private final VerifyAndValidateBackups verifyAndValidate = new VerifyAndValidateBackups(session,

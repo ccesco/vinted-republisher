@@ -28,7 +28,7 @@ class ListingStageTest {
     private static ListingStage stage(boolean present, boolean backedUp, boolean validated,
                                       Optional<ListingDeletion> deletion,
                                       Optional<ListingRepublication> republication, Instant now) {
-        return ListingStage.of(present, backedUp, validated, false, deletion, republication, DELAY, now);
+        return ListingStage.of(present, false, backedUp, validated, false, deletion, republication, DELAY, now);
     }
 
     private static ListingStage stage(boolean present, boolean backedUp, boolean validated) {
@@ -37,8 +37,29 @@ class ListingStageTest {
 
     private static ListingStage stageAfterVerification(boolean present, boolean validated,
                                                        boolean verificationFailed) {
-        return ListingStage.of(present, true, validated, verificationFailed, Optional.empty(), Optional.empty(),
-                DELAY, DELETED_AT);
+        return ListingStage.of(present, false, true, validated, verificationFailed, Optional.empty(),
+                Optional.empty(), DELAY, DELETED_AT);
+    }
+
+    private static ListingStage soldStage(boolean present, Optional<ListingDeletion> deletion,
+                                          Optional<ListingRepublication> republication) {
+        return ListingStage.of(present, true, true, true, false, deletion, republication, DELAY, DELETED_AT);
+    }
+
+    @Test
+    void sold_listing_is_sold_even_present_with_a_validated_backup() {
+        assertThat(soldStage(true, Optional.empty(), Optional.empty())).isEqualTo(ListingStage.SOLD);
+    }
+
+    @Test
+    void sold_listing_stays_sold_once_gone_from_the_wardrobe() {
+        assertThat(soldStage(false, Optional.empty(), Optional.empty())).isEqualTo(ListingStage.SOLD);
+    }
+
+    @Test
+    void republication_and_deletion_win_over_the_sale() {
+        assertThat(soldStage(true, unconfirmed(), Optional.empty())).isEqualTo(ListingStage.DELETION_TO_CHECK);
+        assertThat(soldStage(false, confirmed(), published())).isEqualTo(ListingStage.REPUBLISHED);
     }
 
     @Test

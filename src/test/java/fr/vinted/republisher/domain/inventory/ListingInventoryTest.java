@@ -35,7 +35,7 @@ class ListingInventoryTest {
                                                 List<ListingBackup> backups, List<BackupValidation> validations) {
         return ListingInventory.of(listings, readings, List.of(), backups.stream().map(ListingBackup::summary).toList(),
                 validations, List.of(),
-                List.of(), List.of(),
+                List.of(), List.of(), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
     }
 
@@ -152,7 +152,7 @@ class ListingInventoryTest {
         ListingDeletion unconfirmed = ListingDeletion.attempted(backup, clickedAt);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1")), List.of(), List.of(),
-                summaries(backup), List.of(), List.of(), List.of(notDone, unconfirmed), List.of(),
+                summaries(backup), List.of(), List.of(), List.of(notDone, unconfirmed), List.of(), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt);
 
         assertThat(inventory.entries()).singleElement()
@@ -168,7 +168,7 @@ class ListingInventoryTest {
         Listing newListing = present(2, "a", "1");
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent(), newListing),
-                List.of(), List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(published),
+                List.of(), List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(published), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
 
         assertThat(inventory.entries().getFirst().republication()).contains(published);
@@ -180,7 +180,7 @@ class ListingInventoryTest {
     void stage_filter_keeps_only_listings_at_that_stage() {
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
                 List.of(), List.of(), summaries(aBackup(2, SAVED_AT)), List.of(), List.of(), List.of(),
-                List.of(),
+                List.of(), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
 
         assertThat(ids(inventory, new InventoryCriteria(PresenceFilter.ALL, BackupFilter.ALL, "",
@@ -195,7 +195,7 @@ class ListingInventoryTest {
         ListingRepublication toCheck = ListingRepublication.attempted(backup, clickedAt);
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
-                List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(toCheck),
+                List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(toCheck), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
 
         assertThat(inventory.entries()).singleElement().satisfies(entry -> {
@@ -213,7 +213,7 @@ class ListingInventoryTest {
                 .notPublished(clickedAt.plusSeconds(60));
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1").absent()), List.of(),
-                List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(notPublished),
+                List.of(), summaries(backup), List.of(), List.of(), List.of(), List.of(notPublished), List.of(),
                 new RepublicationDelay(Duration.ofMinutes(5)), clickedAt.plusSeconds(120));
 
         assertThat(inventory.entries()).singleElement()
@@ -235,7 +235,7 @@ class ListingInventoryTest {
 
         ListingInventory inventory = ListingInventory.of(List.of(present(1, "a", "1"), present(2, "b", "1")),
                 List.of(dormantLatest, seenLatest), List.of(seenBaseline, dormantBaseline), List.of(), List.of(),
-                List.of(), List.of(), List.of(), new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
+                List.of(), List.of(), List.of(), List.of(), new RepublicationDelay(Duration.ofMinutes(5)), SAVED_AT);
 
         assertThat(inventory.entries()).extracting(InventoryEntry::advice)
                 .containsExactly(Optional.of(new RepublicationAdvice(6, eightDaysAgo)), Optional.empty());

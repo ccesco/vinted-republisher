@@ -39,6 +39,7 @@ import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
@@ -225,7 +226,8 @@ class PrepareManualRepublicationAcceptanceTest {
     private ShowFailedListings showFailedListings() {
         return new ShowFailedListings(journal, new ShowListingInventory(listings,
                 new InMemoryListingStatisticsRepository(), listingBackups, validations, deletions, republications,
-                DELAY, clock, new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository()));
+                DELAY, clock, new InMemoryListingTagRepository(), new InMemoryBackupVerificationRepository(),
+                        new InMemoryListingSaleRepository()));
     }
 
     /** Backed up with two photos kept, validated by the member, absent from the wardrobe: not deleted yet. */

@@ -421,6 +421,14 @@ class ListingDetailPageTest {
     }
 
     @Test
+    void shows_the_sold_stage() {
+        // AT-50-07. Étant donné une annonce « Vendue », quand le membre ouvre sa fiche, il voit « Vendue »
+        detail.set(ABSENT.replace("\"present\": false", "\"present\": false, \"stage\": \"SOLD\""));
+        open();
+        assertThat(page.locator("#stage")).hasText("Étape : Vendue");
+    }
+
+    @Test
     void shows_the_journal_of_the_listing() {
         // US-23 AT-23-14. Étant donné une annonce avec une validation et une suppression en dry-run
         detail.set(NEVER_READ.replace("\"journal\": []", """

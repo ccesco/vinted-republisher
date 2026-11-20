@@ -40,6 +40,12 @@ class FailedListingTest {
     }
 
     @Test
+    void ignores_listings_sold_since() {
+        assertThat(FailedListing.among(List.of(entry(101, ListingStage.SOLD)),
+                List.of(journalEntry(1, 101, ActionOutcome.FAILED)))).isEmpty();
+    }
+
+    @Test
     void ignores_listings_republished_since() {
         assertThat(FailedListing.among(List.of(entry(101, ListingStage.REPUBLISHED)),
                 List.of(journalEntry(1, 101, ActionOutcome.FAILED)))).isEmpty();

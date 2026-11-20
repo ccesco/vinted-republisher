@@ -8,6 +8,7 @@ import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.assertions.LocatorAssertions;
 import com.microsoft.playwright.options.AriaRole;
+import com.microsoft.playwright.options.SelectOption;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterAll;
@@ -220,6 +221,25 @@ class WardrobePageTest {
         // Alors la page demande GET /api/listings?presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC
         page.waitForCondition(() -> listingQueries.contains(
                 "presence=ALL&backup=VALIDATED&search=pull&sort=VIEWS&direction=ASC"));
+    }
+
+    @Test
+    void shows_the_sold_stage() {
+        // AT-50-07. Étant donné l'annonce 1 « Vendue »
+        overview.set(SCANNED);
+        inventory.set("""
+                {"listings": [
+                  {"vintedId": 1, "title": "Pull", "price": {"amount": 10, "currency": "EUR"},
+                   "url": "https://vinted.test/items/1", "present": true, "stage": "SOLD"}]}""");
+        open();
+
+        // Quand le membre filtre par l'étape « Vendue »
+        page.locator("#stage-filter").selectOption(new SelectOption().setLabel("Vendue"));
+
+        // Alors la liste est demandée avec cette étape, et l'annonce y est « Vendue »
+        page.waitForCondition(() -> listingQueries.contains(
+                "presence=ALL&backup=ALL&sort=RECENCY&direction=DESC&stage=SOLD"));
+        assertThat(cell(0, STAGE)).hasText("Vendue");
     }
 
     @Test

@@ -11,6 +11,7 @@ import fr.vinted.republisher.domain.inventory.RepublicationAdvice;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.sale.ListingSaleRepository;
 import fr.vinted.republisher.domain.tag.ListingTagRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.ListingStatisticsRepository;
@@ -32,12 +33,13 @@ public class ShowListingInventory {
     private final Clock clock;
     private final ListingTagRepository tags;
     private final BackupVerificationRepository verifications;
+    private final ListingSaleRepository sales;
 
     public ShowListingInventory(ListingRepository listings, ListingStatisticsRepository statistics,
                                 ListingBackupRepository backups, BackupValidationRepository validations,
                                 ListingDeletionRepository deletions, ListingRepublicationRepository republications,
                                 RepublicationDelay delay, Clock clock, ListingTagRepository tags,
-                                BackupVerificationRepository verifications) {
+                                BackupVerificationRepository verifications, ListingSaleRepository sales) {
         this.listings = listings;
         this.statistics = statistics;
         this.backups = backups;
@@ -48,6 +50,7 @@ public class ShowListingInventory {
         this.clock = clock;
         this.tags = tags;
         this.verifications = verifications;
+        this.sales = sales;
     }
 
     public List<InventoryEntry> show(InventoryCriteria criteria) {
@@ -55,7 +58,8 @@ public class ShowListingInventory {
         List<ListingRepublication> latest = republications.findAllLatest();
         return ListingInventory.of(listings.findAll(), statistics.findLatest(),
                         statistics.findLatestAsOf(RepublicationAdvice.baselineAsOf(now)), backups.findAllSummaries(),
-                        validations.findAll(), verifications.findAll(), deletions.findAllLatest(), latest, delay, now)
+                        validations.findAll(), verifications.findAll(), deletions.findAllLatest(), latest,
+                        sales.findAll(), delay, now)
                 .withTags(tags.findAll())
                 .withRepublicationTallies(latest, republications.findNotPublishedCounts())
                 .select(criteria);

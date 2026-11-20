@@ -7,6 +7,7 @@ import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.tag.ListingTag;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -45,14 +46,15 @@ public record ListingInventory(List<InventoryEntry> entries) {
     /**
      * {@code readings} and {@code deletions} are the latest of each listing, {@code baselines} the latest of each
      * listing made at the latest {@link RepublicationAdvice#baselineAsOf(Instant) one observation period} before
-     * {@code now}; a validation counts only for the backup it was given to. Stages and advice are those at
-     * {@code now}.
+     * {@code now}; a validation counts only for the backup it was given to, a sale makes its listing sold. Stages
+     * and advice are those at {@code now}.
      */
     public static ListingInventory of(List<Listing> listings, List<StatisticsReading> readings,
                                       List<StatisticsReading> baselines, List<BackupSummary> backups,
                                       List<BackupValidation> validations, List<VerificationResult> verifications,
                                       List<ListingDeletion> deletions, List<ListingRepublication> republications,
-                                      RepublicationDelay delay, Instant now) {
+                                      List<ListingSale> sales, RepublicationDelay delay, Instant now) {
+        Set<VintedListingId> sold = sales.stream().map(ListingSale::listingId).collect(Collectors.toSet());
         Map<VintedListingId, StatisticsReading> readingOf = readings.stream()
                 .collect(Collectors.toMap(StatisticsReading::listingId, Function.identity()));
         Map<VintedListingId, StatisticsReading> baselineOf = baselines.stream()
@@ -77,8 +79,9 @@ public record ListingInventory(List<InventoryEntry> entries) {
             boolean verificationFailed = Optional.ofNullable(verificationOf.get(listing.id()))
                     .filter(result -> backup.filter(result::failsFor).isPresent()).isPresent();
             Optional<ListingRepublication> republication = Optional.ofNullable(republicationOf.get(listing.id()));
-            ListingStage stage = ListingStage.of(listing.present(), backup.isPresent(), validation.isPresent(),
-                    verificationFailed, Optional.ofNullable(deletionOf.get(listing.id())), republication, delay, now);
+            ListingStage stage = ListingStage.of(listing.present(), sold.contains(listing.id()), backup.isPresent(),
+                    validation.isPresent(), verificationFailed, Optional.ofNullable(deletionOf.get(listing.id())),
+                    republication, delay, now);
             Optional<StatisticsReading> latest = Optional.ofNullable(readingOf.get(listing.id()));
             Optional<ListingRepublication> borne = republication.filter(_ -> REPUBLICATION_STAGES.contains(stage));
             return new InventoryEntry(listing, latest, backup, validation.map(BackupValidation::validatedAt), stage,
