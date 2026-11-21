@@ -7,12 +7,13 @@ import java.time.Instant;
 import java.util.Objects;
 
 /** A sale as shown to the member: its listing's title and last price read, not the amount actually received. */
-public record Sale(VintedListingId listingId, String title, Price price, Instant noticedAt) {
+public record Sale(VintedListingId listingId, String title, Price price, Instant noticedAt, SaleOrigin origin) {
 
     public Sale {
         Objects.requireNonNull(listingId);
         Objects.requireNonNull(title);
         Objects.requireNonNull(price);
         Objects.requireNonNull(noticedAt);
+        Objects.requireNonNull(origin);
     }
 }

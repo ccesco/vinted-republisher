@@ -8,6 +8,7 @@ import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.sale.SaleOrigin;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Test;
 
@@ -29,7 +30,8 @@ class ListingStageTest {
     private static ListingStage stage(boolean present, boolean backedUp, boolean validated,
                                       Optional<ListingDeletion> deletion,
                                       Optional<ListingRepublication> republication, Instant now) {
-        return ListingStage.of(present, false, backedUp, validated, false, deletion, republication, DELAY, now);
+        return ListingStage.of(present, Optional.empty(), backedUp, validated, false, deletion, republication,
+                DELAY, now);
     }
 
     private static ListingStage stage(boolean present, boolean backedUp, boolean validated) {
@@ -38,13 +40,19 @@ class ListingStageTest {
 
     private static ListingStage stageAfterVerification(boolean present, boolean validated,
                                                        boolean verificationFailed) {
-        return ListingStage.of(present, false, true, validated, verificationFailed, Optional.empty(),
+        return ListingStage.of(present, Optional.empty(), true, validated, verificationFailed, Optional.empty(),
                 Optional.empty(), DELAY, DELETED_AT);
     }
 
     private static ListingStage soldStage(boolean present, Optional<ListingDeletion> deletion,
                                           Optional<ListingRepublication> republication) {
-        return ListingStage.of(present, true, true, true, false, deletion, republication, DELAY, DELETED_AT);
+        return soldStage(SaleOrigin.NOTICED, present, deletion, republication);
+    }
+
+    private static ListingStage soldStage(SaleOrigin origin, boolean present, Optional<ListingDeletion> deletion,
+                                          Optional<ListingRepublication> republication) {
+        return ListingStage.of(present, Optional.of(origin), true, true, false, deletion, republication, DELAY,
+                DELETED_AT);
     }
 
     @Test
@@ -61,6 +69,13 @@ class ListingStageTest {
     void republication_and_deletion_win_over_the_sale() {
         assertThat(soldStage(true, unconfirmed(), Optional.empty())).isEqualTo(ListingStage.DELETION_TO_CHECK);
         assertThat(soldStage(false, confirmed(), published())).isEqualTo(ListingStage.REPUBLISHED);
+    }
+
+    @Test
+    void a_noted_sale_wins_over_every_other_rule() {
+        assertThat(soldStage(SaleOrigin.NOTED, true, unconfirmed(), Optional.empty())).isEqualTo(ListingStage.SOLD);
+        assertThat(soldStage(SaleOrigin.NOTED, false, confirmed(), published())).isEqualTo(ListingStage.SOLD);
+        assertThat(soldStage(SaleOrigin.NOTED, false, confirmed(), Optional.empty())).isEqualTo(ListingStage.SOLD);
     }
 
     @Test

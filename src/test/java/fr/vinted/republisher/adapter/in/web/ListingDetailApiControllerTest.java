@@ -17,6 +17,7 @@ import fr.vinted.republisher.domain.deletion.ListingDeletionId;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
@@ -83,6 +84,9 @@ class ListingDetailApiControllerTest {
 
     @Autowired
     private InMemoryBackupVerificationRepository verifications;
+
+    @Autowired
+    private InMemoryListingSaleRepository sales;
 
     @Test
     void shows_the_last_verification_failure_of_the_current_backup() {
@@ -223,6 +227,26 @@ class ListingDetailApiControllerTest {
     }
 
     @Test
+    void detail_shows_a_noted_sale_and_the_sold_stage() {
+        // AT-51-09 : la fiche montre « Vendue » et la vente notée
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Robe bleue", "12", ACTIVE), FIRST)));
+        sales.addAll(List.of(ListingSale.noted(new VintedListingId(101), SECOND)));
+
+        assertThat(mvc.get().uri("/api/listings/101"))
+                .hasStatusOk()
+                .bodyJson().isLenientlyEqualTo("""
+                        {"listing": {"stage": "SOLD"},
+                         "sale": {"origin": "NOTED", "noticedAt": "2026-11-02T09:00:00Z"}}""");
+    }
+
+    @Test
+    void detail_without_sale_has_none() {
+        listings.saveAll(List.of(Listing.seen(aListing(101, "Robe bleue", "12", ACTIVE), FIRST)));
+
+        assertThat(mvc.get().uri("/api/listings/101")).bodyJson().doesNotHavePath("$.sale");
+    }
+
+    @Test
     void unknown_listing_is_not_found() {
         // Étant donné aucune annonce 999
         // Quand la page demande GET /api/listings/999
@@ -274,11 +298,16 @@ class ListingDetailApiControllerTest {
         }
 
         @Bean
+        InMemoryListingSaleRepository sales() {
+            return new InMemoryListingSaleRepository();
+        }
+
+        @Bean
         ShowDuplicates showDuplicates(InMemoryListingRepository listings, InMemoryListingBackupRepository backups,
                                       InMemoryListingDeletionRepository deletions,
-                                      InMemoryListingRepublicationRepository republications) {
-            return new ShowDuplicates(listings, backups, deletions, republications, new InMemoryListingSaleRepository(),
-                    DeletionMode.DRY_RUN);
+                                      InMemoryListingRepublicationRepository republications,
+                                      InMemoryListingSaleRepository sales) {
+            return new ShowDuplicates(listings, backups, deletions, republications, sales, DeletionMode.DRY_RUN);
         }
 
         @Bean
@@ -287,12 +316,13 @@ class ListingDetailApiControllerTest {
                                             InMemoryListingRepublicationRepository republications,
                                             InMemoryListingDeletionRepository deletions,
                                             InMemoryListingBackupRepository backups,
-                                            InMemoryBackupVerificationRepository verifications) {
+                                            InMemoryBackupVerificationRepository verifications,
+                                            InMemoryListingSaleRepository sales) {
             return new ShowListingDetail(listings, statistics, backups,
                     new InMemoryBackupValidationRepository(),
                     deletions, republications,
                     new RepublicationDelay(Duration.ofMinutes(5)), Clock.fixed(NOW, ZoneOffset.UTC),
-                    new InMemoryActionJournal(), verifications, new InMemoryListingSaleRepository());
+                    new InMemoryActionJournal(), verifications, sales);
         }
     }
 }

@@ -108,7 +108,7 @@ class DeleteDuplicateAcceptanceTest {
         ListingRepublication republication = ListingRepublication.attempted(aBackup(9, SCANNED_AT), SCANNED_AT,
                 WriteOrigin.RUN);
         republications.save(republication.published(KEPT, SCANNED_AT));
-        sales.addAll(List.of(new ListingSale(new VintedListingId(3), SCANNED_AT)));
+        sales.addAll(List.of(ListingSale.noticed(new VintedListingId(3), SCANNED_AT)));
 
         DuplicatesView view = showDuplicates(DeletionMode.REAL).show();
         Throwable refusal = catchThrowable(() -> deleteDuplicate(DeletionMode.REAL).delete(KEPT));
@@ -271,7 +271,7 @@ class DeleteDuplicateAcceptanceTest {
 
             @Override
             public List<ListingSale> findAll() {
-                return reads++ == 0 ? List.of() : List.of(new ListingSale(DUPLICATE, SCANNED_AT));
+                return reads++ == 0 ? List.of() : List.of(ListingSale.noticed(DUPLICATE, SCANNED_AT));
             }
         };
         ShowDuplicates show = new ShowDuplicates(listings, backups, deletions, republications, soldMeanwhile,

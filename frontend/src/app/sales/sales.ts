@@ -1,7 +1,8 @@
 import { Component, inject, signal } from '@angular/core';
 import { SalesOverview, SalesService } from '../../generated/api';
 import { answerOf } from '../shared/api-answer';
-import { dateOf, listingLink, priceOf } from '../shared/format';
+import { listingLink, priceOf } from '../shared/format';
+import { saleDateOf } from '../shared/sale';
 
 @Component({
   selector: 'app-sales',
@@ -10,7 +11,7 @@ import { dateOf, listingLink, priceOf } from '../shared/format';
 export class Sales {
   protected readonly overview = signal<SalesOverview | null>(null);
   protected readonly unavailable = signal(false);
-  protected readonly dateOf = dateOf;
+  protected readonly saleDateOf = saleDateOf;
   protected readonly priceOf = priceOf;
   protected readonly listingLink = listingLink;
   private readonly sales = inject(SalesService);

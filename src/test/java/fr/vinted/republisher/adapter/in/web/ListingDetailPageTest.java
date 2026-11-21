@@ -52,6 +52,11 @@ class ListingDetailPageTest {
              "duplicateTwinIds": [], "deletableAsDuplicate": false, "deletionDryRun": true}""";
     private static final String DUPLICATE = DETAIL.replace("\"duplicateTwinIds\": [], \"deletableAsDuplicate\": false",
             "\"duplicateTwinIds\": [1], \"deletableAsDuplicate\": true");
+    private static final String NOTED_SOLD = DETAIL.replace("\"present\": true}",
+                    "\"present\": true, \"stage\": \"SOLD\"}")
+            .replace("\"deletionDryRun\": true}",
+                    "\"deletionDryRun\": true, \"sale\": {\"origin\": \"NOTED\", \"noticedAt\": \"2026-11-20T10:00:00Z\"}}");
+    private static final String NOTICED_SOLD = NOTED_SOLD.replace("\"NOTED\"", "\"NOTICED\"");
     private static final String NEVER_READ = """
             {"listing": {"vintedId": 3, "title": "Jupe", "price": {"amount": 3, "currency": "EUR"},
                          "url": "https://vinted.test/items/3", "present": true},
@@ -116,6 +121,9 @@ class ListingDetailPageTest {
     private final AtomicReference<String> duplicateDeletionAnswer =
             new AtomicReference<>("{\"outcome\": \"DELETED\", \"twinListingId\": 1}");
     private final List<String> duplicateDeletions = new CopyOnWriteArrayList<>();
+    private final AtomicInteger saleStatus = new AtomicInteger(204);
+    private final AtomicReference<String> saleAnswer = new AtomicReference<>("");
+    private final List<String> saleRequests = new CopyOnWriteArrayList<>();
     private Page page;
 
     @BeforeAll
@@ -178,6 +186,13 @@ class ListingDetailPageTest {
         fakeApi.createContext("/api/listings/3/duplicate-deletion", exchange -> {
             duplicateDeletions.add(exchange.getRequestMethod());
             respond(exchange, duplicateDeletionStatus.get(), "application/json", bytes(duplicateDeletionAnswer.get()));
+        });
+        fakeApi.createContext("/api/listings/3/sale", exchange -> {
+            saleRequests.add(exchange.getRequestMethod());
+            if (saleStatus.get() == 204) {
+                detail.set(exchange.getRequestMethod().equals("PUT") ? NOTED_SOLD : DETAIL);
+            }
+            respond(exchange, saleStatus.get(), "application/json", bytes(saleAnswer.get()));
         });
         fakeApi.createContext("/api/duplicates", exchange -> respond(exchange, 200, "application/json",
                 bytes("{\"groups\": [], \"deletionDryRun\": true}")));
@@ -308,13 +323,16 @@ class ListingDetailPageTest {
         backup.set("");
         // Quand le membre ouvre sa fiche
         open();
-        // Alors il voit « Aucun relevé » et « Non sauvegardée », sans bouton
+        // Alors il voit « Aucun relevé » et « Non sauvegardée »
         assertThat(page.locator("#no-reading")).hasText("Aucun relevé");
         assertThat(page.locator("#history")).isHidden();
         assertThat(page.locator("#not-backed-up")).hasText("Non sauvegardée");
         assertThat(page.locator("#backup")).isHidden();
         assertThat(problem()).isHidden();
-        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasCount(0);
+        // US-52 : « Supprimer de Vinted », grisé, en en-tête ; US-51 : « Noter vendue »
+        assertThat(page.locator("main").getByRole(AriaRole.BUTTON)).hasCount(2);
+        assertThat(page.locator("#delete")).isDisabled();
+        assertThat(page.locator("#note-sale")).isEnabled();
     }
 
     @Test
@@ -510,6 +528,79 @@ class ListingDetailPageTest {
     }
 
     @Test
+    void notes_the_listing_sold_after_confirmation() {
+        // AT-51-09 : sans confirmation rien n'est envoyé ; après confirmation, la fiche montre « Vendue » et la vente
+        open();
+
+        page.locator("#note-sale").click();
+        page.locator("#cancel-sale-note").click();
+        assertThat(page.locator("#sale-confirmation")).isHidden();
+        assertThat(saleRequests).isEmpty();
+
+        page.locator("#note-sale").click();
+        assertThat(page.locator("#sale-confirmation-title")).hasText("Noter cette annonce vendue ?");
+        page.locator("#confirm-sale-note").click();
+
+        assertThat(page.locator("#stage")).hasText("Étape : Vendue");
+        assertThat(page.locator("#sale")).containsText("Vendue. Notée le 20/11/2026");
+        assertThat(page.locator("#note-sale")).hasCount(0);
+        assertThat(page.locator("#cancel-sale")).isVisible();
+        assertThat(saleRequests).containsExactly("PUT");
+    }
+
+    @Test
+    void cancels_a_noted_sale_after_confirmation() {
+        detail.set(NOTED_SOLD);
+        open();
+
+        page.locator("#cancel-sale").click();
+        assertThat(page.locator("#sale-cancellation-title")).hasText("Annuler la vente notée ?");
+        page.locator("#confirm-sale-cancellation").click();
+
+        assertThat(page.locator("#note-sale")).isVisible();
+        assertThat(page.locator("#sale")).hasCount(0);
+        assertThat(saleRequests).containsExactly("DELETE");
+    }
+
+    @Test
+    void a_noticed_sale_offers_neither_note_nor_cancellation() {
+        detail.set(NOTICED_SOLD);
+        open();
+
+        assertThat(page.locator("#sale")).containsText("Vendue. Constatée le 20/11/2026");
+        assertThat(page.locator("#note-sale")).hasCount(0);
+        assertThat(page.locator("#cancel-sale")).hasCount(0);
+    }
+
+    @Test
+    void a_refused_sale_note_says_why() {
+        saleStatus.set(409);
+        saleAnswer.set("{\"reason\": \"ALREADY_SOLD\"}");
+        open();
+
+        page.locator("#note-sale").click();
+        page.locator("#confirm-sale-note").click();
+
+        assertThat(page.locator("#sale-message")).hasText("Cette annonce a déjà une vente.");
+        assertThat(page.locator("#sale-confirmation")).isHidden();
+    }
+
+    @Test
+    void a_refused_sale_cancellation_says_why() {
+        detail.set(NOTED_SOLD);
+        saleStatus.set(409);
+        saleAnswer.set("{\"reason\": \"NOT_NOTED\"}");
+        open();
+
+        page.locator("#cancel-sale").click();
+        page.locator("#confirm-sale-cancellation").click();
+
+        assertThat(page.locator("#sale-message"))
+                .hasText("Cette vente a été constatée dans le dressing : elle ne s'annule pas.");
+        assertThat(page.locator("#sale-cancellation")).isHidden();
+    }
+
+    @Test
     void a_listing_without_twin_offers_no_duplicate_deletion() {
         open();
 
@@ -696,6 +787,85 @@ class ListingDetailPageTest {
             assertThat(deletionState()).containsText("Supprimée de Vinted le 11/11/2026");
             assertThat(deleteButton()).isHidden();
             assertThat(recheckButton()).isHidden();
+        }
+
+        @Test
+        void deletes_from_the_header() {
+            // AT-52-01. Étant donné une annonce dont la sauvegarde est validée et vérifiée
+            backup.set(VALIDATED);
+            deletionAnswer.set(VALIDATED.replace("\"deletionDryRun\": true,",
+                    "\"deletionDryRun\": true, \"dryRunPassed\": true,"));
+            // Quand le membre ouvre sa fiche
+            open();
+            // Alors « Supprimer de Vinted » est actif dans l'en-tête, sans raison affichée
+            assertThat(headerDeleteButton()).isEnabled();
+            assertThat(deletionBlock()).isEmpty();
+            // Et la section Suppression n'a plus ce bouton
+            assertThat(page.locator("#deletion button", new Page.LocatorOptions().setHasText("Supprimer de Vinted")))
+                    .hasCount(0);
+            // Quand il clique dessus puis sur « Supprimer définitivement »
+            headerDeleteButton().click();
+            confirmButton().click();
+            // Alors la demande de suppression d'US-09 est envoyée avec la date de la sauvegarde affichée
+            assertThat(deletionState()).containsText("Rien n'a été supprimé.");
+            assertThat(deletions).containsExactly(
+                    "POST /api/listings/3/deletion {\"savedAt\":\"2026-11-10T10:00:00Z\"}");
+        }
+
+        @Test
+        void header_deletion_shows_why_it_is_disabled() {
+            // AT-52-02. Étant donné une annonce <situation>, quand le membre ouvre sa fiche,
+            // alors « Supprimer de Vinted » est grisé dans l'en-tête avec sa raison
+            detail.set(DETAIL.replace("\"present\": true", "\"present\": true, \"stage\": \"SOLD\""));
+            backup.set(VALIDATED);
+            open();
+            assertDisabledBecause("Annonce vendue : rien à supprimer.");
+            headerDeleteButton().click(new Locator.ClickOptions().setForce(true));
+            assertThat(confirmation()).isHidden();
+
+            detail.set(DETAIL);
+            backupStatus.set(404);
+            open();
+            assertDisabledBecause("Aucune sauvegarde : sauvegarder d'abord.");
+
+            backupStatus.set(200);
+            backup.set(UNCONFIRMED);
+            open();
+            assertDisabledBecause("Suppression non confirmée : revérifier sur Vinted.");
+
+            backup.set(VERIFIED);
+            open();
+            assertDisabledBecause("Sauvegarde non validée : valider d'abord.");
+
+            backup.set(VALIDATED.replace("{\"passed\": true, \"failures\": []}", FAILED_VERIFICATION));
+            open();
+            assertDisabledBecause("Vérification de la sauvegarde en échec.");
+            assertThat(deletions).isEmpty();
+        }
+
+        @Test
+        void header_hides_deletion_once_confirmed() {
+            // AT-52-03. Étant donné une annonce dont la suppression est confirmée, quand le membre ouvre sa fiche,
+            // alors l'en-tête n'a pas de bouton « Supprimer de Vinted »
+            backup.set(CONFIRMED);
+            open();
+            assertThat(headerDeleteButton()).isHidden();
+            assertThat(deletionBlock()).isHidden();
+        }
+
+        private void assertDisabledBecause(String reason) {
+            assertThat(headerDeleteButton()).isDisabled();
+            assertThat(deletionBlock()).hasText(reason);
+            assertThat(headerDeleteButton()).hasAccessibleDescription(reason);
+        }
+
+        private Locator headerDeleteButton() {
+            return page.locator(".page-header").getByRole(AriaRole.BUTTON,
+                    new Locator.GetByRoleOptions().setName("Supprimer de Vinted"));
+        }
+
+        private Locator deletionBlock() {
+            return page.locator("#deletion-block");
         }
 
         @Test

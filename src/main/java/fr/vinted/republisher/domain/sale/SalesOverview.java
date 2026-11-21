@@ -31,7 +31,7 @@ public record SalesOverview(List<Sale> sales, List<Price> totals) {
                 inventory.stream().collect(Collectors.toMap(Listing::id, Function.identity()));
         List<Sale> sales = recorded.stream()
                 .flatMap(sale -> Optional.ofNullable(byId.get(sale.listingId())).map(listing -> new Sale(
-                        listing.id(), listing.title(), listing.price(), sale.noticedAt())).stream())
+                        listing.id(), listing.title(), listing.price(), sale.noticedAt(), sale.origin())).stream())
                 .sorted(MOST_RECENT_FIRST)
                 .toList();
         return new SalesOverview(sales, totalsOf(sales));

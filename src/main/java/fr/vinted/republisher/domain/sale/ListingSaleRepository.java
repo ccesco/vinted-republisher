@@ -1,11 +1,22 @@
 package fr.vinted.republisher.domain.sale;
 
+import fr.vinted.republisher.domain.wardrobe.VintedListingId;
+
 import java.util.List;
+import java.util.Optional;
 
 public interface ListingSaleRepository {
 
     List<ListingSale> findAll();
 
-    /** All or nothing. */
+    Optional<ListingSale> find(VintedListingId listing);
+
+    /** Inserts only, all or nothing: a sale already recorded for one of the listings fails the whole call. */
     void addAll(List<ListingSale> sales);
+
+    /** Inserts only, atomically: {@link ListingAlreadySold} if the listing already has a sale, which is kept. */
+    void add(ListingSale sale);
+
+    /** Removes the listing's sale only if it was noted: a noticed sale is never removed. */
+    void removeNoted(VintedListingId listing);
 }

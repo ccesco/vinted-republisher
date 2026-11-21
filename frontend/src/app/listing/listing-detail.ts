@@ -11,7 +11,7 @@ import {
   BackupVerification, DeletionRefusal, DuplicateDeletionRefusal, DuplicatesService, LifecycleEvent, ListingBackupContent, ListingBackupService,
   ListingBackupView, ListingDeletionService, ListingDetail as ListingDetailView, ListingDetailService,
   ListingDifference, ListingFieldDifference, ListingRepublicationService, ListingStatistics, RepublicationAdvice,
-  RepublicationRefusal, StatisticsComparison, ValidationRefusal, VerificationFailure
+  RepublicationRefusal, SaleRefusal, SalesService, StatisticsComparison, ValidationRefusal, VerificationFailure
 } from '../../generated/api';
 import { answerOf, refusalOf, statusOf } from '../shared/api-answer';
 import {
@@ -21,7 +21,9 @@ import { dateOf, dayOf, listingLink, priceOf } from '../shared/format';
 import { JournalLine, journalLineOf } from '../shared/journal';
 import { newListingSearchMessageOf, toLink } from '../shared/listing-link';
 import { manualRepublicationMessageOf } from '../shared/manual-republication';
+import { saleDateOf, saleRefusalMessageOf } from '../shared/sale';
 import { STAGE_LABELS } from '../wardrobe/wardrobe-messages';
+import { deletionBlockOf } from './deletion-block';
 import {
   APPLICATION_DOWN_MESSAGE, CONTENT_LABELS, DELETION_FAILED_MESSAGE, DELETION_REFUSALS, DRY_RUN_PASSED, FORM_FIELDS,
   LIFECYCLE_LABELS, RECHECK_FAILED_MESSAGE, REPUBLICATION_DRY_RUN_PASSED, REPUBLICATION_FAILED_MESSAGE,
@@ -69,6 +71,10 @@ export class ListingDetail {
   protected readonly duplicateAsked = signal(false);
   protected readonly duplicateMessage = signal('');
   protected readonly twinsSentenceOf = twinsSentenceOf;
+  protected readonly saleDateOf = saleDateOf;
+  protected readonly saleNoteAsked = signal(false);
+  protected readonly saleCancellationAsked = signal(false);
+  protected readonly saleMessage = signal('');
 
   private readonly title = inject(Title);
   private readonly details = inject(ListingDetailService);
@@ -76,6 +82,7 @@ export class ListingDetail {
   private readonly deletions = inject(ListingDeletionService);
   private readonly republications = inject(ListingRepublicationService);
   private readonly duplicates = inject(DuplicatesService);
+  private readonly sales = inject(SalesService);
   private readonly router = inject(Router);
   private listingId = 0;
   // Numéro de la dernière ouverture : une réponse arrivée après le passage à une autre annonce est ignorée.
@@ -118,6 +125,40 @@ export class ListingDetail {
     this.newListingUrl.set('');
     this.duplicateAsked.set(false);
     this.duplicateMessage.set('');
+    this.saleNoteAsked.set(false);
+    this.saleCancellationAsked.set(false);
+    this.saleMessage.set('');
+  }
+
+  // US-51 : noter la vente ou annuler une vente notée, puis relire la fiche (étape et vente). Rien sur Vinted.
+  protected confirmSaleNote(): Promise<void> {
+    this.saleNoteAsked.set(false);
+    return this.changeSale(this.sales.noteListingSold(this.listingId));
+  }
+
+  protected confirmSaleCancellation(): Promise<void> {
+    this.saleCancellationAsked.set(false);
+    return this.changeSale(this.sales.cancelNotedSale(this.listingId));
+  }
+
+  private async changeSale(request: Observable<unknown>): Promise<void> {
+    const opening = this.opening;
+    this.saleMessage.set('');
+    this.sending.set(true);
+    try {
+      await answerOf(request);
+      if (opening === this.opening) {
+        await this.loadListing();
+      }
+    } catch (failure) {
+      if (opening === this.opening) {
+        this.saleMessage.set(saleRefusalMessageOf(await refusalOf<SaleRefusal>(failure), statusOf(failure)));
+      }
+    } finally {
+      if (opening === this.opening) {
+        this.sending.set(false);
+      }
+    }
   }
 
   // US-47 : la confirmation nomme l'annonce effacée et la ou les jumelles gardées.
@@ -233,9 +274,22 @@ export class ListingDetail {
     return view.dryRunPassed ? DRY_RUN_PASSED : '';
   }
 
-  protected deleteDisabled(view: ListingBackupView): boolean {
-    return this.sending() || view.deletion?.outcome === 'UNCONFIRMED' || !view.validatedAt
-      || !view.verification.passed;
+  // « Supprimer de Vinted » en en-tête (US-52) : une fois la sauvegarde lue ou sue absente, jusqu'à la suppression confirmée.
+  protected headerDeletionShown(): boolean {
+    const view = this.view();
+    return this.detail() !== null
+      && (this.notBackedUp() || (view !== null && view.deletion?.outcome !== 'CONFIRMED'));
+  }
+
+  protected deletionBlock(): string {
+    const view = this.view();
+    return deletionBlockOf({
+      sold: this.detail()?.listing.stage === 'SOLD',
+      backedUp: view !== null,
+      unconfirmed: view?.deletion?.outcome === 'UNCONFIRMED',
+      validated: !!view?.validatedAt,
+      verified: !!view?.verification.passed,
+    });
   }
 
   protected republicationMode(view: ListingBackupView): string {

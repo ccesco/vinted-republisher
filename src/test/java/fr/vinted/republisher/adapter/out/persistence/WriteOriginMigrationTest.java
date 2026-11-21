@@ -29,8 +29,8 @@ class WriteOriginMigrationTest {
 
     private static final String CHANGELOG = "db/changelog/db.changelog-master.yaml";
     private static final String DATABASE = "write_origin_migration";
-    /** The changesets 001 to 018, written before this one. */
-    private static final int CHANGESETS_BEFORE = 18;
+    /** The changesets 001 to 019, written before this one. */
+    private static final int CHANGESETS_BEFORE = 19;
 
     @Test
     void existing_attempts_are_run_writes() throws Exception {

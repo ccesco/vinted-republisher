@@ -3,7 +3,7 @@
 # comptées pour la série (RUN), choix prudent. La valeur par défaut ne sert qu'à remplir l'existant.
 databaseChangeLog:
   - changeSet:
-      id: 019-write-origin
+      id: 020-write-origin
       author: vinted-republisher
       changes:
         - addColumn:

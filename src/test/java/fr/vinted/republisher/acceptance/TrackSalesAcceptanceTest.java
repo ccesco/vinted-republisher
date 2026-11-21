@@ -79,7 +79,7 @@ class TrackSalesAcceptanceTest {
         scanWardrobe.scan();
 
         // Alors l'annonce 2 est vendue, constatée maintenant, sans être ouverte, et marquée absente comme avant
-        assertThat(sales.findAll()).containsExactly(new ListingSale(new VintedListingId(2), NOW));
+        assertThat(sales.findAll()).containsExactly(ListingSale.noticed(new VintedListingId(2), NOW));
         assertThat(reader.opened()).doesNotContain(new VintedListingId(2));
         assertThat(listings.find(new VintedListingId(2))).hasValueSatisfying(
                 listing -> assertThat(listing.present()).isFalse());
@@ -93,7 +93,7 @@ class TrackSalesAcceptanceTest {
 
         refreshStatistics.refresh();
 
-        assertThat(sales.findAll()).containsExactly(new ListingSale(new VintedListingId(2), NOW));
+        assertThat(sales.findAll()).containsExactly(ListingSale.noticed(new VintedListingId(2), NOW));
     }
 
     @Test
@@ -109,7 +109,7 @@ class TrackSalesAcceptanceTest {
         refreshStatistics.refresh();
 
         // Alors elle reste une seule vente, à sa première date
-        assertThat(sales.findAll()).containsExactly(new ListingSale(new VintedListingId(2), NOW));
+        assertThat(sales.findAll()).containsExactly(ListingSale.noticed(new VintedListingId(2), NOW));
     }
 
     @Test
@@ -142,6 +142,21 @@ class TrackSalesAcceptanceTest {
         // Alors l'annonce 1 est « Vendue », et n'est donc plus proposée à la suppression
         assertThat(stageOf(1)).isEqualTo(ListingStage.SOLD);
         assertThat(RelaunchAction.after(ListingStage.SOLD, WriteOrigin.RUN)).isEmpty();
+    }
+
+    @Test
+    void a_scan_keeps_a_noted_sale() {
+        // AT-51-06. Étant donné l'annonce 2 notée vendue par le membre
+        knowListings(1, 2);
+        ListingSale noted = ListingSale.noted(new VintedListingId(2), EARLIER);
+        sales.addAll(List.of(noted));
+
+        // Quand un scan la montre « Vendu »
+        reader.holding(anActiveListing(1)).sold(2);
+        scanWardrobe.scan();
+
+        // Alors sa vente reste notée, à sa date
+        assertThat(sales.findAll()).containsExactly(noted);
     }
 
     private ListingStage stageOf(long id) {

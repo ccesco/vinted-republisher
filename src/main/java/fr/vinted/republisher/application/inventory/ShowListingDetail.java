@@ -18,6 +18,7 @@ import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
+import fr.vinted.republisher.domain.sale.ListingSale;
 import fr.vinted.republisher.domain.sale.ListingSaleRepository;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
@@ -76,12 +77,13 @@ public class ShowListingDetail {
         Instant now = clock.instant();
         Instant baselineAsOf = RepublicationAdvice.baselineAsOf(now);
         Optional<VerificationResult> verification = verifications.find(id);
+        Optional<ListingSale> sale = sales.find(id);
         ListingInventory inventory = ListingInventory.of(List.of(listing), history.stream().limit(1).toList(),
                 history.stream().filter(reading -> !reading.readAt().isAfter(baselineAsOf)).limit(1).toList(),
                 backups.find(id).map(ListingBackup::summary).stream().toList(), validations.find(id).stream().toList(),
                 verification.stream().toList(),
                 deletions.findLatest(id).stream().toList(), republications.findLatest(id).stream().toList(),
-                sales.findAll().stream().filter(sale -> sale.listingId().equals(id)).toList(), delay, now);
+                sale.stream().toList(), delay, now);
         Set<VintedListingId> seen = new HashSet<>(Set.of(id));
         List<VintedListingId> previous = previousListings(id, seen);
         List<VintedListingId> next = nextListings(id, seen);
@@ -90,7 +92,7 @@ public class ShowListingDetail {
                 .filter(result -> entry.backup().filter(result::holdsFor).isPresent());
         return new ListingDetail(entry, history, journal.of(id),
                 comparison(id, previous, history.stream().findFirst()), listings.priceHistoryOf(id),
-                lifecycle(previous, id, next), lastVerification);
+                lifecycle(previous, id, next), lastVerification, sale);
     }
 
     /** Walks back the published republications that led to this listing, the one replaced directly first. */

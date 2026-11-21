@@ -33,9 +33,9 @@ class SalesPageTest {
     private static final String TWO_SALES = """
             {"sales": [
                {"listingId": 2, "title": "Jean <b>bleu</b>", "price": {"amount": 25.5, "currency": "EUR"},
-                "noticedAt": "2026-11-17T10:00:00Z"},
+                "noticedAt": "2026-11-17T10:00:00Z", "origin": "NOTED"},
                {"listingId": 1, "title": "Pull rayé", "price": {"amount": 10, "currency": "EUR"},
-                "noticedAt": "2026-11-15T10:00:00Z"}],
+                "noticedAt": "2026-11-15T10:00:00Z", "origin": "NOTICED"}],
              "totals": [{"amount": 35.5, "currency": "EUR"}]}""";
 
     private static Playwright playwright;
@@ -91,6 +91,15 @@ class SalesPageTest {
         assertThat(rows().nth(0).getByRole(AriaRole.LINK)).hasAttribute("href", "#/listings/2");
         assertThat(rows().nth(1)).containsText("Pull rayé");
         assertThat(page.getByRole(AriaRole.ALERT)).isHidden();
+    }
+
+    @Test
+    void tells_noted_sales_from_noticed_ones() {
+        // AT-51-09 : une vente notée à la main est « notée le », une vente vue dans le dressing « constatée le »
+        open();
+
+        assertThat(rows().nth(0)).containsText("Notée le 17/11/2026 11:00:00");
+        assertThat(rows().nth(1)).containsText("Constatée le 15/11/2026 11:00:00");
     }
 
     @Test

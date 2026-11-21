@@ -426,6 +426,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SalesOverview'
+  /api/listings/{listingId}/sale:
+    put:
+      tags: [sales]
+      operationId: noteListingSold
+      summary: Noter une annonce vendue
+      description: >
+        Le membre note l'annonce vendue (vente hors Vinted ou non relevée par le scan), quelle que soit son étape :
+        une vente notée, datée de maintenant, qui met l'annonce à l'étape « Vendue » (US-51). Rien n'est fait sur
+        Vinted.
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      responses:
+        '204':
+          description: Vente notée.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: Annonce inconnue de l'outil.
+        '409':
+          description: L'annonce a déjà une vente (ALREADY_SOLD) ; rien ne change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleRefusal'
+    delete:
+      tags: [sales]
+      operationId: cancelNotedSale
+      summary: Annuler une vente notée
+      description: >
+        Supprime la vente notée par le membre ; l'étape de l'annonce est de nouveau déduite sans elle. Une vente
+        constatée dans le dressing ne s'annule pas (US-51).
+      parameters:
+        - $ref: '#/components/parameters/ListingId'
+      responses:
+        '204':
+          description: Vente annulée.
+        '403':
+          description: Demande venue d'un autre site que l'application, refusée.
+        '404':
+          description: Annonce inconnue de l'outil, ou sans vente.
+        '409':
+          description: La vente a été constatée dans le dressing, pas notée (NOT_NOTED) ; rien ne change.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaleRefusal'
   /api/duplicates:
     get:
       tags: [duplicates]
@@ -1222,9 +1268,9 @@ components:
     Sale:
       type: object
       description: >
-        Annonce connue vue « Vendu » dans le dressing ; jamais modifiée ni supprimée. Le prix est le dernier lu sur
-        l'annonce (prix affiché, hors frais), pas le montant encaissé.
-      required: [listingId, title, price, noticedAt]
+        Annonce connue vue « Vendu » dans le dressing, ou notée vendue par le membre (US-51) ; jamais modifiée. Le
+        prix est le dernier lu sur l'annonce (prix affiché, hors frais), pas le montant encaissé.
+      required: [listingId, title, price, noticedAt, origin]
       properties:
         listingId:
           type: integer
@@ -1236,7 +1282,36 @@ components:
         noticedAt:
           type: string
           format: date-time
-          description: Date du premier relevé du dressing qui l'a montrée vendue, pas la date réelle de la vente.
+          description: >
+            Date du premier relevé du dressing qui l'a montrée vendue, ou date où le membre l'a notée vendue ; pas la
+            date réelle de la vente.
+        origin:
+          $ref: '#/components/schemas/SaleOrigin'
+    SaleOrigin:
+      type: string
+      description: Vente notée par le membre (US-51), ou constatée sur une carte « Vendu » du dressing (US-36).
+      enum: [NOTED, NOTICED]
+    ListingSale:
+      type: object
+      description: La vente d'une annonce, sur sa fiche.
+      required: [origin, noticedAt]
+      properties:
+        origin:
+          $ref: '#/components/schemas/SaleOrigin'
+        noticedAt:
+          type: string
+          format: date-time
+          description: Date de constat ou de note, pas la date réelle de la vente.
+    SaleRefusal:
+      type: object
+      description: >
+        Raison du refus : l'annonce a déjà une vente (ALREADY_SOLD), ou sa vente a été constatée dans le dressing et
+        ne s'annule pas (NOT_NOTED). Rien ne change.
+      required: [reason]
+      properties:
+        reason:
+          type: string
+          enum: [ALREADY_SOLD, NOT_NOTED]
     LivePreviews:
       type: object
       description: Un aperçu par onglet de travail d'un Chrome piloté, trié par navigateur.
@@ -1498,6 +1573,8 @@ components:
         deletionDryRun:
           type: boolean
           description: Le dry-run des suppressions est actif ; une suppression de doublon ne clique ni n'efface rien.
+        sale:
+          $ref: '#/components/schemas/ListingSale'
       example:
         listing:
           vintedId: 90000000001
