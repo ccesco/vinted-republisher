@@ -3,21 +3,21 @@ package fr.vinted.republisher.acceptance;
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.ListingDetail;
 import fr.vinted.republisher.domain.inventory.ListingNotFound;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
-import fr.vinted.republisher.domain.journal.JournalEntry;
 import fr.vinted.republisher.domain.journal.JournaledAction;
+import fr.vinted.republisher.domain.journal.JournalEntry;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
@@ -25,6 +25,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 
@@ -117,7 +118,8 @@ class ShowListingDetailAcceptanceTest {
         ListingBackup backup = aBackup(103, FIRST);
         backups.save(backup);
         validations.save(BackupValidation.of(backup, FIRST.plusSeconds(60)));
-        deletions.save(ListingDeletion.attempted(backup, THIRD.minusSeconds(122)).confirmed(THIRD.minusSeconds(120)));
+        deletions.save(ListingDeletion.attempted(backup, THIRD.minusSeconds(122),
+                WriteOrigin.RUN).confirmed(THIRD.minusSeconds(120)));
 
         // Quand le membre ouvre sa fiche
         // Alors son étape est « En attente avant republication »

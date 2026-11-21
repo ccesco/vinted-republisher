@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.republication;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.time.Instant;
@@ -20,8 +21,8 @@ public interface ListingRepublicationRepository {
     /** The number of attempts found not published, per listing that has any, counted by the store in one read. */
     Map<VintedListingId, Integer> findNotPublishedCounts();
 
-    /** The dates of the attempts made after {@code since}, whatever their outcome. */
-    List<Instant> findAttemptedSince(Instant since);
+    /** The dates of the attempts of this origin made after {@code since}, whatever their outcome. */
+    List<Instant> findAttemptedSince(WriteOrigin origin, Instant since);
 
     /** The new listings of every published republication. */
     Set<VintedListingId> findNewListings();

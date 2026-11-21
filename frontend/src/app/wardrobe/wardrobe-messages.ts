@@ -9,9 +9,11 @@ export const STAGE_LABELS: Record<string, string> = {
 // Étapes qui demandent de vérifier sur Vinted : mises en évidence.
 export const STAGES_TO_CHECK = ['DELETION_TO_CHECK', 'REPUBLICATION_TO_CHECK'];
 // Étapes qui se relancent (US-20) -> libellé du bouton : l'action que le serveur en déduit.
+// Une annonce en attente se republie sans attendre sa date : un clic n'attend pas (US-49).
 export const RELAUNCH_LABELS: Record<string, string> = {
   TO_DELETE: 'Supprimer de Vinted', DELETION_TO_CHECK: 'Revérifier la suppression',
-  TO_REPUBLISH: 'Republier sur Vinted', REPUBLICATION_TO_CHECK: 'Vérifier la republication'
+  WAITING: 'Republier sur Vinted', TO_REPUBLISH: 'Republier sur Vinted',
+  REPUBLICATION_TO_CHECK: 'Vérifier la republication'
 };
 // RelaunchAction -> message une fois l'action faite.
 export const RELAUNCH_DONE_MESSAGES: Record<string, string> = {
@@ -25,7 +27,6 @@ export const RELAUNCH_FAILED_MESSAGE = 'Échec de la relance : vérifiez la fich
 export const RELAUNCH_REFUSAL_MESSAGES: Record<string, string> = {
   STAGE_CHANGED: "L'étape a changé depuis l'affichage : relisez la ligne avant de relancer",
   NOT_RELAUNCHABLE: 'Rien à relancer à cette étape',
-  CADENCE_LIMIT_REACHED: 'limite de cadence atteinte',
   BROWSER_BUSY: "Navigateur occupé : relancez une fois l'action en cours finie",
   ACTION_REFUSED: 'Relance refusée : voir la fiche',
   BROWSER_UNAVAILABLE: 'Navigateur indisponible : voir les logs',

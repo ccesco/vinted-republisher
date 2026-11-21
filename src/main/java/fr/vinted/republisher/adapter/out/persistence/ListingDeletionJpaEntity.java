@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionId;
@@ -38,6 +39,10 @@ class ListingDeletionJpaEntity {
     @Column(name = "settled_at")
     private Instant settledAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin", nullable = false)
+    private WriteOrigin origin;
+
     protected ListingDeletionJpaEntity() {
     }
 
@@ -48,10 +53,11 @@ class ListingDeletionJpaEntity {
         attemptedAt = deletion.attemptedAt();
         outcome = deletion.outcome();
         settledAt = deletion.settledAt().orElse(null);
+        origin = deletion.origin();
     }
 
     ListingDeletion toListingDeletion() {
         return new ListingDeletion(new ListingDeletionId(id), new VintedListingId(listingId), backupSavedAt,
-                attemptedAt, outcome, Optional.ofNullable(settledAt));
+                attemptedAt, outcome, Optional.ofNullable(settledAt), origin);
     }
 }

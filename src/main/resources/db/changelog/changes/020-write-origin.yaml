@@ -1,0 +1,27 @@
+# US-49 : chaque tentative de suppression et de republication garde son origine, clic du membre (MANUAL) ou série
+# (RUN) ; seule la cadence de la série compte, et seulement ses propres tentatives. Les tentatives antérieures sont
+# comptées pour la série (RUN), choix prudent. La valeur par défaut ne sert qu'à remplir l'existant.
+databaseChangeLog:
+  - changeSet:
+      id: 020-write-origin
+      author: vinted-republisher
+      changes:
+        - addColumn:
+            tableName: listing_deletion
+            columns:
+              - column: {name: origin, type: text, defaultValue: RUN, constraints: {nullable: false}}
+        - addColumn:
+            tableName: listing_republication
+            columns:
+              - column: {name: origin, type: text, defaultValue: RUN, constraints: {nullable: false}}
+        - dropDefaultValue: {tableName: listing_deletion, columnName: origin}
+        - dropDefaultValue: {tableName: listing_republication, columnName: origin}
+        - sql:
+            sql: >
+              ALTER TABLE listing_deletion ADD CONSTRAINT listing_deletion_origin_check
+                CHECK (origin IN ('MANUAL', 'RUN'));
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_origin_check
+                CHECK (origin IN ('MANUAL', 'RUN'));
+      rollback:
+        - dropColumn: {tableName: listing_deletion, columnName: origin}
+        - dropColumn: {tableName: listing_republication, columnName: origin}

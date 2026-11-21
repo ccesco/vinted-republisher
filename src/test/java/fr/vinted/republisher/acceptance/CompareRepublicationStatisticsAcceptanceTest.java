@@ -1,6 +1,7 @@
 package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowListingDetail;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.StatisticsComparison;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
@@ -11,7 +12,6 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
@@ -19,6 +19,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
 
@@ -142,13 +143,14 @@ class CompareRepublicationStatisticsAcceptanceTest {
     private static ListingRepublication published(long listing, long newListing, Instant publishedAt) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), new VintedListingId(listing),
                 NOV_1, publishedAt.minusSeconds(60), RepublicationOutcome.PUBLISHED, Optional.of(publishedAt),
-                Optional.of(new VintedListingId(newListing)), Optional.empty());
+                Optional.of(new VintedListingId(newListing)), Optional.empty(), WriteOrigin.RUN);
     }
 
     private static ListingRepublication attempted(long listing, RepublicationOutcome outcome) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), new VintedListingId(listing),
                 NOV_1, NOV_9, outcome, Optional.empty(), Optional.empty(),
-                outcome == RepublicationOutcome.NOT_PUBLISHED ? Optional.of(NOV_10) : Optional.empty());
+                outcome == RepublicationOutcome.NOT_PUBLISHED ? Optional.of(NOV_10) : Optional.empty(),
+                        WriteOrigin.RUN);
     }
 
     private static StatisticsReading reading(long listing, int views, int favourites, Instant readAt) {

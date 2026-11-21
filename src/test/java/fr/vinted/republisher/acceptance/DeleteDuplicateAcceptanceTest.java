@@ -8,11 +8,12 @@ import fr.vinted.republisher.application.duplicate.ShowDuplicates;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingChanged;
+import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDifference.PriceChanged;
 import fr.vinted.republisher.domain.duplicate.DuplicateDeletionOutcome;
 import fr.vinted.republisher.domain.duplicate.ListingHasHistory;
@@ -77,7 +78,7 @@ class DeleteDuplicateAcceptanceTest {
     private final InMemoryListingEraser eraser = new InMemoryListingEraser(listings, backups);
     private final VintedSession session = new VintedSession();
     private final FakeVintedPages vinted = new FakeVintedPages();
-    private final CadenceCheck cadence = new CadenceCheck(deletions, republications, journal,
+    private final CadenceCheck cadence = new CadenceCheck(deletions, republications,
             new WriteCadence(Duration.ofSeconds(30), Duration.ofMinutes(2), 2, 2), clock);
 
     // AT-47-01
@@ -104,7 +105,8 @@ class DeleteDuplicateAcceptanceTest {
     @Test
     void refuses_a_listing_with_history() {
         twoDuplicates();
-        ListingRepublication republication = ListingRepublication.attempted(aBackup(9, SCANNED_AT), SCANNED_AT);
+        ListingRepublication republication = ListingRepublication.attempted(aBackup(9, SCANNED_AT), SCANNED_AT,
+                WriteOrigin.RUN);
         republications.save(republication.published(KEPT, SCANNED_AT));
         sales.addAll(List.of(ListingSale.noticed(new VintedListingId(3), SCANNED_AT)));
 
@@ -276,7 +278,7 @@ class DeleteDuplicateAcceptanceTest {
                 DeletionMode.REAL);
 
         Throwable refusal = catchThrowable(() -> new DeleteDuplicate(session, show, listings, vinted, eraser, photos,
-                DeletionMode.REAL, cadence, new JournalWriter(journal, clock)).delete(DUPLICATE));
+                DeletionMode.REAL, new JournalWriter(journal, clock)).delete(DUPLICATE));
 
         assertThat(refusal).isInstanceOf(ListingHasHistory.class);
         assertThat(vinted.opened()).isEmpty();
@@ -309,20 +311,24 @@ class DeleteDuplicateAcceptanceTest {
         assertThat(vinted.opened()).isEmpty();
     }
 
-    // AT-47-10
+    // AT-47-10, AT-49-04b
     @Test
-    void respects_the_deletion_cadence() {
+    void ignores_the_cadence_and_does_not_count_in_it() {
+        // Étant donné la limite de cadence des suppressions atteinte (réel)
         twoDuplicates();
         scanned(3, "Pull", "5.00", ACTIVE);
         scanned(4, "Pull", "5.00", ACTIVE);
-        deleteDuplicate(DeletionMode.REAL).delete(DUPLICATE);
-
-        Throwable refusal = catchThrowable(() -> deleteDuplicate(DeletionMode.REAL).delete(new VintedListingId(4)));
-
-        assertThat(refusal).isInstanceOf(CadenceLimitReached.class);
-        assertThat(vinted.opened()).doesNotContain(new VintedListingId(4));
-        assertThat(cadence.allowedAt(VintedWrite.DELETION))
-                .isEqualTo(clock.instant().plusSeconds(30));
+        deletions.save(ListingDeletion.attempted(aBackup(9, SCANNED_AT), clock.instant().minusSeconds(10),
+                WriteOrigin.RUN));
+        deletions.save(ListingDeletion.attempted(aBackup(8, SCANNED_AT), clock.instant().minusSeconds(3600),
+                WriteOrigin.RUN));
+        Instant runAllowedAt = cadence.allowedAt(VintedWrite.DELETION);
+        // Quand le membre supprime un doublon
+        DuplicateDeletionReport report = deleteDuplicate(DeletionMode.REAL).delete(DUPLICATE);
+        // Alors il est supprimé sur Vinted
+        assertThat(report.outcome()).isEqualTo(DuplicateDeletionOutcome.DELETED);
+        // Et la série peut ensuite supprimer une annonce sans attendre davantage
+        assertThat(cadence.allowedAt(VintedWrite.DELETION)).isEqualTo(runAllowedAt);
     }
 
     // AT-47-11
@@ -374,7 +380,7 @@ class DeleteDuplicateAcceptanceTest {
     }
 
     private DeleteDuplicate deleteDuplicate(DeletionMode mode, FakeVintedPages pages) {
-        return new DeleteDuplicate(session, showDuplicates(mode), listings, pages, eraser, photos, mode, cadence,
+        return new DeleteDuplicate(session, showDuplicates(mode), listings, pages, eraser, photos, mode,
                 new JournalWriter(journal, clock));
     }
 

@@ -5,6 +5,7 @@ import fr.vinted.republisher.adapter.in.web.api.model.RelaunchActionDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RelaunchReportDto;
 import fr.vinted.republisher.adapter.in.web.api.model.RelaunchRequestDto;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.ListingStage;
 import fr.vinted.republisher.domain.relaunch.RelaunchReport;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -23,7 +24,7 @@ public class ListingRelaunchApiController implements ListingRelaunchApi {
     @Override
     public ResponseEntity<RelaunchReportDto> relaunchListing(Long listingId, RelaunchRequestDto request) {
         RelaunchReport report = relaunchListing.relaunch(new VintedListingId(listingId),
-                ListingStage.valueOf(request.getStage().name()));
+                ListingStage.valueOf(request.getStage().name()), WriteOrigin.MANUAL);
         return ResponseEntity.ok(new RelaunchReportDto()
                 .action(RelaunchActionDto.valueOf(report.action().name()))
                 .dryRun(report.dryRun())

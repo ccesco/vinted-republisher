@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -30,8 +31,8 @@ class JpaListingDeletionRepository implements ListingDeletionRepository {
     }
 
     @Override
-    public List<Instant> findAttemptedSince(Instant since) {
-        return repository.findAttemptedAtAfter(since);
+    public List<Instant> findAttemptedSince(WriteOrigin origin, Instant since) {
+        return repository.findAttemptedAtAfter(origin, since);
     }
 
     /** The attempt is the key: settling it updates the same row. */

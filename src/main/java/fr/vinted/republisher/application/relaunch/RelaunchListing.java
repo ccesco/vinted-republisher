@@ -6,6 +6,7 @@ import fr.vinted.republisher.application.inventory.ShowListingDetail;
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.VerifyListingRepublication;
 import fr.vinted.republisher.domain.backup.BackupSummary;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingStage;
@@ -46,18 +47,21 @@ public class RelaunchListing {
         this.verifyListingRepublication = verifyListingRepublication;
     }
 
-    /** {@code seen} is the stage the member saw: a listing that has moved on since is not relaunched. */
-    public RelaunchReport relaunch(VintedListingId id, ListingStage seen) {
+    /**
+     * {@code seen} is the stage seen: a listing that has moved on since is not relaunched. The member's click is
+     * held neither to the write cadence nor to the republication date (US-49); the run is.
+     */
+    public RelaunchReport relaunch(VintedListingId id, ListingStage seen, WriteOrigin origin) {
         InventoryEntry entry = detail.show(id).entry();
         if (entry.stage() != seen) {
             throw new StageChanged(seen, entry.stage());
         }
-        RelaunchAction action = RelaunchAction.after(entry.stage())
+        RelaunchAction action = RelaunchAction.after(entry.stage(), origin)
                 .orElseThrow(() -> new NotRelaunchable(entry.stage(), republishableAt(id, entry.stage())));
         boolean dryRun = switch (action) {
-            case DELETION -> deleteListing.delete(id, currentBackupOf(entry)).dryRunPassed();
+            case DELETION -> deleteListing.delete(id, currentBackupOf(entry), origin).dryRunPassed();
             case DELETION_RECHECK -> recheckListingDeletion.recheck(id).dryRunPassed();
-            case REPUBLICATION -> republishListing.republish(id, currentBackupOf(entry)).dryRunPassed();
+            case REPUBLICATION -> republishListing.republish(id, currentBackupOf(entry), origin).dryRunPassed();
             case REPUBLICATION_VERIFICATION -> verifyListingRepublication.verify(id).dryRunPassed();
         };
         return new RelaunchReport(action, dryRun, detail.show(id).entry());
@@ -68,13 +72,14 @@ public class RelaunchListing {
      * empty for a check or a dry run.
      */
     public Optional<Instant> realWriteAllowedAt(ListingStage stage) {
-        return RelaunchAction.after(stage).flatMap(action -> switch (action) {
+        return RelaunchAction.after(stage, WriteOrigin.RUN).flatMap(action -> switch (action) {
             case DELETION -> deleteListing.realWriteAllowedAt();
             case REPUBLICATION -> republishListing.realWriteAllowedAt();
             case DELETION_RECHECK, REPUBLICATION_VERIFICATION -> Optional.empty();
         });
     }
 
+    /** For the run only: a member click relaunches a waiting listing at once (US-49), the run waits for this date. */
     private Optional<Instant> republishableAt(VintedListingId id, ListingStage stage) {
         if (stage != ListingStage.WAITING) {
             return Optional.empty();

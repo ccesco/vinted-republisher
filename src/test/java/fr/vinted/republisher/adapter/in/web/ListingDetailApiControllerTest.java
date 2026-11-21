@@ -9,6 +9,7 @@ import fr.vinted.republisher.domain.backup.ListingFormField;
 import fr.vinted.republisher.domain.backup.VerificationFailure.FieldChanged;
 import fr.vinted.republisher.domain.backup.VerificationFailure.ListingAbsent;
 import fr.vinted.republisher.domain.backup.VerificationResult;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -23,13 +24,13 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import org.junit.jupiter.api.Test;
@@ -151,10 +152,10 @@ class ListingDetailApiControllerTest {
         listings.saveAll(List.of(Listing.seen(aListing(100, "Pull rayé", "12.5", ACTIVE), FIRST).absent(),
                 Listing.seen(aListing(101, "Pull rayé", "12.5", ACTIVE), SECOND)));
         deletions.save(new ListingDeletion(new ListingDeletionId(UUID.randomUUID()), new VintedListingId(100), FIRST,
-                FIRST, DeletionOutcome.CONFIRMED, Optional.of(FIRST)));
+                FIRST, DeletionOutcome.CONFIRMED, Optional.of(FIRST), WriteOrigin.RUN));
         republications.save(new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
                 new VintedListingId(100), FIRST, SECOND, RepublicationOutcome.PUBLISHED, Optional.of(SECOND),
-                Optional.of(new VintedListingId(101)), Optional.empty()));
+                Optional.of(new VintedListingId(101)), Optional.empty(), WriteOrigin.RUN));
 
         assertThat(mvc.get().uri("/api/listings/100"))
                 .hasStatusOk()
@@ -189,7 +190,7 @@ class ListingDetailApiControllerTest {
                 reading(30, 4, SECOND)));
         republications.save(new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
                 new VintedListingId(100), FIRST, FIRST, RepublicationOutcome.PUBLISHED, Optional.of(FIRST),
-                Optional.of(new VintedListingId(101)), Optional.empty()));
+                Optional.of(new VintedListingId(101)), Optional.empty(), WriteOrigin.RUN));
 
         assertThat(mvc.get().uri("/api/listings/101"))
                 .hasStatusOk()

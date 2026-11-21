@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.inventory;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionId;
@@ -65,7 +66,7 @@ class ListingLifecycleTest {
     void uncertain_attempts_are_no_events() {
         ListingRepublication failed = new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), ONE,
                 FIRST_SEEN_AT, PUBLISHED_AT, RepublicationOutcome.FAILED, Optional.empty(), Optional.empty(),
-                Optional.empty());
+                Optional.empty(), WriteOrigin.RUN);
 
         assertThat(ListingLifecycle.eventsOf(present(), Optional.of(deletion(DeletionOutcome.UNCONFIRMED)),
                 Optional.of(failed)))
@@ -88,12 +89,13 @@ class ListingLifecycleTest {
 
     private static ListingDeletion deletion(DeletionOutcome outcome) {
         return new ListingDeletion(new ListingDeletionId(UUID.randomUUID()), ONE, FIRST_SEEN_AT, CLICKED_AT, outcome,
-                outcome == DeletionOutcome.UNCONFIRMED ? Optional.empty() : Optional.of(CLICKED_AT.plusSeconds(30)));
+                outcome == DeletionOutcome.UNCONFIRMED ? Optional.empty() : Optional.of(CLICKED_AT.plusSeconds(30)),
+                        WriteOrigin.RUN);
     }
 
     private static ListingRepublication published() {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), ONE, FIRST_SEEN_AT,
                 CLICKED_AT, RepublicationOutcome.PUBLISHED, Optional.of(PUBLISHED_AT), Optional.of(TWO),
-                Optional.empty());
+                Optional.empty(), WriteOrigin.RUN);
     }
 }

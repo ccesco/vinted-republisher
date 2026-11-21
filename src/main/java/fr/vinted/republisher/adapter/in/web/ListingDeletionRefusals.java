@@ -6,7 +6,6 @@ import fr.vinted.republisher.adapter.in.web.api.model.ListingDifferenceDto;
 import fr.vinted.republisher.domain.backup.BackupNotVerified;
 import fr.vinted.republisher.domain.backup.BackupReplaced;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionUnconfirmed;
 import fr.vinted.republisher.domain.deletion.ListingAlreadyDeleted;
@@ -26,8 +25,6 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
-import java.time.ZoneOffset;
 
 /**
  * Turns the refusals of the deletion use cases into the statuses and bodies the contract declares. The page only
@@ -56,12 +53,6 @@ public class ListingDeletionRefusals {
     @ExceptionHandler
     ResponseEntity<DeletionRefusalDto> alreadyDeleted(ListingAlreadyDeleted refusal) {
         return refused(HttpStatus.CONFLICT, ReasonEnum.ALREADY_DELETED);
-    }
-
-    @ExceptionHandler
-    ResponseEntity<DeletionRefusalDto> cadenceLimitReached(CadenceLimitReached refusal) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new DeletionRefusalDto()
-                .reason(ReasonEnum.CADENCE_LIMIT_REACHED).allowedAt(refusal.allowedAt().atOffset(ZoneOffset.UTC)));
     }
 
     @ExceptionHandler

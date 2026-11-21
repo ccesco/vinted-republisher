@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.inventory;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
@@ -45,7 +46,7 @@ class StatisticsComparisonTest {
     void only_a_published_republication_with_a_previous_listing_is_compared() {
         ListingRepublication failed = new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
                 new VintedListingId(1), READ_AT, READ_AT, RepublicationOutcome.FAILED, Optional.empty(),
-                Optional.empty(), Optional.empty());
+                Optional.empty(), Optional.empty(), WriteOrigin.RUN);
 
         assertThatThrownBy(() -> StatisticsComparison.of(failed, List.of(Optional.empty()), Optional.empty()))
                 .isInstanceOf(IllegalArgumentException.class);
@@ -56,7 +57,7 @@ class StatisticsComparisonTest {
     private static ListingRepublication published(long listing, long newListing) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), new VintedListingId(listing),
                 READ_AT, PUBLISHED_AT.minusSeconds(60), RepublicationOutcome.PUBLISHED, Optional.of(PUBLISHED_AT),
-                Optional.of(new VintedListingId(newListing)), Optional.empty());
+                Optional.of(new VintedListingId(newListing)), Optional.empty(), WriteOrigin.RUN);
     }
 
     private static StatisticsReading reading(long listing, int views, int favourites) {

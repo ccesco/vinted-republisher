@@ -3,6 +3,7 @@ package fr.vinted.republisher.application.run;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.application.relaunch.RelaunchListing;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
 import fr.vinted.republisher.domain.inventory.ListingStage;
@@ -239,7 +240,8 @@ public class LaunchAutomaticRun {
                 }
                 workers.foundNothing.remove(kind);
                 workers.taken.add(id);
-                RelaunchAction action = RelaunchAction.after(entry.stage()).orElse(RelaunchAction.REPUBLICATION);
+                RelaunchAction action = RelaunchAction.after(entry.stage(), WriteOrigin.RUN)
+                        .orElse(RelaunchAction.REPUBLICATION);
                 update(current -> current.withWorker(current.worker(kind).working(id, action)));
                 return new Take(entry);
             }
@@ -260,7 +262,7 @@ public class LaunchAutomaticRun {
         Optional<RelaunchReport> report = Optional.empty();
         Optional<RuntimeException> failure = Optional.empty();
         try {
-            report = Optional.of(relaunchListing.relaunch(id, entry.stage()));
+            report = Optional.of(relaunchListing.relaunch(id, entry.stage(), WriteOrigin.RUN));
         } catch (RuntimeException refused) {
             failure = Optional.of(refused);
         }

@@ -259,7 +259,6 @@
       <h3>Suppression</h3>
       <p id="deletion-mode" class="muted">{{ deletionMode(view) }}</p>
       <p id="deletion-state">{{ deletionState(view) }}</p>
-      <p id="republication-state">{{ republicationState() }}</p>
       @if (view.deletion?.outcome === 'UNCONFIRMED') {
         <p class="actions">
           <button id="recheck" matButton="outlined" type="button" [disabled]="sending()" (click)="recheck()">Revérifier sur Vinted</button>
@@ -287,7 +286,7 @@
       <p class="actions">
         <button id="republish" matButton="filled" type="button"
                 [hidden]="!view.deletion?.republishableAt || !republishable(view)"
-                [disabled]="sending() || republicationWaiting()" (click)="republicationAsked.set(true)">Republier sur Vinted</button>
+                [disabled]="sending()" (click)="republicationAsked.set(true)">Republier sur Vinted</button>
         <button id="prepare-manual-republication" matButton="outlined" type="button"
                 [hidden]="!view.deletion?.republishableAt || !republishable(view)"
                 [disabled]="sending() || view.republicationDryRun"

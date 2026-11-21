@@ -11,6 +11,7 @@ import fr.vinted.republisher.application.republication.PrepareManualRepublicatio
 import fr.vinted.republisher.application.republication.RepublishListing;
 import fr.vinted.republisher.application.republication.ValidateListingRepublication;
 import fr.vinted.republisher.application.republication.VerifyListingRepublication;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.republication.ManualRepublicationReport;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.springframework.http.ResponseEntity;
@@ -52,7 +53,8 @@ public class ListingRepublicationApiController implements ListingRepublicationAp
     @Override
     public ResponseEntity<ListingBackupViewDto> republishListing(Long listingId, RepublicationRequestDto request) {
         return ResponseEntity.ok(ListingBackupApiController.toDto(
-                republishListing.republish(new VintedListingId(listingId), request.getSavedAt().toInstant())));
+                republishListing.republish(new VintedListingId(listingId), request.getSavedAt().toInstant(),
+                        WriteOrigin.MANUAL)));
     }
 
     @Override

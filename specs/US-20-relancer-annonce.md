@@ -21,8 +21,9 @@ En tant que membre, je veux relancer une annonce depuis la liste, afin qu'elle p
 | `TO_REPUBLISH` (À republier) | republication depuis la sauvegarde | US-12 |
 | `REPUBLICATION_TO_CHECK` (Republication à vérifier) | vérification sur Vinted | US-13 |
 
+   **Depuis US-49**, `WAITING` se relance aussi (« Republier sur Vinted ») : le clic du membre republie sans attendre la date.
    Les autres étapes ne se relancent pas : `TO_BACK_UP` (sauvegarde du dressing entier par « Sauvegarder »), `TO_VALIDATE` (décision du membre sur la fiche), `WAITING` (date de republication pas atteinte), `GONE` et `REPUBLISHED` (rien à faire).
-2. **Mêmes garde-fous** : l'action passe par le cas d'usage existant, avec tous ses contrôles, le verrou du navigateur, les limites de cadence (US-27), le dry-run (US-10) et le journal (US-23). Relancer n'ajoute ni contrôle en moins ni entrée de journal en plus.
+2. **Mêmes garde-fous** : l'action passe par le cas d'usage existant, avec tous ses contrôles, le verrou du navigateur, les limites de cadence (US-27), le dry-run (US-10) et le journal (US-23). Relancer n'ajoute ni contrôle en moins ni entrée de journal en plus. **Depuis US-49**, le clic du membre n'attend ni la cadence ni la date de republication (seule la série y reste soumise).
 3. **Sauvegarde concernée** : la suppression et la republication portent sur la sauvegarde actuelle de l'annonce. La validation (US-08) ne vaut que pour la sauvegarde actuelle : une sauvegarde remplacée fait retomber l'annonce en `TO_VALIDATE`, qui ne se relance pas.
 4. **Étape vue** : la demande porte l'étape que le membre a vue. Étape différente au moment de la demande → refus, rien n'est lancé ; la liste affiche la nouvelle étape.
 5. **Synchrone** : la réponse arrive une fois l'action finie, avec l'action lancée, si c'était un dry-run, et l'annonce relue (nouvelle étape).
@@ -128,7 +129,7 @@ Test : `RelaunchListingAcceptanceTest.stages_without_next_action_are_not_relaunc
 Quand le membre la relance en ayant vu « En attente avant republication »
 Alors la relance est refusée (NOT_RELAUNCHABLE, à partir de 10:05) et rien n'est lancé
 ```
-Test : `RelaunchListingAcceptanceTest.waiting_listing_gives_its_republication_date()`
+Test : remplacé par US-49 (AT-49-03b) : `RelaunchListingAcceptanceTest.relaunches_a_waiting_listing_without_waiting()` ; la série garde ce refus : `waiting_listing_gives_its_republication_date_to_the_run()`
 
 ### AT-20-09 – Les garde-fous s'appliquent
 ```gherkin
@@ -137,7 +138,7 @@ Quand le membre la relance
 Alors la relance est refusée (CADENCE_LIMIT_REACHED, avec la date), rien n'est touché sur Vinted ni enregistré
 Et le journal garde le refus de la suppression, comme depuis la fiche
 ```
-Test : `RelaunchListingAcceptanceTest.cadence_limit_applies()`
+Test : remplacé par US-49 (AT-49-03) : `RelaunchListingAcceptanceTest.relaunch_ignores_the_cadence()` ; la série reste soumise à la cadence : `the_run_is_held_to_the_cadence()`
 
 ### AT-20-10 – Annonce inconnue
 ```gherkin

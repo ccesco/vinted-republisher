@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -28,6 +29,7 @@ interface ListingRepublicationJpaRepository extends JpaRepository<ListingRepubli
 
     Optional<ListingRepublicationJpaEntity> findByNewListingId(long newListingId);
 
-    @Query("select attempt.attemptedAt from ListingRepublicationJpaEntity attempt where attempt.attemptedAt > :since")
-    List<Instant> findAttemptedAtAfter(Instant since);
+    @Query("select attempt.attemptedAt from ListingRepublicationJpaEntity attempt where attempt.origin = :origin"
+            + " and attempt.attemptedAt > :since")
+    List<Instant> findAttemptedAtAfter(WriteOrigin origin, Instant since);
 }

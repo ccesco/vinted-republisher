@@ -18,7 +18,7 @@ En tant que membre, je veux voir les annonces en double dans mon dressing et sup
 4. **Fiche de l'annonce** : une annonce supprimable montre aussi « Supprimer ce doublon », avec la mention « Même titre et même prix que l'annonce N » (lien vers la jumelle).
 5. **Confirmation** dans l'outil : « Supprimer de Vinted l'annonce N et l'effacer de l'outil (sauvegarde, photos, relevés, tags). L'annonce M reste en vente. Irréversible. » ; second clic « Supprimer le doublon ». Mode dry-run → la confirmation le dit (« dry-run : rien ne sera supprimé »).
 6. **Contrôles hors navigateur** : l'annonce est connue, supprimable (2). Sinon refus, Chrome n'est pas ouvert.
-7. **Verrou et cadence** : action navigateur `DELETING` sur l'annonce (comme US-09 ; une autre action en cours → refus). En réel seulement, la cadence des suppressions (US-27) est réservée sous le verrou, et tenue jusqu'à l'écriture du journal. Une suppression de doublon compte ensuite dans cette cadence par sa ligne du journal (réussie ou dans le doute), comme une suppression d'US-09 par sa tentative enregistrée.
+7. **Verrou et cadence** : action navigateur `DELETING` sur l'annonce (comme US-09 ; une autre action en cours → refus). En réel seulement, la cadence des suppressions (US-27) est réservée sous le verrou, et tenue jusqu'à l'écriture du journal. Une suppression de doublon compte ensuite dans cette cadence par sa ligne du journal (réussie ou dans le doute), comme une suppression d'US-09 par sa tentative enregistrée. **Depuis US-49**, plus de cadence : clic du membre, la suppression d'un doublon n'est ni limitée ni comptée dans la cadence de la série.
 8. **Jumelle relue sur Vinted** : l'outil ouvre la page des jumelles, une à une par identifiant croissant, jusqu'à en trouver une **active, au titre et au prix du doublon** (tels qu'enregistrés au dernier scan). Aucune → refus « aucune jumelle confirmée sur Vinted », rien n'est cliqué.
 9. **Doublon relu** : l'outil ouvre la page du doublon.
    - Vinted ne la montre plus → le doublon est **effacé** (10) sans aucun clic : issue « déjà absente de Vinted, effacée ».
@@ -51,7 +51,7 @@ Contract first : `src/main/resources/static/openapi/vinted-republisher.yaml`.
 - [x] Un doublon déjà absent de Vinted est effacé sans aucun clic.
 - [x] Une suppression non prouvée n'enregistre et n'efface rien ; une nouvelle demande est possible.
 - [x] En dry-run, rien n'est cliqué ni effacé.
-- [x] Cadence des suppressions (réel seulement), une action navigateur par annonce, verrou toujours libéré.
+- [x] Une action navigateur par annonce, verrou toujours libéré (la cadence ne s'applique plus depuis US-49).
 - [x] Chaque demande laisse une ligne `DUPLICATE_DELETION` au journal, ignorée par la page « Échecs ».
 - [x] La fiche d'une annonce supprimable propose « Supprimer ce doublon » et nomme sa jumelle.
 - [x] Un autre site ouvert dans le navigateur ne peut pas demander une suppression de doublon.
@@ -153,7 +153,7 @@ Quand le membre confirme la suppression de l'annonce 2
 Alors elle est refusée (« une action est en cours » ou « limite de cadence ») sans aucun clic
 Et le verrou et la cadence sont libérés après toute demande, réussie ou non
 ```
-Test : `DeleteDuplicateAcceptanceTest.refuses_while_the_listing_is_busy()`, `DeleteDuplicateAcceptanceTest.respects_the_deletion_cadence()`, `JpaActionJournalTest.duplicate_deletions_that_may_have_clicked_count_in_the_cadence()`
+Test : `DeleteDuplicateAcceptanceTest.refuses_while_the_listing_is_busy()` ; la partie cadence est remplacée par US-49 (AT-49-04b) : `DeleteDuplicateAcceptanceTest.ignores_the_cadence_and_does_not_count_in_it()`
 
 ### AT-47-11 – Erreurs avant le clic de confirmation
 ```gherkin
@@ -230,7 +230,7 @@ Test : manuel (vrai compte Vinted, fait par le membre ; aucun test automatisé n
 - Doute, décidé par le membre (2026-11-19) : rien n'est enregistré ; une nouvelle demande relit la page, efface sans clic un doublon déjà absent. Supprimer deux fois un doublon est sans risque, la page étant relue avant chaque clic.
 - Règles d'US-09 reprises, décidé par le membre (2026-11-19) : confirmation « irréversible », dry-run, cadence des suppressions, verrou `DELETING`, journal, jamais par la série automatique.
 - Groupes limités aux annonces présentes : sinon chaque ancienne annonce republiée (absente, même titre et prix) ferait groupe avec sa nouvelle.
-- Cadence, décidé par le membre (2026-11-20) : une suppression de doublon compte dans la cadence des suppressions par sa ligne du journal (`SUCCEEDED` ou `IN_DOUBT`), sans nouvelle table. Un doublon déjà absent (`SUCCEEDED` sans clic) compte aussi : prudent, sans effet notable pour un usage rare.
+- Cadence, décidé par le membre (2026-11-20) : une suppression de doublon compte dans la cadence des suppressions par sa ligne du journal (`SUCCEEDED` ou `IN_DOUBT`), sans nouvelle table. Un doublon déjà absent (`SUCCEEDED` sans clic) compte aussi : prudent, sans effet notable pour un usage rare. Remplacé par US-49 (2026-11-20) : ni limitée ni comptée.
 - Effacement en échec après une suppression faite sur Vinted, décidé par le membre (2026-11-20, retour de revue) : issue « non confirmée » et ligne dans le doute, au lieu d'une erreur 500 qui disait à tort « avant la confirmation » et échappait à la cadence.
 - Supprimabilité revérifiée sous le verrou (retour de revue) : une autre action peut avoir donné un historique à l'annonce entre le premier contrôle et le verrou.
 - Risque accepté : une ligne de journal non écrite (base indisponible à ce moment) ne compte pas dans la cadence.
@@ -247,7 +247,7 @@ Test : manuel (vrai compte Vinted, fait par le membre ; aucun test automatisé n
 - `DeleteDuplicate` (Suppression d'un doublon) : cas d'usage ; `DuplicateDeletionOutcome` (`DELETED` / `ALREADY_GONE` / `DRY_RUN_PASSED` / `UNCONFIRMED`).
 - Refus du domaine : `NotADuplicate`, `ListingHasHistory`, `TwinNotConfirmed` ; `ListingChanged` d'US-09 réutilisé.
 - `ListingEraser` (Effacement d'une annonce) : port sortant, efface en une transaction l'annonce et ses données ; les fichiers photos ensuite par `PhotoStorage.removeAllBut(id, [])`, un échec n'étant que journalisé dans les logs.
-- `DuplicateDeletionAttempts` : port sortant, dates des suppressions de doublons réussies ou dans le doute, lues dans le journal ; `CadenceCheck` les compte comme des suppressions.
+- `DuplicateDeletionAttempts` : port sortant, dates des suppressions de doublons réussies ou dans le doute, lues dans le journal ; `CadenceCheck` les compte comme des suppressions. Supprimé par US-49.
 - Réutilisés : `ListingDeleter` et `DeletionVisit` (US-09), `BrowserAction.DELETING`, `VintedWrite.DELETION`, `DeletionMode`, `JournalWriter`.
 - `JournaledAction.DUPLICATE_DELETION` ; changeset Liquibase `018-journal-duplicate-deletion` (contrainte de l'action du journal).
 

@@ -2,6 +2,7 @@ package fr.vinted.republisher.domain.republication;
 
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
@@ -21,7 +22,8 @@ import java.util.UUID;
  */
 public record ListingRepublication(ListingRepublicationId id, VintedListingId listingId, Instant backupSavedAt,
                                    Instant attemptedAt, RepublicationOutcome outcome, Optional<Instant> publishedAt,
-                                   Optional<VintedListingId> newListingId, Optional<Instant> checkedAt) {
+                                   Optional<VintedListingId> newListingId, Optional<Instant> checkedAt,
+                                   WriteOrigin origin) {
 
     public ListingRepublication {
         Objects.requireNonNull(id);
@@ -32,11 +34,13 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
         Objects.requireNonNull(publishedAt);
         Objects.requireNonNull(newListingId);
         Objects.requireNonNull(checkedAt);
+        Objects.requireNonNull(origin);
     }
 
-    public static ListingRepublication attempted(ListingBackup backup, Instant attemptedAt) {
+    public static ListingRepublication attempted(ListingBackup backup, Instant attemptedAt, WriteOrigin origin) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), backup.id(), backup.savedAt(),
-                attemptedAt, RepublicationOutcome.FAILED, Optional.empty(), Optional.empty(), Optional.empty());
+                attemptedAt, RepublicationOutcome.FAILED, Optional.empty(), Optional.empty(), Optional.empty(),
+                origin);
     }
 
     /**
@@ -53,7 +57,7 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
     public static ListingRepublication linked(ListingBackup backup, VintedListingId newListing, Instant linkedAt) {
         return new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()), backup.id(), backup.savedAt(),
                 linkedAt, RepublicationOutcome.PUBLISHED, Optional.of(linkedAt), Optional.of(newListing),
-                Optional.empty());
+                Optional.empty(), WriteOrigin.MANUAL);
     }
 
     /** Among the listings the tool did not know, the only one with the saved title and price. */
@@ -76,14 +80,14 @@ public record ListingRepublication(ListingRepublicationId id, VintedListingId li
         }
         requireFailed();
         return new ListingRepublication(id, listingId, backupSavedAt, attemptedAt, RepublicationOutcome.PUBLISHED,
-                Optional.of(provenAt), Optional.of(newListing), Optional.empty());
+                Optional.of(provenAt), Optional.of(newListing), Optional.empty(), origin);
     }
 
     /** Vinted was checked and shows no listing with the saved title and price. */
     public ListingRepublication notPublished(Instant checked) {
         requireFailed();
         return new ListingRepublication(id, listingId, backupSavedAt, attemptedAt, RepublicationOutcome.NOT_PUBLISHED,
-                Optional.empty(), Optional.empty(), Optional.of(checked));
+                Optional.empty(), Optional.empty(), Optional.of(checked), origin);
     }
 
     /** Only a republication in error or published has something to verify on Vinted. */

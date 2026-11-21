@@ -8,6 +8,7 @@ import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventorySort;
 import fr.vinted.republisher.domain.inventory.PresenceFilter;
@@ -20,12 +21,12 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
@@ -126,8 +127,9 @@ class ListingInventoryApiControllerTest {
                 Listing.seen(aListing(20, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
         ListingBackup backup = ListingBackup.of(new ListingReading(aContent(17), List.of(aPhoto("A"))), SAVED_AT);
         Instant attemptedAt = NOW.minusSeconds(1200);
-        republications.save(ListingRepublication.attempted(backup, attemptedAt).notPublished(attemptedAt.plusSeconds(60)));
-        republications.save(ListingRepublication.attempted(backup, attemptedAt.plusSeconds(600))
+        republications.save(ListingRepublication.attempted(backup, attemptedAt,
+                WriteOrigin.RUN).notPublished(attemptedAt.plusSeconds(60)));
+        republications.save(ListingRepublication.attempted(backup, attemptedAt.plusSeconds(600), WriteOrigin.RUN)
                 .published(new VintedListingId(20), attemptedAt.plusSeconds(660)));
 
         // Quand le membre demande la liste
@@ -219,10 +221,10 @@ class ListingInventoryApiControllerTest {
                 Listing.seen(aListing(20, "Pull rayé", "1.5", ACTIVE), SCANNED_AT)));
         Instant attemptedAt = NOW.minusSeconds(600);
         republications.save(ListingRepublication.attempted(ListingBackup.of(
-                        new ListingReading(aContent(17), List.of(aPhoto("A"))), SAVED_AT), attemptedAt)
+                        new ListingReading(aContent(17), List.of(aPhoto("A"))), SAVED_AT), attemptedAt, WriteOrigin.RUN)
                 .published(new VintedListingId(20), attemptedAt.plusSeconds(60)));
         republications.save(ListingRepublication.attempted(ListingBackup.of(
-                new ListingReading(aContent(18), List.of(aPhoto("A"))), SAVED_AT), attemptedAt));
+                new ListingReading(aContent(18), List.of(aPhoto("A"))), SAVED_AT), attemptedAt, WriteOrigin.RUN));
 
         // Quand la page demande GET /api/listings?presence=ALL&stage=REPUBLISHED
         // Alors seule 17 est renvoyée, avec sa republication et l'adresse de la nouvelle annonce

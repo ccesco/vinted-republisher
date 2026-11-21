@@ -2,6 +2,7 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
@@ -17,13 +18,13 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
@@ -118,9 +119,9 @@ class AdviseRepublicationAcceptanceTest {
         ListingBackup republished = aBackup(3, NOV_8);
         backups.save(deleted);
         backups.save(republished);
-        deletions.save(ListingDeletion.attempted(deleted, NOV_12).confirmed(NOV_12));
-        deletions.save(ListingDeletion.attempted(republished, NOV_12).confirmed(NOV_12));
-        republications.save(ListingRepublication.attempted(republished, NOV_12)
+        deletions.save(ListingDeletion.attempted(deleted, NOV_12, WriteOrigin.RUN).confirmed(NOV_12));
+        deletions.save(ListingDeletion.attempted(republished, NOV_12, WriteOrigin.RUN).confirmed(NOV_12));
+        republications.save(ListingRepublication.attempted(republished, NOV_12, WriteOrigin.RUN)
                 .published(new VintedListingId(4), NOV_12));
         statistics.addAll(List.of(reading(1, 1, 0, NOV_8), reading(1, 1, 0, NOV_16),
                 reading(2, 1, 0, NOV_8), reading(2, 1, 0, NOV_16),

@@ -1,6 +1,7 @@
 package fr.vinted.republisher.domain.deletion;
 
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.time.Instant;
@@ -13,7 +14,8 @@ import java.util.UUID;
  * a crash right after the click leaves a doubt rather than no trace, and is settled once only.
  */
 public record ListingDeletion(ListingDeletionId id, VintedListingId listingId, Instant backupSavedAt,
-                              Instant attemptedAt, DeletionOutcome outcome, Optional<Instant> settledAt) {
+                              Instant attemptedAt, DeletionOutcome outcome, Optional<Instant> settledAt,
+                              WriteOrigin origin) {
 
     public ListingDeletion {
         Objects.requireNonNull(id);
@@ -22,11 +24,12 @@ public record ListingDeletion(ListingDeletionId id, VintedListingId listingId, I
         Objects.requireNonNull(attemptedAt);
         Objects.requireNonNull(outcome);
         Objects.requireNonNull(settledAt);
+        Objects.requireNonNull(origin);
     }
 
-    public static ListingDeletion attempted(ListingBackup backup, Instant attemptedAt) {
+    public static ListingDeletion attempted(ListingBackup backup, Instant attemptedAt, WriteOrigin origin) {
         return new ListingDeletion(new ListingDeletionId(UUID.randomUUID()), backup.id(), backup.savedAt(),
-                attemptedAt, DeletionOutcome.UNCONFIRMED, Optional.empty());
+                attemptedAt, DeletionOutcome.UNCONFIRMED, Optional.empty(), origin);
     }
 
     public ListingDeletion confirmed(Instant provenAt) {
@@ -51,6 +54,7 @@ public record ListingDeletion(ListingDeletionId id, VintedListingId listingId, I
         if (outcome != DeletionOutcome.UNCONFIRMED) {
             throw new NoUnconfirmedDeletion(listingId);
         }
-        return new ListingDeletion(id, listingId, backupSavedAt, attemptedAt, settledOutcome, Optional.of(at));
+        return new ListingDeletion(id, listingId, backupSavedAt, attemptedAt, settledOutcome, Optional.of(at),
+                origin);
     }
 }

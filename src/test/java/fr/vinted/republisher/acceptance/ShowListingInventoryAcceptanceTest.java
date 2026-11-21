@@ -7,6 +7,7 @@ import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
 import fr.vinted.republisher.domain.backup.VerificationResult;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.BackupFilter;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
@@ -22,12 +23,12 @@ import fr.vinted.republisher.domain.wardrobe.ListingStatistics;
 import fr.vinted.republisher.domain.wardrobe.StatisticsReading;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
@@ -319,7 +320,7 @@ class ShowListingInventoryAcceptanceTest {
         republications.save(notPublished(101, ATTEMPTED_AT));
         // Et dont la tentative suivante est en erreur, à vérifier
         ListingRepublication toCheck = ListingRepublication.attempted(aBackup(101, SAVED_AT),
-                ATTEMPTED_AT.plusSeconds(600));
+                ATTEMPTED_AT.plusSeconds(600), WriteOrigin.RUN);
         republications.save(toCheck);
 
         // Quand le membre demande la liste
@@ -356,12 +357,12 @@ class ShowListingInventoryAcceptanceTest {
     }
 
     private static ListingRepublication notPublished(long id, Instant attemptedAt) {
-        return ListingRepublication.attempted(aBackup(id, SAVED_AT), attemptedAt)
+        return ListingRepublication.attempted(aBackup(id, SAVED_AT), attemptedAt, WriteOrigin.RUN)
                 .notPublished(attemptedAt.plusSeconds(60));
     }
 
     private static ListingRepublication published(long id, long newListing, Instant attemptedAt) {
-        return ListingRepublication.attempted(aBackup(id, SAVED_AT), attemptedAt)
+        return ListingRepublication.attempted(aBackup(id, SAVED_AT), attemptedAt, WriteOrigin.RUN)
                 .published(new VintedListingId(newListing), attemptedAt.plusSeconds(60));
     }
 
@@ -372,9 +373,9 @@ class ShowListingInventoryAcceptanceTest {
     private void givenRepublishedToCheckAndToDelete() {
         listings.saveAll(List.of(present(101, "a", "1").absent(), present(102, "b", "1").absent(),
                 present(103, "c", "1")));
-        republications.save(ListingRepublication.attempted(aBackup(101, SAVED_AT), ATTEMPTED_AT)
+        republications.save(ListingRepublication.attempted(aBackup(101, SAVED_AT), ATTEMPTED_AT, WriteOrigin.RUN)
                 .published(new VintedListingId(201), PUBLISHED_AT));
-        republications.save(ListingRepublication.attempted(aBackup(102, SAVED_AT), ATTEMPTED_AT));
+        republications.save(ListingRepublication.attempted(aBackup(102, SAVED_AT), ATTEMPTED_AT, WriteOrigin.RUN));
         backups.save(aBackup(103, SAVED_AT));
         validations.save(BackupValidation.of(aBackup(103, SAVED_AT), SAVED_AT.plusSeconds(60)));
     }
