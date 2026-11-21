@@ -22,8 +22,16 @@ class JpaListingEraser implements ListingEraser {
             "DELETE FROM listing_content WHERE listing_id = :listing",
             "DELETE FROM listing_statistics_reading WHERE listing_id = :listing",
             "DELETE FROM listing_price_change WHERE listing_id = :listing",
-            "DELETE FROM listing_tag WHERE listing_id = :listing",
-            "DELETE FROM listing WHERE vinted_id = :listing");
+            // Its article (US-53) goes with it, tags included, unless another listing puts it on sale.
+            """
+            DELETE FROM article_tag WHERE article_id = (SELECT article_id FROM listing WHERE vinted_id = :listing)
+              AND NOT EXISTS (SELECT 1 FROM listing other
+                              WHERE other.article_id = article_tag.article_id AND other.vinted_id <> :listing)""",
+            """
+            WITH erased AS (DELETE FROM listing WHERE vinted_id = :listing RETURNING article_id)
+            DELETE FROM article WHERE id IN (SELECT article_id FROM erased)
+              AND NOT EXISTS (SELECT 1 FROM listing other WHERE other.article_id = article.id
+                                                            AND other.vinted_id <> :listing)""");
 
     private final EntityManager entityManager;
 

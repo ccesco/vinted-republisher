@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.wardrobe.ArticleId;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -13,6 +14,7 @@ import org.hibernate.type.SqlTypes;
 import java.math.BigDecimal;
 import java.net.URI;
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "listing")
@@ -21,6 +23,10 @@ class ListingJpaEntity {
     @Id
     @Column(name = "vinted_id")
     private Long vintedId;
+
+    /** Written once: a merge moves listings by SQL, a later save never puts the old article back (US-53). */
+    @Column(name = "article_id", nullable = false, updatable = false)
+    private UUID articleId;
 
     @Column(nullable = false)
     private String url;
@@ -47,9 +53,10 @@ class ListingJpaEntity {
     protected ListingJpaEntity() {
     }
 
-    /** {@code firstSeenAt}: the one already kept for a known listing, never the one read again. */
-    ListingJpaEntity(Listing listing, Instant firstSeenAt) {
+    /** {@code firstSeenAt} and {@code articleId}: those already kept for a known listing, never the ones read again. */
+    ListingJpaEntity(Listing listing, Instant firstSeenAt, ArticleId articleId) {
         vintedId = listing.id().value();
+        this.articleId = articleId.value();
         url = listing.url().toString();
         title = listing.title();
         priceAmount = listing.price().amount();
@@ -63,12 +70,16 @@ class ListingJpaEntity {
         return vintedId;
     }
 
+    ArticleId articleId() {
+        return new ArticleId(articleId);
+    }
+
     Instant firstSeenAt() {
         return firstSeenAt;
     }
 
     Listing toListing() {
-        return new Listing(new VintedListingId(vintedId), URI.create(url), title,
+        return new Listing(new VintedListingId(vintedId), new ArticleId(articleId), URI.create(url), title,
                 new Price(priceAmount, priceCurrency), present, firstSeenAt, lastSeenAt);
     }
 }

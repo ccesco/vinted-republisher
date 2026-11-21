@@ -140,8 +140,9 @@ class JdbcBusinessTablesTest extends ApplicationWithDatabaseTest {
     }
 
     private void insertListing(long id) {
-        jdbc.update("INSERT INTO listing VALUES (?, 'https://www.vinted.fr/items/' || ?, 'Bonnet', 12.50, 'EUR', "
-                + "true, '2026-11-17T10:00:00Z', '2026-11-17T10:00:00Z')", id, id);
+        jdbc.update("WITH new_article AS (INSERT INTO article VALUES (gen_random_uuid(), '2026-11-17T10:00:00Z') "
+                + "RETURNING id) INSERT INTO listing SELECT ?, 'https://www.vinted.fr/items/' || ?, 'Bonnet', 12.50, 'EUR', "
+                + "true, '2026-11-17T10:00:00Z', '2026-11-17T10:00:00Z', id FROM new_article", id, id);
     }
 
     private JsonNode export() {

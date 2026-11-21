@@ -195,7 +195,8 @@ class ScanWardrobeTest {
 
         scan();
 
-        assertThat(listings.findAll()).containsExactly(seenSince(anActiveListing(1), EARLIER, NOW));
+        assertThat(listings.findAll()).usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
+                .containsExactly(seenSince(anActiveListing(1), EARLIER, NOW));
     }
 
     @Test

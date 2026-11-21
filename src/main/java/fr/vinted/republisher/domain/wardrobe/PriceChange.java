@@ -13,9 +13,13 @@ public record PriceChange(VintedListingId listingId, Price price, Instant change
         Objects.requireNonNull(changedAt);
     }
 
-    /** The change to add to the history when the listing is saved: none if its price is the latest one. */
+    /**
+     * The change to add to the history of its article when the listing is saved: none if its price is the latest one,
+     * nor once the history has begun if the listing is absent, its price being then an old one (US-53).
+     */
     public static Optional<PriceChange> of(Optional<PriceChange> latest, Listing saved) {
-        if (latest.map(PriceChange::price).filter(saved.price()::equals).isPresent()) {
+        if (latest.isPresent() && !saved.present()
+                || latest.map(PriceChange::price).filter(saved.price()::equals).isPresent()) {
             return Optional.empty();
         }
         return Optional.of(new PriceChange(saved.id(), saved.price(), saved.lastSeenAt()));

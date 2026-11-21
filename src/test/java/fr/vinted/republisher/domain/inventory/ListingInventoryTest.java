@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.seen;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class ListingInventoryTest {
@@ -329,7 +330,7 @@ class ListingInventoryTest {
     }
 
     private static Listing present(long id, String title, String price) {
-        return Listing.seen(aListing(id, title, price, ACTIVE), SCANNED_AT);
+        return seen(aListing(id, title, price, ACTIVE), SCANNED_AT);
     }
 
     private static StatisticsReading reading(long id, int views, int favourites) {

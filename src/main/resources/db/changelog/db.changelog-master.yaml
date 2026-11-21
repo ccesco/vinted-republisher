@@ -38,3 +38,5 @@ databaseChangeLog:
       file: db/changelog/changes/018-journal-duplicate-deletion.yaml
   - include:
       file: db/changelog/changes/019-listing-sale-origin.yaml
+  - include:
+      file: db/changelog/changes/020-create-article.yaml

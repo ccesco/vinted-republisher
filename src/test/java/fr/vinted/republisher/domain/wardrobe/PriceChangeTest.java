@@ -40,6 +40,14 @@ class PriceChangeTest {
     }
 
     @Test
+    void an_absent_listing_is_no_price_reading() {
+        // US-53 : l'ancienne annonce marquée absente après la fusion garde son vieux prix, qui n'est pas un changement
+        Listing absent = Listing.seen(aListing(101, "Pull", "18", ACTIVE), SECOND).absent();
+
+        assertThat(PriceChange.of(Optional.of(new PriceChange(ID, euros("20.00"), FIRST)), absent)).isEmpty();
+    }
+
+    @Test
     void a_new_currency_is_a_price_change() {
         Listing saved = Listing.seen(aListing(101, "Pull", "12.50", ACTIVE), SECOND);
         PriceChange inPounds = new PriceChange(ID, new Price(new BigDecimal("12.50"), "GBP"), FIRST);

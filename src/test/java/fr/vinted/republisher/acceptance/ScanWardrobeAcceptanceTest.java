@@ -96,7 +96,8 @@ class ScanWardrobeAcceptanceTest {
 
         // Alors les 45 annonces sont enregistrées avec leur identifiant, URL, titre et prix
         // Et la date de fin du scan est enregistrée
-        assertThat(listings.findAll()).containsExactlyInAnyOrderElementsOf(
+        assertThat(listings.findAll()).usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
+                .containsExactlyInAnyOrderElementsOf(
                 LongStream.rangeClosed(1, 45).mapToObj(id -> Listing.seen(anActiveListing(id), NOW)).toList());
         assertThat(showWardrobe.show().lastScanAt()).contains(NOW);
     }
@@ -130,8 +131,10 @@ class ScanWardrobeAcceptanceTest {
         // Alors la première est mise à jour, sans doublon
         // Et la seconde reste en base, marquée absente
         // Et elle n'apparaît plus dans la liste
-        assertThat(listings.findAll()).containsExactly(seenSince(cheaper, EARLIER, NOW), missing.absent());
+        assertThat(listings.findAll()).usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
+                .containsExactly(seenSince(cheaper, EARLIER, NOW), missing.absent());
         assertThat(showListingInventory.show(InventoryCriteria.defaults())).extracting(InventoryEntry::listing)
+                .usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
                 .containsExactly(seenSince(cheaper, EARLIER, NOW));
     }
 
@@ -182,7 +185,8 @@ class ScanWardrobeAcceptanceTest {
         // Et aucune annonce n'est marquée absente
         assertThat(reader.opened()).containsExactly(new VintedListingId(2), new VintedListingId(3));
         assertThat(showWardrobe.show().problem()).contains(ScanProblem.VINTED_UNREACHABLE);
-        assertThat(listings.findAll()).containsExactly(known, Listing.seen(anActiveListing(2), NOW));
+        assertThat(listings.findAll()).usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
+                .containsExactly(known, Listing.seen(anActiveListing(2), NOW));
     }
 
     @Test
@@ -221,7 +225,8 @@ class ScanWardrobeAcceptanceTest {
         // Alors seule la troisième annonce est ouverte
         // Et la deuxième annonce est marquée absente
         assertThat(reader.opened()).containsExactly(new VintedListingId(3));
-        assertThat(listings.findAll()).contains(Listing.seen(anActiveListing(2), NOW).absent());
+        assertThat(listings.findAll()).usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
+                .contains(Listing.seen(anActiveListing(2), NOW).absent());
     }
 
     @Test

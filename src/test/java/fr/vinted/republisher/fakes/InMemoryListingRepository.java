@@ -1,5 +1,6 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.wardrobe.ArticleId;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ListingRepository;
 import fr.vinted.republisher.domain.wardrobe.PriceChange;
@@ -44,15 +45,21 @@ public class InMemoryListingRepository implements ListingRepository {
             throw new IllegalStateException("database down");
         }
         changed.forEach(listing -> {
-            listings.merge(listing.id(), listing, (known, seen) -> new Listing(seen.id(), seen.url(), seen.title(),
-                    seen.price(), seen.present(), known.firstSeenAt(), seen.lastSeenAt()));
+            listings.merge(listing.id(), listing, (known, seen) -> new Listing(seen.id(), known.articleId(),
+                    seen.url(), seen.title(), seen.price(), seen.present(), known.firstSeenAt(), seen.lastSeenAt()));
             PriceChange.of(priceHistoryOf(listing.id()).stream().findFirst(), listing)
                     .ifPresent(priceChanges::addFirst);
         });
     }
 
+    /** The history of the listing's article (US-53), as the store keeps it. */
     @Override
     public synchronized List<PriceChange> priceHistoryOf(VintedListingId listing) {
-        return priceChanges.stream().filter(change -> change.listingId().equals(listing)).toList();
+        if (!listings.containsKey(listing)) {
+            return List.of();
+        }
+        ArticleId article = listings.get(listing).articleId();
+        return priceChanges.stream()
+                .filter(change -> listings.get(change.listingId()).articleId().equals(article)).toList();
     }
 }

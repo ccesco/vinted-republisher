@@ -34,4 +34,13 @@ class ListingTest {
         assertThat(absent.lastSeenAt()).isEqualTo(SCANNED_AT);
         assertThat(absent.firstSeenAt()).isEqualTo(SCANNED_AT);
     }
+
+    @Test
+    void each_listing_seen_belongs_to_a_new_article() {
+        Listing first = Listing.seen(anActiveListing(1), SCANNED_AT);
+        Listing second = Listing.seen(anActiveListing(2), SCANNED_AT);
+
+        assertThat(first.articleId()).isNotEqualTo(second.articleId());
+        assertThat(first.absent().articleId()).isEqualTo(first.articleId());
+    }
 }
