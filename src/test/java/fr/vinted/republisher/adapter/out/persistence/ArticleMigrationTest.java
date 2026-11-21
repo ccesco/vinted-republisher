@@ -29,8 +29,8 @@ class ArticleMigrationTest {
 
     private static final String CHANGELOG = "db/changelog/db.changelog-master.yaml";
     private static final String DATABASE = "article_migration";
-    /** The changesets written before this one (001 to 019, some files holding two). */
-    private static final int CHANGESETS_BEFORE = 20;
+    /** The changesets written before this one (001 to 020, some files holding two). */
+    private static final int CHANGESETS_BEFORE = 21;
 
     @Test
     void chains_become_articles() throws Exception {
@@ -46,14 +46,15 @@ class ArticleMigrationTest {
                     + "catalog_id, category_label, condition_id, condition_label, package_size_id, "
                     + "package_size_label) SELECT id, '2026-11-01T09:00:00Z', 'Robe', 'Portée', 20, 'EUR', 1, 'Robes',"
                     + " 1, 'Très bon état', 1, 'Petit' FROM generate_series(1, 2) id");
-            statement.execute("INSERT INTO listing_republication (id, listing_id, backup_saved_at, attempted_at, "
-                    + "outcome, published_at, new_listing_id) VALUES "
-                    + "(gen_random_uuid(), 1, '2026-11-01T09:00:00Z', '2026-11-02T09:00:00Z', 'PUBLISHED', "
+            statement.execute("INSERT INTO listing_republication (id, listing_id, origin, backup_saved_at, "
+                    + "attempted_at, outcome, published_at, new_listing_id) VALUES "
+                    + "(gen_random_uuid(), 1, 'RUN', '2026-11-01T09:00:00Z', '2026-11-02T09:00:00Z', 'PUBLISHED', "
                     + "'2026-11-02T09:00:00Z', 2), "
-                    + "(gen_random_uuid(), 2, '2026-11-01T09:00:00Z', '2026-11-03T09:00:00Z', 'PUBLISHED', "
+                    + "(gen_random_uuid(), 2, 'RUN', '2026-11-01T09:00:00Z', '2026-11-03T09:00:00Z', 'PUBLISHED', "
                     + "'2026-11-03T09:00:00Z', 3)");
             //   et des tags sur 1 et 3, une vente sur 3, des prix sur 1 (20 € puis 18 €) et 3 (18 € puis 15 €)
-            statement.execute("INSERT INTO listing_tag (listing_id, tag) VALUES (1, 'été'), (3, 'robe'), (3, 'été')");
+            statement.execute("INSERT INTO listing_tag (listing_id, tag) "
+                    + "VALUES (1, 'été'), (3, 'robe'), (3, 'été')");
             statement.execute("INSERT INTO listing_sale (listing_id, noticed_at, origin) "
                     + "VALUES (3, '2026-11-05T09:00:00Z', 'NOTICED')");
             statement.execute("INSERT INTO listing_price_change (listing_id, price_amount, price_currency, changed_at) "

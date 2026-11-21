@@ -4,6 +4,7 @@ import fr.vinted.republisher.domain.backup.BackupVerification;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.VerificationFailure;
 import fr.vinted.republisher.domain.backup.VerificationResult;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -99,7 +100,7 @@ class ListingStageTest {
     }
 
     private static Optional<ListingDeletion> unconfirmed() {
-        return Optional.of(ListingDeletion.attempted(BACKUP, DELETED_AT.minusSeconds(2)));
+        return Optional.of(ListingDeletion.attempted(BACKUP, DELETED_AT.minusSeconds(2), WriteOrigin.RUN));
     }
 
     private static Optional<ListingDeletion> confirmed() {
@@ -107,7 +108,7 @@ class ListingStageTest {
     }
 
     private static Optional<ListingRepublication> failed() {
-        return Optional.of(ListingRepublication.attempted(BACKUP, DELETED_AT.plusSeconds(600)));
+        return Optional.of(ListingRepublication.attempted(BACKUP, DELETED_AT.plusSeconds(600), WriteOrigin.RUN));
     }
 
     private static Optional<ListingRepublication> published() {

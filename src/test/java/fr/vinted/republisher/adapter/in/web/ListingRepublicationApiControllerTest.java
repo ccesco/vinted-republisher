@@ -1,7 +1,6 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.NewListingSearch;
@@ -14,6 +13,8 @@ import fr.vinted.republisher.application.republication.VerifyListingRepublicatio
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
@@ -114,14 +115,14 @@ class ListingRepublicationApiControllerTest {
     }
 
     @Test
-    void cadence_limit_is_a_conflict_with_the_date_it_ends() {
+    void the_member_s_republication_ignores_the_cadence() {
         aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(aBackup(5, NOW), NOW.minusSeconds(60)));
+        republications.save(ListingRepublication.attempted(aBackup(5, NOW), NOW.minusSeconds(60), WriteOrigin.RUN));
+        vinted.showingOncePublished(aListing(2, "Pull rayé 1", "12.50", ACTIVE));
 
         assertThat(republish("2026-11-10T10:00:00Z"))
-                .hasStatus(409)
-                .bodyJson().isStrictlyEqualTo("""
-                        {"reason": "CADENCE_LIMIT_REACHED", "allowedAt": "2026-11-11T10:01:00Z"}""");
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.republication.outcome").isEqualTo("PUBLISHED");
     }
 
     @Test
@@ -134,13 +135,13 @@ class ListingRepublicationApiControllerTest {
     }
 
     @Test
-    void too_early_is_a_conflict_with_the_republication_date() {
+    void the_member_s_republication_does_not_wait_for_the_republication_date() {
         aDeletedListing(Duration.ofMinutes(2));
+        vinted.showingOncePublished(aListing(2, "Pull rayé 1", "12.50", ACTIVE));
 
         assertThat(republish("2026-11-10T10:00:00Z"))
-                .hasStatus(409)
-                .bodyJson().isStrictlyEqualTo("""
-                        {"reason": "TOO_EARLY", "republishableAt": "2026-11-11T10:03:00Z"}""");
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.republication.outcome").isEqualTo("PUBLISHED");
     }
 
     @Test
@@ -155,7 +156,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void republication_in_error_is_a_conflict() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(republish("2026-11-10T10:00:00Z"))
                 .hasStatus(409)
@@ -186,7 +187,8 @@ class ListingRepublicationApiControllerTest {
     void listing_already_republished_is_a_conflict() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
         listings.saveAll(List.of(Listing.seen(aListing(2, "Pull rayé 1", "12.50", ACTIVE), NOW)));
-        republications.save(ListingRepublication.attempted(backup, NOW).published(new VintedListingId(2), NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW,
+                WriteOrigin.RUN).published(new VintedListingId(2), NOW));
 
         assertThat(republish("2026-11-10T10:00:00Z"))
                 .hasStatus(409)
@@ -305,7 +307,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void failed_republication_missing_from_the_newest_listings_stays_failed() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(verify())
                 .hasStatusOk()
@@ -316,7 +318,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void republication_validated_published_answers_with_its_new_listing_and_comparison() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
         contents.showing(new ListingReading(aContent(2, "Pull rayé 1", "Porté deux fois", "12.50"), List.of(aPhoto("a"))));
 
         assertThat(validate("{\"published\": true, \"newListingUrl\": \"https://www.vinted.fr/items/2-pull?ref=x\"}"))
@@ -329,7 +331,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void republication_validated_not_published_answers_with_its_outcome() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(validate("{\"published\": false}"))
                 .hasStatusOk()
@@ -341,7 +343,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void invalid_new_listing_link_is_a_bad_request() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(validate("{\"published\": true, \"newListingUrl\": \"https://www.vinted.fr/member/42\"}"))
                 .hasStatus(400)
@@ -357,7 +359,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void new_listing_with_another_title_or_price_is_a_conflict() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
         contents.showing(new ListingReading(aContent(2, "Pull rayé 1", "Porté deux fois", "15.00"), List.of(aPhoto("a"))));
 
         assertThat(validate("{\"published\": true, \"newListingUrl\": \"https://www.vinted.fr/items/2-pull\"}"))
@@ -369,7 +371,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void refusesCrossSiteValidation() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(validate("{\"published\": false}").header("Origin", "https://example.test"))
                 .hasStatus(403);
@@ -381,7 +383,8 @@ class ListingRepublicationApiControllerTest {
     void published_republication_answers_with_its_comparison() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
         listings.saveAll(List.of(Listing.seen(aListing(2, "Pull rayé 1", "12.50", ACTIVE), NOW)));
-        republications.save(ListingRepublication.attempted(backup, NOW).published(new VintedListingId(2), NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW,
+                WriteOrigin.RUN).published(new VintedListingId(2), NOW));
         contents.showing(new ListingReading(aContent(2), List.of(aPhoto("a"), aPhoto("b"))));
 
         assertThat(verify())
@@ -426,7 +429,8 @@ class ListingRepublicationApiControllerTest {
     void unreadable_new_listing_is_a_bad_gateway() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
         listings.saveAll(List.of(Listing.seen(aListing(2, "Pull rayé 1", "12.50", ACTIVE), NOW)));
-        republications.save(ListingRepublication.attempted(backup, NOW).published(new VintedListingId(2), NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW,
+                WriteOrigin.RUN).published(new VintedListingId(2), NOW));
         contents.whereFormIsUnreadable(2, "no title");
 
         assertThat(verify())
@@ -438,7 +442,7 @@ class ListingRepublicationApiControllerTest {
     @Test
     void refusesCrossSiteVerification() {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(backup, NOW));
+        republications.save(ListingRepublication.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(mvc.post().uri("/api/listings/1/republication/verification")
                 .header("Origin", "https://example.test"))
@@ -529,7 +533,7 @@ class ListingRepublicationApiControllerTest {
 
     private ListingBackup aDeletedListing(Duration ago) {
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW.minus(ago)).confirmed(NOW.minus(ago)));
+        deletions.save(ListingDeletion.attempted(backup, NOW.minus(ago), WriteOrigin.RUN).confirmed(NOW.minus(ago)));
         return backup;
     }
 

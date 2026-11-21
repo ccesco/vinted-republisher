@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.deletion;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -17,7 +18,8 @@ class ListingDeletionTest {
     private static final Instant CLICKED_AT = Instant.parse("2026-11-11T10:00:00Z");
     private static final Instant SETTLED_AT = Instant.parse("2026-11-11T10:01:00Z");
 
-    private final ListingDeletion attempt = ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT);
+    private final ListingDeletion attempt = ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT,
+            WriteOrigin.RUN);
 
     @Test
     void an_attempt_is_unconfirmed_until_settled() {

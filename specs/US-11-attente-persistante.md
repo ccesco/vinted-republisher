@@ -10,6 +10,8 @@ Après la suppression d'une annonce, il faut attendre 5 minutes avant de la repu
 En tant que membre, je veux que l'outil ne me propose la republication d'une annonce qu'au moins 5 minutes après sa suppression confirmée, même après un redémarrage, afin de ne pas republier juste après avoir supprimé.
 
 ## Comportement attendu
+> **Depuis US-49** : le délai ne retient plus que la série (« Tout lancer ») ; le clic du membre (« Republier sur Vinted », « Relancer ») republie dès la suppression confirmée.
+
 1. Une annonce dont la dernière suppression est confirmée (US-09) devient republiable à la date de preuve de cette suppression (`settledAt`) plus le délai minimal (`republication.minimum-delay`, 5 minutes).
 2. Sans suppression, ou si la dernière est non confirmée ou non faite, l'annonce n'a aucune date de republication.
 3. Cette date est calculée à chaque lecture depuis la suppression en base : rien n'est stocké en plus, rien n'est gardé en mémoire ; un redémarrage donne la même date.

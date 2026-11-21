@@ -665,8 +665,9 @@ class WardrobePageTest {
         relaunchAnswered.countDown();
         // Puis la ligne montre la nouvelle étape et « Suppression faite »
         assertThat(cell(0, STAGE)).hasText("En attente avant republication");
-        assertThat(cell(0, ACTION)).hasText("Suppression faite");
-        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasCount(0);
+        assertThat(cell(0, ACTION)).containsText("Suppression faite");
+        // Et l'annonce en attente se relance tout de suite (US-49)
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Republier sur Vinted");
         assertThat(relaunches).containsExactly("POST {\"stage\":\"TO_DELETE\"}");
     }
 
@@ -706,22 +707,6 @@ class WardrobePageTest {
     }
 
     @Test
-    void shows_a_cadence_refusal_with_its_date() {
-        // Étant donné une relance refusée pour cadence
-        inventory.set(TO_DELETE_AND_TO_VALIDATE);
-        relaunchStatus.set(409);
-        relaunchAnswer.set("{\"reason\": \"CADENCE_LIMIT_REACHED\", \"allowedAt\": \"2026-11-11T10:02:00Z\"}");
-        relaunchAnswered.countDown();
-        open();
-        // Quand la réponse arrive
-        cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
-        // Alors la ligne affiche « limite de cadence atteinte (à partir du <date>) »
-        assertThat(cell(0, ACTION)).containsText("limite de cadence atteinte (à partir du "
-                + page.evaluate("new Date('2026-11-11T10:02:00Z').toLocaleString('fr-FR')") + ")");
-        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).isEnabled();
-    }
-
-    @Test
     void shows_a_refusal_of_the_launched_action_with_a_link_to_the_listing() {
         // Étant donné une relance refusée par le cas d'usage lancé
         inventory.set(TO_DELETE_AND_TO_VALIDATE);
@@ -757,19 +742,25 @@ class WardrobePageTest {
     }
 
     @Test
-    void shows_when_a_waiting_listing_can_be_republished() {
-        // Étant donné une relance refusée : annonce en attente jusqu'à sa date de republication
-        inventory.set(TO_DELETE_AND_TO_VALIDATE);
-        relaunchStatus.set(409);
+    void offers_republication_for_a_waiting_listing() {
+        // AT-49-03b. Étant donné une annonce « En attente avant republication »
+        inventory.set("""
+                {"listings": [
+                   {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                    "url": "https://vinted.test/items/3", "present": false, "stage": "WAITING"}]}""");
         relaunchAnswer.set("""
-                {"reason": "NOT_RELAUNCHABLE", "stage": "WAITING", "allowedAt": "2026-11-11T10:05:00Z"}""");
+                {"action": "REPUBLICATION", "dryRun": false,
+                 "listing": {"vintedId": 3, "title": "Pull", "price": {"amount": 12.5, "currency": "EUR"},
+                             "url": "https://vinted.test/items/3", "present": false,
+                             "stage": "REPUBLISHED"}}""");
         relaunchAnswered.countDown();
         open();
-        // Quand la réponse arrive
+        // Quand le membre la relance avec « Republier sur Vinted »
+        assertThat(cell(0, ACTION).getByRole(AriaRole.BUTTON)).hasText("Republier sur Vinted");
         cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
-        // Alors la ligne donne la date de republication
-        assertThat(cell(0, ACTION)).containsText("Republication possible à partir du "
-                + page.evaluate("new Date('2026-11-11T10:05:00Z').toLocaleString('fr-FR')"));
+        // Alors la republication est lancée sans attendre la date
+        assertThat(cell(0, ACTION)).containsText("Republication faite");
+        assertThat(relaunches).containsExactly("POST {\"stage\":\"WAITING\"}");
     }
 
     @Test
@@ -1313,11 +1304,11 @@ class WardrobePageTest {
         //   périodes
         relaunchAnswered.countDown();
         cell(0, ACTION).getByRole(AriaRole.BUTTON).click();
-        assertThat(cell(0, ACTION)).hasText("Suppression faite");
+        assertThat(cell(0, ACTION)).containsText("Suppression faite");
         followPeriods(2, "/api/automatic-run");
         settle();
         // Alors le message de la relance reste affiché sous la ligne
-        assertThat(cell(0, ACTION)).hasText("Suppression faite");
+        assertThat(cell(0, ACTION)).containsText("Suppression faite");
     }
 
     /**

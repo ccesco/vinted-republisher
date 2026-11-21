@@ -2,6 +2,7 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.ApplicationWithDatabaseTest;
 import fr.vinted.republisher.domain.backup.ListingBackupRepository;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.sale.ListingAlreadySold;
@@ -214,8 +215,8 @@ class ArticleIdentityAcceptanceTest extends ApplicationWithDatabaseTest {
         // Quand on écrit en base une republication réussie de l'une vers l'autre sans passer par la fusion
         // Alors la base refuse l'écriture
         assertThatThrownBy(() -> database.update("INSERT INTO listing_republication (id, listing_id, article_id, "
-                        + "backup_saved_at, attempted_at, outcome, published_at, new_listing_id) "
-                        + "VALUES (?, ?, ?, ?, ?, 'PUBLISHED', ?, ?)", UUID.randomUUID(), A.value(),
+                        + "origin, backup_saved_at, attempted_at, outcome, published_at, new_listing_id) "
+                        + "VALUES (?, ?, ?, 'RUN', ?, ?, 'PUBLISHED', ?, ?)", UUID.randomUUID(), A.value(),
                 articleOf(A).value(), Timestamp.from(NOV_10), Timestamp.from(NOV_12),
                 Timestamp.from(NOV_12), B.value()))
                 .isInstanceOf(DataIntegrityViolationException.class);
@@ -229,7 +230,7 @@ class ArticleIdentityAcceptanceTest extends ApplicationWithDatabaseTest {
     private void republish(VintedListingId listing, VintedListingId newListing) {
         listingBackups.save(aBackup(listing.value(), NOV_10));
         ListingRepublication attempt =
-                ListingRepublication.attempted(listingBackups.find(listing).orElseThrow(), NOV_12);
+                ListingRepublication.attempted(listingBackups.find(listing).orElseThrow(), NOV_12, WriteOrigin.RUN);
         republications.save(attempt);
         republications.save(attempt.published(newListing, NOV_12));
     }

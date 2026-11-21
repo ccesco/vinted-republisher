@@ -1,5 +1,5 @@
 import type { DuplicateDeletionRefusal, DuplicateDeletionReport, ListingDifference } from '../../generated/api';
-import { dateOf, listingLink, priceOf } from './format';
+import { listingLink, priceOf } from './format';
 
 // Doublons (US-47) : libellés partagés par la page « Doublons » et la fiche d'une annonce.
 
@@ -69,9 +69,6 @@ export function duplicateRefusalMessageOf(refusal: DuplicateDeletionRefusal | nu
     return APPLICATION_DOWN;
   }
   let reason = REFUSALS[refusal.reason] ?? refusal.reason;
-  if (refusal.reason === 'CADENCE_LIMIT_REACHED') {
-    reason = 'limite de cadence atteinte, possible à partir du ' + dateOf(refusal.allowedAt ?? '');
-  }
   if (refusal.differences?.length) {
     reason += ' (' + refusal.differences.map(differenceOf).join(' ; ') + ')';
   }

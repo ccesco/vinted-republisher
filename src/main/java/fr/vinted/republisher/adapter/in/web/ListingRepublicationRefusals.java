@@ -9,7 +9,6 @@ import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingUnreadable;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.republication.FieldNotFillable;
-import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.republication.ListingAlreadyRepublished;
 import fr.vinted.republisher.domain.republication.ListingFormUnreadable;
 import fr.vinted.republisher.domain.republication.NewListingLinkInvalid;
@@ -18,7 +17,6 @@ import fr.vinted.republisher.domain.republication.NoRepublicationToVerify;
 import fr.vinted.republisher.domain.republication.ListingNotDeleted;
 import fr.vinted.republisher.domain.republication.ManualRepublicationInDryRun;
 import fr.vinted.republisher.domain.republication.RepublicationInError;
-import fr.vinted.republisher.domain.republication.RepublicationTooEarly;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.BrowserUnavailable;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
@@ -31,8 +29,6 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
-
-import java.time.ZoneOffset;
 
 /**
  * Turns the refusals of the republication into the statuses and bodies the contract declares. The page only gives
@@ -61,18 +57,6 @@ public class ListingRepublicationRefusals {
     @ExceptionHandler
     ResponseEntity<RepublicationRefusalDto> notDeleted(ListingNotDeleted refusal) {
         return refused(HttpStatus.CONFLICT, ReasonEnum.NOT_DELETED);
-    }
-
-    @ExceptionHandler
-    ResponseEntity<RepublicationRefusalDto> tooEarly(RepublicationTooEarly refusal) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new RepublicationRefusalDto()
-                .reason(ReasonEnum.TOO_EARLY).republishableAt(refusal.republishableAt().atOffset(ZoneOffset.UTC)));
-    }
-
-    @ExceptionHandler
-    ResponseEntity<RepublicationRefusalDto> cadenceLimitReached(CadenceLimitReached refusal) {
-        return ResponseEntity.status(HttpStatus.CONFLICT).body(new RepublicationRefusalDto()
-                .reason(ReasonEnum.CADENCE_LIMIT_REACHED).allowedAt(refusal.allowedAt().atOffset(ZoneOffset.UTC)));
     }
 
     @ExceptionHandler

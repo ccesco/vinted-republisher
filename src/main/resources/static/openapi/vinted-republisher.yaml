@@ -636,8 +636,8 @@ paths:
         '409':
           description: >
             Sauvegarde remplacée depuis l'aperçu, non validée, annonce déjà supprimée, suppression non confirmée à
-            revérifier, ou autre action navigateur en cours. Limite de cadence atteinte
-            (US-27, suppression réelle seulement). Rien n'est touché sur Vinted.
+            revérifier, ou autre action navigateur en cours. Clic du membre : jamais refusé par la limite de cadence
+            (US-49). Rien n'est touché sur Vinted.
           content:
             application/json:
               schema:
@@ -734,8 +734,8 @@ paths:
           description: Annonce inconnue de l'outil.
         '409':
           description: >
-            Pas un doublon, historique à garder, autre action navigateur en cours sur l'annonce, ou limite de
-            cadence des suppressions atteinte (réel seulement). Rien n'est touché sur Vinted.
+            Pas un doublon, historique à garder, ou autre action navigateur en cours sur l'annonce ; jamais la limite
+            de cadence (US-49). Rien n'est touché sur Vinted.
           content:
             application/json:
               schema:
@@ -801,9 +801,8 @@ paths:
         '409':
           description: >
             Sauvegarde remplacée depuis l'aperçu, non validée, annonce sans suppression confirmée de cette version,
-            date de republication non atteinte, déjà republiée, en erreur de republication, ou autre action
-            navigateur en cours. Limite de cadence atteinte (US-27, republication réelle seulement) : vérifiée
-            sous le verrou, avant toute navigation. Chrome n'est pas ouvert.
+            déjà republiée, en erreur de republication, ou autre action navigateur en cours. Clic du membre : jamais
+            refusé par la date de republication ni par la limite de cadence (US-49). Chrome n'est pas ouvert.
           content:
             application/json:
               schema:
@@ -839,7 +838,7 @@ paths:
       summary: Préparer une republication que le membre publie lui-même (US-45)
       description: >
         Mêmes contrôles que republishListing, sauf le délai après la suppression et la limite de cadence, qui ne
-        la refusent jamais ; la préparation compte toutefois dans la cadence des écritures suivantes. Ouvre le formulaire de
+        la refusent jamais ; la préparation ne compte pas dans la cadence de la série (US-49). Ouvre le formulaire de
         mise en vente dans un nouvel onglet du Chrome piloté, que l'outil laisse ouvert et ne réutilise jamais (il le
         referme si la préparation échoue), et le remplit depuis la sauvegarde ; un champ impossible à remplir est
         laissé vide et le remplissage continue. Ne
@@ -1020,10 +1019,11 @@ paths:
       summary: Relancer une annonce d'une étape
       description: >
         Lance l'action qui suit l'étape de l'annonce, seulement si c'est l'étape vue par le membre : suppression
-        (TO_DELETE), revérification de la suppression (DELETION_TO_CHECK), republication (TO_REPUBLISH) ou
-        vérification de la republication (REPUBLICATION_TO_CHECK), sur la sauvegarde actuelle. L'action passe par
-        son propre cas d'usage, avec tous ses contrôles, le verrou du navigateur, les limites de cadence, le dry-run
-        et le journal. Répond une fois l'action finie.
+        (TO_DELETE), revérification de la suppression (DELETION_TO_CHECK), republication (TO_REPUBLISH, ou WAITING
+        sans attendre la date de republication) ou vérification de la republication (REPUBLICATION_TO_CHECK), sur
+        la sauvegarde actuelle. L'action passe par son propre cas d'usage, avec tous ses contrôles, le verrou du
+        navigateur, le dry-run et le journal ; clic du membre, elle n'attend ni la cadence ni la date de
+        republication (US-49). Répond une fois l'action finie.
       parameters:
         - $ref: '#/components/parameters/ListingId'
       requestBody:
@@ -1049,9 +1049,8 @@ paths:
           description: Annonce inconnue de l'outil.
         '409':
           description: >
-            Étape changée depuis l'affichage, étape sans action à lancer, limite de cadence atteinte, autre action
-            navigateur en cours, ou refus du cas d'usage lancé (détail sur la fiche et dans le journal). Rien n'est
-            touché sur Vinted.
+            Étape changée depuis l'affichage, étape sans action à lancer, autre action navigateur en cours, ou
+            refus du cas d'usage lancé (détail sur la fiche et dans le journal). Rien n'est touché sur Vinted.
           content:
             application/json:
               schema:
@@ -2040,17 +2039,10 @@ components:
       properties:
         reason:
           type: string
-          enum: [STAGE_CHANGED, NOT_RELAUNCHABLE, CADENCE_LIMIT_REACHED, BROWSER_BUSY, ACTION_REFUSED,
-                 BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, SESSION_DISCONNECTED, VINTED_PAGE_UNREADABLE,
-                 RELAUNCH_FAILED]
+          enum: [STAGE_CHANGED, NOT_RELAUNCHABLE, BROWSER_BUSY, ACTION_REFUSED, BROWSER_UNAVAILABLE,
+                 VINTED_UNREACHABLE, SESSION_DISCONNECTED, VINTED_PAGE_UNREADABLE, RELAUNCH_FAILED]
         stage:
           $ref: '#/components/schemas/ListingStage'
-        allowedAt:
-          type: string
-          format: date-time
-          description: >
-            Date à partir de laquelle la relance redevient possible : fin de la limite de cadence
-            (CADENCE_LIMIT_REACHED), ou date de republication d'une annonce en attente (NOT_RELAUNCHABLE).
       example:
         reason: STAGE_CHANGED
         stage: DELETION_TO_CHECK
@@ -2454,13 +2446,9 @@ components:
           type: string
           enum: [BACKUP_REPLACED, NOT_VALIDATED, ALREADY_DELETED, DELETION_UNCONFIRMED, NO_UNCONFIRMED_DELETION,
                  BROWSER_BUSY, VERIFICATION_FAILED, LISTING_CHANGED, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
-                 SESSION_DISCONNECTED, LISTING_PAGE_UNREADABLE, DELETION_FAILED, CADENCE_LIMIT_REACHED]
+                 SESSION_DISCONNECTED, LISTING_PAGE_UNREADABLE, DELETION_FAILED]
         verification:
           $ref: '#/components/schemas/BackupVerification'
-        allowedAt:
-          type: string
-          format: date-time
-          description: Date à partir de laquelle une écriture sur Vinted redevient permise ; présente pour CADENCE_LIMIT_REACHED.
         differences:
           type: array
           nullable: true
@@ -2562,13 +2550,9 @@ components:
       properties:
         reason:
           type: string
-          enum: [NOT_A_DUPLICATE, HAS_HISTORY, BROWSER_BUSY, CADENCE_LIMIT_REACHED, TWIN_NOT_CONFIRMED, LISTING_CHANGED,
+          enum: [NOT_A_DUPLICATE, HAS_HISTORY, BROWSER_BUSY, TWIN_NOT_CONFIRMED, LISTING_CHANGED,
                  BROWSER_UNAVAILABLE, VINTED_UNREACHABLE, SESSION_DISCONNECTED, LISTING_PAGE_UNREADABLE,
                  DELETION_FAILED]
-        allowedAt:
-          type: string
-          format: date-time
-          description: Date à partir de laquelle une écriture sur Vinted redevient permise ; présente pour CADENCE_LIMIT_REACHED.
         differences:
           type: array
           nullable: true
@@ -2673,19 +2657,11 @@ components:
       properties:
         reason:
           type: string
-          enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, TOO_EARLY, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
+          enum: [BACKUP_REPLACED, NOT_VALIDATED, NOT_DELETED, ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR,
                  BROWSER_BUSY, PHOTOS_NOT_VERIFIED, FIELD_NOT_FILLABLE, BROWSER_UNAVAILABLE, VINTED_UNREACHABLE,
                  SESSION_DISCONNECTED, FORM_UNREADABLE, REPUBLICATION_FAILED, NO_REPUBLICATION_TO_VERIFY,
-                 LISTING_UNREADABLE, CADENCE_LIMIT_REACHED, NEW_LISTING_LINK_INVALID, NEW_LISTING_MISMATCH,
+                 LISTING_UNREADABLE, NEW_LISTING_LINK_INVALID, NEW_LISTING_MISMATCH,
                  MANUAL_REPUBLICATION_IN_DRY_RUN]
-        republishableAt:
-          type: string
-          format: date-time
-          description: Date de republication de l'annonce ; présente pour TOO_EARLY.
-        allowedAt:
-          type: string
-          format: date-time
-          description: Date à partir de laquelle une écriture sur Vinted redevient permise ; présente pour CADENCE_LIMIT_REACHED.
         verification:
           $ref: '#/components/schemas/BackupVerification'
         field:

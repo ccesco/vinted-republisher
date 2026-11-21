@@ -10,6 +10,8 @@ Un compte Vinted qui enchaîne trop vite suppressions et mises en vente risque d
 En tant que membre, je veux que l'outil refuse toute écriture sur Vinted qui dépasserait une cadence prudente, et me dise quand elle redeviendra possible, afin de ne pas faire bloquer mon compte.
 
 ## Comportement attendu
+> **Depuis US-49** : ces limites ne s'appliquent plus qu'aux écritures de la série (« Tout lancer ») et ne comptent que ses propres tentatives ; les clics du membre (supprimer, republier, relancer, supprimer un doublon, republier manuellement) n'y sont ni soumis ni comptés.
+
 1. **Écritures comptées** : une écriture est une tentative enregistrée par l'outil juste avant son clic décisif sur Vinted, quelle que soit son issue : suppression (US-09) et republication (US-12), à leur date de tentative. Ne comptent pas : le dry-run (aucun clic, rien d'enregistré), les refus avant le clic, la revérification d'une suppression et la vérification d'une republication (lectures), ni ce que le membre fait lui-même sur Vinted.
 2. **Limites** :
    - **Intervalle minimal**, propre au type de l'écriture demandée (un pour les suppressions, un pour les republications), compté depuis la dernière écriture **du même type** (US-46 ; auparavant de n'importe quel type) : la nouvelle écriture n'est possible qu'à partir de la date de la dernière écriture de son type plus l'intervalle de ce type. Une suppression ne retarde pas une republication, ni l'inverse.

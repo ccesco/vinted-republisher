@@ -66,8 +66,6 @@ export class ListingDetail {
   protected readonly sending = signal(false);
   protected readonly deletionAsked = signal(false);
   protected readonly republicationAsked = signal(false);
-  protected readonly republicationState = signal('');
-  protected readonly republicationWaiting = signal(false);
   protected readonly newListingUrl = signal('');
   protected readonly manualRepublicationMessage = signal('');
   protected readonly duplicateAsked = signal(false);
@@ -89,13 +87,11 @@ export class ListingDetail {
   private listingId = 0;
   // Numéro de la dernière ouverture : une réponse arrivée après le passage à une autre annonce est ignorée.
   private opening = 0;
-  private republicationTimer?: ReturnType<typeof setInterval>;
 
   constructor() {
     inject(DestroyRef).onDestroy(() => {
       // Toute réponse encore attendue devient périmée, et l'onglet ne garde pas le titre de l'annonce.
       this.opening++;
-      clearInterval(this.republicationTimer);
       this.title.setTitle(APPLICATION_TITLE);
     });
     // Un lien vers une autre annonce de la chaîne garde le même écran : la fiche se relit à chaque identifiant.
@@ -117,7 +113,6 @@ export class ListingDetail {
   }
 
   private reset(): void {
-    clearInterval(this.republicationTimer);
     this.problem.set('');
     this.detail.set(null);
     this.journal.set([]);
@@ -475,32 +470,6 @@ export class ListingDetail {
     this.sending.set(false);
     this.deletionAsked.set(false);
     this.republicationAsked.set(false);
-    this.showRepublicationDate(this.republishable(view) ? view.deletion?.republishableAt : undefined);
-  }
-
-  // L'heure du navigateur suffit : l'application n'écoute que sur 127.0.0.1, même machine que le serveur.
-  private showRepublicationDate(republishableAt: string | undefined): void {
-    clearInterval(this.republicationTimer);
-    this.republicationState.set('');
-    this.republicationWaiting.set(false);
-    if (!republishableAt) {
-      return;
-    }
-    const date = new Date(republishableAt);
-    const update = () => {
-      const seconds = Math.ceil((date.getTime() - Date.now()) / 1000);
-      this.republicationWaiting.set(seconds > 0);
-      if (seconds <= 0) {
-        clearInterval(this.republicationTimer);
-        this.republicationState.set('Republication possible.');
-        return;
-      }
-      const hour = date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-      this.republicationState.set(`Republication possible dans ${Math.floor(seconds / 60)} min `
-        + `${seconds % 60} s (à ${hour}).`);
-    };
-    update();
-    this.republicationTimer = setInterval(update, 1000);
   }
 
   private async send(request: Observable<ListingBackupView>,
@@ -588,10 +557,6 @@ function differenceOf(difference: ListingDifference): string {
   }
 }
 
-function cadenceDateOf(allowedAt: string | undefined): string {
-  return ' (à partir du ' + dateOf(allowedAt ?? '') + ').';
-}
-
 function deletionRefusalOf(refusal: DeletionRefusal, recheck: boolean): string {
   const reason = DELETION_REFUSALS[refusal.reason];
   if (!reason) {
@@ -599,9 +564,6 @@ function deletionRefusalOf(refusal: DeletionRefusal, recheck: boolean): string {
   }
   if (recheck) {
     return RECHECK_FAILED_MESSAGE + reason;
-  }
-  if (refusal.reason === 'CADENCE_LIMIT_REACHED') {
-    return "Suppression refusée, rien n'a été supprimé : " + reason + cadenceDateOf(refusal.allowedAt);
   }
   const differences = (refusal.differences ?? []).map(differenceOf).join(' ; ');
   return "Suppression refusée, rien n'a été supprimé : " + reason + (differences ? ' : ' + differences + '.' : '');
@@ -612,11 +574,7 @@ function republicationRefusalOf(refusal: RepublicationRefusal): string {
   if (!reason) {
     return REPUBLICATION_FAILED_MESSAGE;
   }
-  if (refusal.reason === 'TOO_EARLY') {
-    reason += ' (à partir du ' + dateOf(refusal.republishableAt ?? '') + ').';
-  } else if (refusal.reason === 'CADENCE_LIMIT_REACHED') {
-    reason += cadenceDateOf(refusal.allowedAt);
-  } else if (refusal.reason === 'FIELD_NOT_FILLABLE') {
+  if (refusal.reason === 'FIELD_NOT_FILLABLE') {
     reason = (FORM_FIELDS[refusal.field ?? ''] ?? refusal.field) + ' impossible à remplir'
       + (refusal.optionId ? ` (identifiant ${refusal.optionId})` : '') + '.';
   } else if (refusal.reason === 'PHOTOS_NOT_VERIFIED') {

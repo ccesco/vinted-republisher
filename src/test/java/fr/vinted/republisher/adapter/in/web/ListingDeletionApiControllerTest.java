@@ -1,30 +1,31 @@
 package fr.vinted.republisher.adapter.in.web;
 
 import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.domain.cadence.WriteCadence;
 import fr.vinted.republisher.application.deletion.DeleteListing;
 import fr.vinted.republisher.application.deletion.RecheckListingDeletion;
 import fr.vinted.republisher.application.deletion.ShowListingDeletion;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.ShowListingRepublication;
-import fr.vinted.republisher.domain.republication.RepublicationMode;
-import fr.vinted.republisher.fakes.InMemoryActionJournal;
-import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
+import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
+import fr.vinted.republisher.domain.republication.RepublicationMode;
 import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
+import fr.vinted.republisher.fakes.InMemoryActionJournal;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
+import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -173,7 +174,7 @@ class ListingDeletionApiControllerTest {
     @Test
     void recheck_answers_with_the_settled_deletion() {
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW));
+        deletions.save(ListingDeletion.attempted(backup, NOW, WriteOrigin.RUN));
         vinted.showingNothing();
 
         assertThat(mvc.post().uri("/api/listings/1/deletion/recheck"))
@@ -186,7 +187,7 @@ class ListingDeletionApiControllerTest {
     @Test
     void deletion_in_doubt_is_a_conflict() {
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW));
+        deletions.save(ListingDeletion.attempted(backup, NOW, WriteOrigin.RUN));
 
         assertThat(delete("2026-11-10T10:00:00Z"))
                 .hasStatus(409)
@@ -196,7 +197,7 @@ class ListingDeletionApiControllerTest {
     @Test
     void listing_already_deleted_is_a_conflict() {
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW).confirmed(NOW));
+        deletions.save(ListingDeletion.attempted(backup, NOW, WriteOrigin.RUN).confirmed(NOW));
 
         assertThat(delete("2026-11-10T10:00:00Z"))
                 .hasStatus(409)
@@ -213,16 +214,6 @@ class ListingDeletionApiControllerTest {
                 .bodyJson().isStrictlyEqualTo("{\"reason\": \"BROWSER_BUSY\"}");
     }
 
-    @Test
-    void cadence_limit_is_a_conflict_with_the_date_it_ends() {
-        aValidatedListing();
-        vinted.whereCadenceLimitIsReachedUntil(NOW.plusSeconds(60));
-
-        assertThat(delete("2026-11-10T10:00:00Z"))
-                .hasStatus(409)
-                .bodyJson().isStrictlyEqualTo("""
-                        {"reason": "CADENCE_LIMIT_REACHED", "allowedAt": "2026-11-11T10:01:00Z"}""");
-    }
 
     @Test
     void disconnected_session_is_a_bad_gateway() {

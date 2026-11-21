@@ -12,16 +12,17 @@ import fr.vinted.republisher.domain.backup.ListingBackupRepository;
 import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
-import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
+import fr.vinted.republisher.domain.deletion.DeletionOutcome;
 import fr.vinted.republisher.domain.deletion.DeletionReport;
 import fr.vinted.republisher.domain.deletion.DeletionVisit;
 import fr.vinted.republisher.domain.deletion.ListingChanged;
 import fr.vinted.republisher.domain.deletion.ListingDeleter;
-import fr.vinted.republisher.domain.deletion.ListingDifference;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.deletion.ListingDeletionRepository;
+import fr.vinted.republisher.domain.deletion.ListingDifference;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.RepublicationDelay;
@@ -86,12 +87,12 @@ public class DeleteListing {
 
     /**
      * {@code seen} is the date of the backup the member saw. Every check is made before Chrome opens, then again on
-     * the page of the listing before any click: a refusal touches nothing on Vinted. The write cadence is checked under
-     * the browser lock, and only for a real deletion.
+     * the page of the listing before any click: a refusal touches nothing on Vinted. Only a real deletion by the run
+     * is held to the write cadence, checked under the browser lock; the member's click is not (US-49).
      */
-    public DeletionReport delete(VintedListingId id, Instant seen) {
-        return journal.journaled(JournaledAction.DELETION, id, () -> deleteNow(id, seen), DeleteListing::outcomeOf,
-                Optional.of("DELETION_FAILED"));
+    public DeletionReport delete(VintedListingId id, Instant seen, WriteOrigin origin) {
+        return journal.journaled(JournaledAction.DELETION, id, () -> deleteNow(id, seen, origin),
+                DeleteListing::outcomeOf, Optional.of("DELETION_FAILED"));
     }
 
     /** A dry run deletes nothing; otherwise the attempt just made is proven or in doubt. */
@@ -103,7 +104,7 @@ public class DeleteListing {
                 ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
     }
 
-    private DeletionReport deleteNow(VintedListingId id, Instant seen) {
+    private DeletionReport deleteNow(VintedListingId id, Instant seen, WriteOrigin origin) {
         ListingBackup backup = listingBackups.find(id).orElseThrow(() -> new ListingNotBackedUp(id));
         if (!backup.savedAt().equals(seen)) {
             throw new BackupReplaced(id, seen);
@@ -121,10 +122,10 @@ public class DeleteListing {
         if (!session.start(BrowserAction.DELETING, id)) {
             throw new BrowserBusy();
         }
-        Attempt attempt = new Attempt(backup);
+        Attempt attempt = new Attempt(backup, origin);
         Optional<WriteReservation> reservation = Optional.empty();
         try {
-            if (mode == DeletionMode.REAL) {
+            if (mode == DeletionMode.REAL && origin == WriteOrigin.RUN) {
                 reservation = Optional.of(cadence.reserve(VintedWrite.DELETION));
             }
             Optional<ScannedListing> shownAfterwards =
@@ -154,11 +155,13 @@ public class DeleteListing {
     private final class Attempt implements DeletionVisit {
 
         private final ListingBackup backup;
+        private final WriteOrigin origin;
         private Optional<ListingDeletion> started = Optional.empty();
         private boolean dryRunPassed;
 
-        private Attempt(ListingBackup backup) {
+        private Attempt(ListingBackup backup, WriteOrigin origin) {
             this.backup = backup;
+            this.origin = origin;
         }
 
         @Override
@@ -177,7 +180,7 @@ public class DeleteListing {
         /** Saved before the click, so that a crash right after it leaves a doubt rather than no trace. */
         @Override
         public void aboutToConfirm() {
-            ListingDeletion deletion = ListingDeletion.attempted(backup, clock.instant());
+            ListingDeletion deletion = ListingDeletion.attempted(backup, clock.instant(), origin);
             deletions.save(deletion);
             started = Optional.of(deletion);
         }

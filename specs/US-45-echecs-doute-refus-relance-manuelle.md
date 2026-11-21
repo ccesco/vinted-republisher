@@ -25,7 +25,7 @@ En tant que membre, je veux voir mes annonces en échec groupées selon ce que j
    - page « Échecs », section « Refusées » : pour une annonce supprimée pas encore republiée (étape `WAITING` ou `TO_REPUBLISH`) ; « Relancer » reste proposé (le refus a pu être levé, ex. option ajoutée par Vinted). Les autres refus (suppression, validation) gardent les actions d'US-39 ;
    - fiche de l'annonce (US-18b) : pour toute annonce supprimée pas encore republiée (étape `WAITING` ou `TO_REPUBLISH`), refusée ou non, à côté de « Republier sur Vinted ». Il n'attend aucun minuteur : actif pendant le compte à rebours du délai de republication, alors que « Republier sur Vinted » reste désactivé jusqu'à la date.
 3. **Republication manuelle** (`POST /api/listings/{listingId}/republication/manual`) :
-   1. mêmes contrôles qu'une republication (US-12) — sauvegarde vue toujours actuelle et validée, ancienne annonce supprimée sur cette version, photos intactes, jamais republiée, verrou du navigateur — **sauf les délais** : ni le délai après la suppression (US-11, `TOO_EARLY`) ni la limite de cadence (US-27, `CADENCE_LIMIT_REACHED`) ne la refusent. Sa republication enregistrée compte toutefois dans la cadence : les republications automatiques suivantes (« Republier sur Vinted », « Relancer », « Tout lancer ») attendent comme après toute republication ;
+   1. mêmes contrôles qu'une republication (US-12) — sauvegarde vue toujours actuelle et validée, ancienne annonce supprimée sur cette version, photos intactes, jamais republiée, verrou du navigateur — **sauf les délais** : ni le délai après la suppression (US-11, `TOO_EARLY`) ni la limite de cadence (US-27, `CADENCE_LIMIT_REACHED`) ne la refusent. **Depuis US-49**, sa republication enregistrée (origine `MANUAL`) ne compte plus dans la cadence de la série ;
    2. l'outil ouvre le formulaire « Vendre » dans un **nouvel onglet** du Chrome piloté, qu'il laisse ouvert et ne réutilise jamais (ses autres actions ouvrent chacune leur onglet, US-03), et le remplit depuis la sauvegarde (photos, champs) comme une republication ; un champ impossible à remplir est **laissé vide**, au lieu d'arrêter le remplissage, et l'outil remplit les champs suivants ;
    3. il **ne clique jamais sur « Publier »** : il laisse l'onglet ouvert, rend la main et enregistre une republication **en erreur** (`ListingRepublication`, issue `FAILED`, comme un clic sur « Publier » sans preuve, US-12) : l'annonce passe à l'étape `REPUBLICATION_TO_CHECK`, sans nouvel état ni changement de schéma ;
    4. la réponse liste les champs laissés vides, que le membre complète dans Chrome avant de publier lui-même.
@@ -51,7 +51,7 @@ Dans `vinted-republisher.yaml`, commité avec le code (`kind` requis ne compile 
 - [x] La page « Échecs » sépare « Dans le doute », « Refusées » et « Autres échecs », chacune triée de la plus récente à la plus ancienne.
 - [x] Une annonce à republier, refusée, propose « Republier manuellement » en plus de « Relancer ».
 - [x] La republication manuelle passe par les mêmes contrôles que la republication.
-- [x] Ni le délai après la suppression ni la limite de cadence ne refusent une republication manuelle ; elle compte dans la cadence des republications suivantes.
+- [x] Ni le délai après la suppression ni la limite de cadence ne refusent une republication manuelle ; depuis US-49, elle ne compte plus dans la cadence de la série.
 - [x] Sur la fiche et la page « Échecs », « Republier manuellement » est proposé dès la suppression confirmée, sans attendre aucun minuteur.
 - [x] Elle remplit le formulaire depuis la sauvegarde, laisse vides les champs impossibles à remplir, les liste, et ne publie jamais.
 - [x] Le formulaire est ouvert dans un onglet que l'outil laisse ouvert et ne réutilise pas.
@@ -116,9 +116,9 @@ Test : `PrepareManualRepublicationAcceptanceTest.refused_like_a_republication()`
 Et la limite de cadence atteinte
 Quand le membre la republie manuellement
 Alors le formulaire est rempli et la republication en erreur enregistrée
-Et la prochaine republication automatique n'est permise que 2 minutes (intervalle de cadence) après la préparation : elle compte dans la cadence
+Et (depuis US-49, AT-49-04c) la série republie une autre annonce sans attendre davantage : la préparation ne compte pas dans sa cadence
 ```
-Test : `PrepareManualRepublicationAcceptanceTest.ignores_the_delay_and_the_cadence_but_counts_in_it()`
+Test : `PrepareManualRepublicationAcceptanceTest.ignores_the_delay_and_the_cadence_and_does_not_count_in_it()`
 
 ### AT-45-04b – Dry-run
 ```gherkin
@@ -199,7 +199,7 @@ Test : manuel (vrai compte Vinted, publication faite par le membre).
 - Champ impossible à remplir, décidé par l'utilisateur (2026-11-19) : laissé vide, le remplissage continue, la réponse liste les champs à compléter.
 - État après pré-remplissage, décidé par l'utilisateur (2026-11-19) : republication enregistrée « en erreur » ; l'annonce passe « Republication à vérifier » et se termine par la vérification ou la validation manuelle d'US-13. Ni nouvel état ni changeset.
 - Journal, décidé par l'utilisateur (2026-11-19) : la préparation est un doute (`REPUBLICATION`, `IN_DOUBT`, `MANUAL_REPUBLICATION_PREPARED`), pour que l'annonce reste dans « Dans le doute » comme rappel jusqu'à la validation.
-- Cadence, décidé par l'utilisateur (2026-11-19) : la republication manuelle compte comme une republication (US-27).
+- Cadence, décidé par l'utilisateur (2026-11-19) : la republication manuelle compte comme une republication (US-27). Remplacé par US-49 (2026-11-20) : elle ne compte plus dans la cadence de la série.
 - Aucun minuteur, demandé par l'utilisateur (2026-11-19, après l'implémentation) : un bouton dédié, sans timer, pour republier manuellement quand il le veut ; ni le délai après la suppression (US-11) ni la limite de cadence (US-27) ne refusent la republication manuelle, mais elle compte toujours dans la cadence des écritures suivantes. Les garde-fous de contenu restent (suppression confirmée, sauvegarde validée, photos intactes), le refus en dry-run aussi ; « Republier sur Vinted » garde ses délais.
 - Constat de revue (2026-11-19) : la préparation ne réserve plus de créneau de cadence ; en parallèle (US-15), une republication automatique d'une autre annonce peut donc passer pendant le remplissage. Assumé : la préparation n'écrit rien sur Vinted, et le clic « Publier » du membre échappe de toute façon à la cadence.
 - Proposé par Claude (2026-11-19) : le bouton apparaît aussi à l'étape `WAITING` (supprimée, date non atteinte), sur la fiche et dans « Refusées » de la page « Échecs », puisque le délai ne l'arrête plus.

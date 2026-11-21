@@ -1,6 +1,7 @@
 package fr.vinted.republisher.domain.republication;
 
 import fr.vinted.republisher.domain.backup.ListingContent;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -25,7 +26,8 @@ class ListingRepublicationTest {
     private static final Instant PROVEN_AT = Instant.parse("2026-11-11T10:06:20Z");
     private static final VintedListingId NEW_LISTING = new VintedListingId(2);
 
-    private final ListingRepublication attempt = ListingRepublication.attempted(aBackup(1, SAVED_AT), CLICKED_AT);
+    private final ListingRepublication attempt = ListingRepublication.attempted(aBackup(1, SAVED_AT), CLICKED_AT,
+            WriteOrigin.RUN);
 
     @Test
     void an_attempt_is_in_error_until_its_new_listing_is_found() {
@@ -118,7 +120,7 @@ class ListingRepublicationTest {
     class Link {
 
         private final ListingDeletion deleted =
-                ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT).confirmed(PROVEN_AT);
+                ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT, WriteOrigin.RUN).confirmed(PROVEN_AT);
 
         @Test
         void a_deleted_listing_never_republished_is_to_link() {
@@ -133,7 +135,7 @@ class ListingRepublicationTest {
 
         @Test
         void a_listing_without_confirmed_deletion_is_not_to_link() {
-            ListingDeletion unconfirmed = ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT);
+            ListingDeletion unconfirmed = ListingDeletion.attempted(aBackup(1, SAVED_AT), CLICKED_AT, WriteOrigin.RUN);
 
             assertThat(ListingRepublication.toLink(Optional.empty(), Optional.empty())).isFalse();
             assertThat(ListingRepublication.toLink(Optional.of(unconfirmed), Optional.empty())).isFalse();
@@ -159,6 +161,8 @@ class ListingRepublicationTest {
             assertThat(linked.publishedAt()).contains(PROVEN_AT);
             assertThat(linked.newListingId()).contains(NEW_LISTING);
             assertThat(linked.checkedAt()).isEmpty();
+            // US-49 : aucune écriture sur Vinted, elle ne compte pas dans la cadence de la série
+            assertThat(linked.origin()).isEqualTo(WriteOrigin.MANUAL);
         }
     }
 

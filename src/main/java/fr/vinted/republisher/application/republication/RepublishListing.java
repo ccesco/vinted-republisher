@@ -6,6 +6,7 @@ import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.application.republication.RepublicationChecks.RepublishableBackup;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.JournaledAction;
 import fr.vinted.republisher.domain.republication.ListingPublisher;
@@ -80,11 +81,12 @@ public class RepublishListing {
 
     /**
      * {@code seen} is the date of the backup the member saw. Every check is made before Chrome opens; past the click on
-     * Publish, any failure leaves the republication in error rather than risk a duplicate. The write cadence is
-     * checked under the browser lock, and only for a real republication.
+     * Publish, any failure leaves the republication in error rather than risk a duplicate. Only the run waits for the
+     * republication date and, for a real republication, is held to the write cadence, checked under the browser lock;
+     * the member's click does neither (US-49).
      */
-    public RepublicationReport republish(VintedListingId id, Instant seen) {
-        return journal.journaled(JournaledAction.REPUBLICATION, id, () -> republishNow(id, seen),
+    public RepublicationReport republish(VintedListingId id, Instant seen, WriteOrigin origin) {
+        return journal.journaled(JournaledAction.REPUBLICATION, id, () -> republishNow(id, seen, origin),
                 RepublishListing::outcomeOf, Optional.of("REPUBLICATION_FAILED"));
     }
 
@@ -97,15 +99,16 @@ public class RepublishListing {
                 .isPresent() ? ActionOutcome.SUCCEEDED : ActionOutcome.IN_DOUBT;
     }
 
-    private RepublicationReport republishNow(VintedListingId id, Instant seen) {
-        RepublishableBackup republishable = checks.check(id, seen);
+    private RepublicationReport republishNow(VintedListingId id, Instant seen, WriteOrigin origin) {
+        RepublishableBackup republishable = origin == WriteOrigin.RUN
+                ? checks.check(id, seen) : checks.checkWithoutDelay(id, seen);
         if (!session.start(BrowserAction.REPUBLISHING, id)) {
             throw new BrowserBusy();
         }
-        Attempt attempt = new Attempt(republishable.backup());
+        Attempt attempt = new Attempt(republishable.backup(), origin);
         Optional<WriteReservation> reservation = Optional.empty();
         try {
-            if (mode == RepublicationMode.REAL) {
+            if (mode == RepublicationMode.REAL && origin == WriteOrigin.RUN) {
                 reservation = Optional.of(cadence.reserve(VintedWrite.REPUBLICATION));
             }
             publisher.publish(republishable.backup().content(), republishable.photos(), attempt);
@@ -138,11 +141,13 @@ public class RepublishListing {
     private final class Attempt implements RepublicationVisit {
 
         private final ListingBackup backup;
+        private final WriteOrigin origin;
         private Optional<ListingRepublication> started = Optional.empty();
         private boolean dryRunPassed;
 
-        private Attempt(ListingBackup backup) {
+        private Attempt(ListingBackup backup, WriteOrigin origin) {
             this.backup = backup;
+            this.origin = origin;
         }
 
         @Override
@@ -151,7 +156,7 @@ public class RepublishListing {
                 dryRunPassed = true;
                 return false;
             }
-            ListingRepublication republication = ListingRepublication.attempted(backup, clock.instant());
+            ListingRepublication republication = ListingRepublication.attempted(backup, clock.instant(), origin);
             republications.save(republication);
             started = Optional.of(republication);
             return true;

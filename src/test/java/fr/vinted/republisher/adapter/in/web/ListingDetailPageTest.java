@@ -730,19 +730,6 @@ class ListingDetailPageTest {
             assertThat(problem()).containsText("10,00");
         }
 
-        @Test
-        void showsCadenceRefusalWithItsDate() {
-            backup.set(VALIDATED);
-            deletionStatus.set(409);
-            deletionAnswer.set("{\"reason\": \"CADENCE_LIMIT_REACHED\", \"allowedAt\": \"2026-11-11T10:02:00Z\"}");
-            open();
-
-            deleteButton().click();
-            confirmButton().click();
-
-            assertThat(problem()).containsText(
-                    "Suppression refusée, rien n'a été supprimé : limite de cadence atteinte (à partir du 11/11/2026");
-        }
 
         @Test
         void unconfirmed_deletion_asks_to_check_on_vinted() {
@@ -882,42 +869,26 @@ class ListingDetailPageTest {
         }
 
         @Test
-        void showsRemainingTimeUntilRepublication() {
-            // Étant donné un aperçu dont la suppression est republiable dans 2 secondes
-            backup.set(REPUBLISHABLE_AT_10_05_05);
-            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
-            // Quand la page est ouverte
-            open();
-            // Alors elle affiche « Republication possible dans 0 min 2 s (à 11:05) », heure de Paris
-            assertThat(republicationState()).hasText("Republication possible dans 0 min 2 s (à 11:05).");
-            // Et après 2 secondes, sans recharger, elle affiche « Republication possible »
-            page.clock().runFor(2000);
-            assertThat(republicationState()).hasText("Republication possible.");
-        }
-
-        @Test
-        void showsRepublicationPossibleOnceDelayElapsed() {
-            // Et une suppression republiable depuis 10 minutes affiche directement « Republication possible »
-            backup.set(REPUBLISHABLE_AT_10_05_05);
-            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:15:05Z"));
-
-            open();
-
-            assertThat(republicationState()).hasText("Republication possible.");
-        }
-
-        @Test
-        void says_nothing_about_republication_without_a_confirmed_deletion() {
+        void offers_no_republication_without_a_confirmed_deletion() {
             backup.set(UNCONFIRMED);
 
             open();
 
             assertThat(deletionState()).containsText("non confirmée");
-            assertThat(republicationState()).isEmpty();
+            assertThat(page.locator("#republish")).isHidden();
         }
 
-        private Locator republicationState() {
-            return page.locator("#republication-state");
+        @Test
+        void republication_is_offered_as_soon_as_the_deletion_is_confirmed() {
+            // US-49, critère 5 : étant donné une suppression confirmée, republiable dans 2 secondes
+            backup.set(REPUBLISHABLE_AT_10_05_05);
+            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
+
+            open();
+
+            // Alors « Republier sur Vinted » est actif, sans compte à rebours
+            assertThat(page.locator("#republish")).isEnabled();
+            assertThat(page.locator("#republication-state")).hasCount(0);
         }
 
         private Locator mode() {
@@ -976,7 +947,7 @@ class ListingDetailPageTest {
         }
 
         @Test
-        void republish_is_offered_only_from_the_republication_date() {
+        void republish_is_offered_once_deleted_without_waiting_for_the_date() {
             backup.set(VALIDATED);
             open();
             assertThat(republishButton()).isHidden();
@@ -984,8 +955,6 @@ class ListingDetailPageTest {
             backup.set(REPUBLISHABLE);
             page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:05:03Z"));
             open();
-            assertThat(republishButton()).isDisabled();
-            page.clock().runFor(2000);
             assertThat(republishButton()).isEnabled();
         }
 
@@ -1025,7 +994,6 @@ class ListingDetailPageTest {
             assertThat(outcome()).hasText("Erreur de republication : vérifiez sur Vinted avant toute relance.");
             assertThat(republishButton()).isHidden();
             assertThat(verifyButton()).isVisible();
-            assertThat(page.locator("#republication-state")).isEmpty();
         }
 
         @Test
@@ -1059,21 +1027,6 @@ class ListingDetailPageTest {
             assertThat(republishButton()).isEnabled();
         }
 
-        @Test
-        void showsCadenceRefusalWithItsDate() {
-            backup.set(REPUBLISHABLE);
-            republicationStatus.set(409);
-            republicationAnswer.set("{\"reason\": \"CADENCE_LIMIT_REACHED\", \"allowedAt\": \"2026-11-11T10:08:00Z\"}");
-            page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:06:00Z"));
-            open();
-
-            republishButton().click();
-            confirmButton().click();
-
-            assertThat(problem()).containsText(
-                    "Republication refusée, rien n'a été publié : limite de cadence atteinte (à partir du 11/11/2026");
-            assertThat(republishButton()).isEnabled();
-        }
 
         @Test
         void unexpected_failure_asks_to_check_on_vinted_without_claiming_nothing_was_published() {
@@ -1252,10 +1205,9 @@ class ListingDetailPageTest {
             page.clock().install(new Clock.InstallOptions().setTime("2026-11-11T10:02:05Z"));
             // Quand le membre ouvre sa fiche
             open();
-            // Alors « Republier sur Vinted » est désactivé avec son compte à rebours
-            assertThat(republishButton()).isDisabled();
-            assertThat(page.locator("#republication-state"))
-                    .hasText("Republication possible dans 3 min 0 s (à 11:05).");
+            // Alors « Republier sur Vinted » est actif aussi, sans compte à rebours (US-49)
+            assertThat(republishButton()).isEnabled();
+            assertThat(page.locator("#republication-state")).hasCount(0);
             // Et « Republier manuellement » est actif
             assertThat(manualRepublicationButton()).isEnabled();
         }

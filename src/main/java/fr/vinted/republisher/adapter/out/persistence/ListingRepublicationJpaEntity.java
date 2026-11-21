@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.RepublicationOutcome;
@@ -47,6 +48,10 @@ class ListingRepublicationJpaEntity {
     @Column(name = "checked_at")
     private Instant checkedAt;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "origin", nullable = false)
+    private WriteOrigin origin;
+
     protected ListingRepublicationJpaEntity() {
     }
 
@@ -61,11 +66,12 @@ class ListingRepublicationJpaEntity {
         publishedAt = republication.publishedAt().orElse(null);
         newListingId = republication.newListingId().map(VintedListingId::value).orElse(null);
         checkedAt = republication.checkedAt().orElse(null);
+        origin = republication.origin();
     }
 
     ListingRepublication toListingRepublication() {
         return new ListingRepublication(new ListingRepublicationId(id), new VintedListingId(listingId), backupSavedAt,
                 attemptedAt, outcome, Optional.ofNullable(publishedAt),
-                Optional.ofNullable(newListingId).map(VintedListingId::new), Optional.ofNullable(checkedAt));
+                Optional.ofNullable(newListingId).map(VintedListingId::new), Optional.ofNullable(checkedAt), origin);
     }
 }

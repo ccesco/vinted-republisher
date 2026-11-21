@@ -3,6 +3,7 @@ package fr.vinted.republisher.application.cadence;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.fakes.AdjustableClock;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
@@ -51,10 +52,17 @@ class CadenceCheckTest {
     }
 
     @Test
+    void only_the_run_s_attempts_count() {
+        deletions.save(ListingDeletion.attempted(aBackup(1, NOW), NOW.minusSeconds(10), WriteOrigin.MANUAL));
+
+        assertThat(cadence.allowedAt(VintedWrite.DELETION)).isEqualTo(NOW);
+    }
+
+    @Test
     void a_released_reservation_no_longer_counts() {
         WriteReservation first = cadence.reserve(VintedWrite.DELETION);
         clock.advance(Duration.ofSeconds(20));
-        deletions.save(ListingDeletion.attempted(aBackup(1, NOW), clock.instant()));
+        deletions.save(ListingDeletion.attempted(aBackup(1, NOW), clock.instant(), WriteOrigin.RUN));
         clock.advance(Duration.ofSeconds(10));
 
         cadence.release(first);

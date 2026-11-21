@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -49,8 +50,8 @@ class JpaListingRepublicationRepository implements ListingRepublicationRepositor
     }
 
     @Override
-    public List<Instant> findAttemptedSince(Instant since) {
-        return repository.findAttemptedAtAfter(since);
+    public List<Instant> findAttemptedSince(WriteOrigin origin, Instant since) {
+        return repository.findAttemptedAtAfter(origin, since);
     }
 
     /**

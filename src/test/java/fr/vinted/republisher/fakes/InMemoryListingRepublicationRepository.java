@@ -1,5 +1,6 @@
 package fr.vinted.republisher.fakes;
 
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
 import fr.vinted.republisher.domain.republication.ListingRepublicationId;
 import fr.vinted.republisher.domain.republication.ListingRepublicationRepository;
@@ -62,8 +63,9 @@ public class InMemoryListingRepublicationRepository implements ListingRepublicat
     }
 
     @Override
-    public synchronized List<Instant> findAttemptedSince(Instant since) {
-        return republications.values().stream().map(ListingRepublication::attemptedAt)
+    public synchronized List<Instant> findAttemptedSince(WriteOrigin origin, Instant since) {
+        return republications.values().stream().filter(republication -> republication.origin() == origin)
+                .map(ListingRepublication::attemptedAt)
                 .filter(attempted -> attempted.isAfter(since))
                 .toList();
     }

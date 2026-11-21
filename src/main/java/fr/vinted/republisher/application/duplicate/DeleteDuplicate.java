@@ -1,10 +1,7 @@
 package fr.vinted.republisher.application.duplicate;
 
-import fr.vinted.republisher.application.cadence.CadenceCheck;
-import fr.vinted.republisher.application.cadence.WriteReservation;
 import fr.vinted.republisher.application.journal.JournalWriter;
 import fr.vinted.republisher.domain.backup.PhotoStorage;
-import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.DeletionVisit;
 import fr.vinted.republisher.domain.deletion.ListingChanged;
@@ -27,7 +24,6 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 
@@ -46,12 +42,11 @@ public class DeleteDuplicate {
     private final ListingEraser eraser;
     private final PhotoStorage photos;
     private final DeletionMode mode;
-    private final CadenceCheck cadence;
     private final JournalWriter journal;
 
     public DeleteDuplicate(VintedSession session, ShowDuplicates showDuplicates, ListingRepository listings,
                            ListingDeleter deleter, ListingEraser eraser, PhotoStorage photos, DeletionMode mode,
-                           CadenceCheck cadence, JournalWriter journal) {
+                           JournalWriter journal) {
         this.session = session;
         this.showDuplicates = showDuplicates;
         this.listings = listings;
@@ -59,23 +54,17 @@ public class DeleteDuplicate {
         this.eraser = eraser;
         this.photos = photos;
         this.mode = mode;
-        this.cadence = cadence;
         this.journal = journal;
     }
 
     /**
-     * An unknown listing is not an action: nothing is journaled. The cadence is held until the request is journaled,
-     * since the journal is how a deletion of a duplicate counts in it afterwards.
+     * An unknown listing is not an action: nothing is journaled. Always the member's click: the write cadence does not
+     * apply, and the deletion does not count in the run's (US-49).
      */
     public DuplicateDeletionReport delete(VintedListingId id) {
         Listing duplicate = listings.find(id).orElseThrow(() -> new ListingNotFound(id));
-        List<WriteReservation> held = new ArrayList<>();
-        try {
-            return journal.journaled(JournaledAction.DUPLICATE_DELETION, id, () -> deleteNow(duplicate, held),
-                    DeleteDuplicate::outcomeOf, Optional.of("DELETION_FAILED"));
-        } finally {
-            held.forEach(cadence::release);
-        }
+        return journal.journaled(JournaledAction.DUPLICATE_DELETION, id, () -> deleteNow(duplicate),
+                DeleteDuplicate::outcomeOf, Optional.of("DELETION_FAILED"));
     }
 
     private static ActionOutcome outcomeOf(DuplicateDeletionReport report) {
@@ -86,7 +75,7 @@ public class DeleteDuplicate {
         };
     }
 
-    private DuplicateDeletionReport deleteNow(Listing duplicate, List<WriteReservation> held) {
+    private DuplicateDeletionReport deleteNow(Listing duplicate) {
         VintedListingId id = duplicate.id();
         showDuplicates.show().requireDeletable(id);
         if (!session.start(BrowserAction.DELETING, id)) {
@@ -95,9 +84,6 @@ public class DeleteDuplicate {
         try {
             // Checked again under the lock: another action may have given the listing a history meanwhile.
             List<Listing> twins = showDuplicates.show().requireDeletable(id);
-            if (mode == DeletionMode.REAL) {
-                held.add(cadence.reserve(VintedWrite.DELETION));
-            }
             VintedListingId twin = confirmedTwin(duplicate, twins);
             ListingLink link = new ListingLink(id, duplicate.url());
             if (deleter.show(link).isEmpty()) {

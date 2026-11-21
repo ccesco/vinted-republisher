@@ -5,6 +5,7 @@ import fr.vinted.republisher.application.sale.CancelNotedSale;
 import fr.vinted.republisher.application.sale.NoteSale;
 import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.inventory.InventoryCriteria;
 import fr.vinted.republisher.domain.inventory.InventoryEntry;
@@ -65,7 +66,7 @@ class NoteSaleAcceptanceTest {
         // Alors elle a une vente notée maintenant, elle est « Vendue », et la série ne la prend pas
         assertThat(sales.findAll()).containsExactly(ListingSale.noted(LISTING, NOW));
         assertThat(stageOf(LISTING)).isEqualTo(ListingStage.SOLD);
-        assertThat(RelaunchAction.after(ListingStage.SOLD)).isEmpty();
+        assertThat(RelaunchAction.after(ListingStage.SOLD, WriteOrigin.MANUAL)).isEmpty();
     }
 
     @Test
@@ -129,7 +130,7 @@ class NoteSaleAcceptanceTest {
     private void aListingToRepublish() {
         aListingToDelete();
         Instant deletedAt = NOW.minus(Duration.ofMinutes(10));
-        deletions.save(ListingDeletion.attempted(aBackup(1, EARLIER), deletedAt).confirmed(deletedAt));
+        deletions.save(ListingDeletion.attempted(aBackup(1, EARLIER), deletedAt, WriteOrigin.RUN).confirmed(deletedAt));
     }
 
     private ListingStage stageOf(VintedListingId id) {

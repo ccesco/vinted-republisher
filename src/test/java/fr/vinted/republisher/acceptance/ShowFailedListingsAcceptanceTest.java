@@ -2,6 +2,7 @@ package fr.vinted.republisher.acceptance;
 
 import fr.vinted.republisher.application.inventory.ShowFailedListings;
 import fr.vinted.republisher.application.inventory.ShowListingInventory;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.inventory.FailedListing;
 import fr.vinted.republisher.domain.inventory.FailureKind;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
@@ -14,13 +15,13 @@ import fr.vinted.republisher.domain.republication.RepublicationOutcome;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupValidationRepository;
 import fr.vinted.republisher.fakes.InMemoryBackupVerificationRepository;
 import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import org.junit.jupiter.api.Test;
@@ -141,7 +142,7 @@ class ShowFailedListingsAcceptanceTest {
         write(101, JournaledAction.REPUBLICATION, ActionOutcome.FAILED, "FORM_UNREADABLE", NOV_17);
         republications.save(new ListingRepublication(new ListingRepublicationId(UUID.randomUUID()),
                 new VintedListingId(101), SCANNED_AT, NOV_17, RepublicationOutcome.PUBLISHED, Optional.of(NOV_18),
-                Optional.of(new VintedListingId(201)), Optional.empty()));
+                Optional.of(new VintedListingId(201)), Optional.empty(), WriteOrigin.RUN));
 
         // Quand le membre demande les annonces en échec
         // Alors elle n'est pas renvoyée

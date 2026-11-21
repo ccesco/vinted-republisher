@@ -12,9 +12,11 @@ import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingContent;
 import fr.vinted.republisher.domain.backup.ListingFormField;
+import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -35,11 +37,9 @@ import fr.vinted.republisher.domain.session.BrowserAction;
 import fr.vinted.republisher.domain.session.BrowserBusy;
 import fr.vinted.republisher.domain.session.SessionDisconnected;
 import fr.vinted.republisher.domain.session.VintedSession;
-import fr.vinted.republisher.domain.backup.ListingNotBackedUp;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
 import fr.vinted.republisher.fakes.FakeWardrobeReader;
 import fr.vinted.republisher.fakes.InMemoryActionJournal;
@@ -49,6 +49,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryListingTagRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
@@ -140,22 +141,22 @@ class PrepareManualRepublicationAcceptanceTest {
     }
 
     @Test
-    void ignores_the_delay_and_the_cadence_but_counts_in_it() {
+    void ignores_the_delay_and_the_cadence_and_does_not_count_in_it() {
         // Étant donné une annonce supprimée il y a 2 minutes, dont la date de republication n'est pas atteinte
         aDeletedListing(Duration.ofMinutes(2));
         // Et la limite de cadence atteinte
         ListingBackup other = ListingBackup.of(new ListingReading(aContent(9, "Pull", "Laine", "8.00"),
                 List.of(aPhoto("pull"))), SAVED_AT);
-        republications.save(ListingRepublication.attempted(other, NOW.minusSeconds(30)));
+        republications.save(ListingRepublication.attempted(other, NOW.minusSeconds(30), WriteOrigin.RUN));
         // Quand le membre la republie manuellement
         prepare(RepublicationMode.REAL).prepare(LISTING, SAVED_AT);
         // Alors le formulaire est rempli et la republication en erreur enregistrée
         assertThat(vinted.filledContent()).contains(ROBE_BLEUE);
         assertThat(republications.findLatest(LISTING)).hasValueSatisfying(republication ->
                 assertThat(republication.outcome()).isEqualTo(RepublicationOutcome.FAILED));
-        // Et une republication automatique d'une autre annonce est ensuite refusée : la préparation compte dans la
-        //   cadence
-        assertThat(cadence.allowedAt(VintedWrite.REPUBLICATION)).isEqualTo(NOW.plus(Duration.ofMinutes(2)));
+        // Et la série republie une autre annonce sans attendre davantage : la préparation ne compte pas dans sa
+        //   cadence (AT-49-04c), seule sa propre republication d'il y a 30 secondes compte
+        assertThat(cadence.allowedAt(VintedWrite.REPUBLICATION)).isEqualTo(NOW.plusSeconds(90));
     }
 
     @Test
@@ -254,6 +255,7 @@ class PrepareManualRepublicationAcceptanceTest {
 
     private void deleted(ListingBackup backup, Duration ago) {
         Instant provenAt = NOW.minus(ago);
-        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5)).confirmed(provenAt));
+        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5),
+                WriteOrigin.RUN).confirmed(provenAt));
     }
 }

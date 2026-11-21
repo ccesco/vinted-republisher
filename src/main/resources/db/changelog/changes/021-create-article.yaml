@@ -5,7 +5,7 @@ databaseChangeLog:
   # republication, une vente ou un prix restent dans l'article de leur annonce ; ON UPDATE CASCADE les fait suivre
   # quand une fusion déplace les annonces d'un article dans un autre.
   - changeSet:
-      id: 020-create-article
+      id: 021-create-article
       author: vinted-republisher
       changes:
         - sql:

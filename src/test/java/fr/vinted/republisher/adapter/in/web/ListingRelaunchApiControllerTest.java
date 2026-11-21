@@ -16,6 +16,7 @@ import fr.vinted.republisher.domain.backup.BackupValidation;
 import fr.vinted.republisher.domain.backup.ListingBackup;
 import fr.vinted.republisher.domain.backup.ListingReading;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
 import fr.vinted.republisher.domain.republication.ListingRepublication;
@@ -26,7 +27,6 @@ import fr.vinted.republisher.domain.session.VintedSession;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.ScannedListing;
 import fr.vinted.republisher.fakes.AdjustableClock;
-import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.FakeListingContentReader;
 import fr.vinted.republisher.fakes.FakeListingDeleter;
 import fr.vinted.republisher.fakes.FakeListingPublisher;
@@ -38,6 +38,7 @@ import fr.vinted.republisher.fakes.InMemoryListingBackupRepository;
 import fr.vinted.republisher.fakes.InMemoryListingDeletionRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepository;
 import fr.vinted.republisher.fakes.InMemoryListingRepublicationRepository;
+import fr.vinted.republisher.fakes.InMemoryListingSaleRepository;
 import fr.vinted.republisher.fakes.InMemoryListingStatisticsRepository;
 import fr.vinted.republisher.fakes.InMemoryPhotoStorage;
 import org.junit.jupiter.api.Test;
@@ -131,26 +132,25 @@ class ListingRelaunchApiControllerTest {
     }
 
     @Test
-    void waiting_listing_is_not_relaunchable_until_its_republication_date() {
+    void the_member_s_relaunch_of_a_waiting_listing_republishes_it() {
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(65)).confirmed(NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(65),
+                WriteOrigin.RUN).confirmed(NOW.minusSeconds(60)));
 
         assertThat(relaunch("WAITING"))
-                .hasStatus(409)
-                .bodyJson().isStrictlyEqualTo("""
-                        {"reason": "NOT_RELAUNCHABLE", "stage": "WAITING", "allowedAt": "2026-11-11T10:04:00Z"}""");
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.action").isEqualTo("REPUBLICATION");
     }
 
     @Test
-    void cadence_limit_is_a_conflict_with_the_date_it_ends() {
+    void the_member_s_relaunch_ignores_the_cadence() {
         aValidatedListing();
         deleter.showing(ON_VINTED);
-        deletions.save(ListingDeletion.attempted(aBackup(5, SAVED_AT), NOW.minusSeconds(60)));
+        deletions.save(ListingDeletion.attempted(aBackup(5, SAVED_AT), NOW.minusSeconds(60), WriteOrigin.RUN));
 
         assertThat(relaunch("TO_DELETE"))
-                .hasStatus(409)
-                .bodyJson().isStrictlyEqualTo("""
-                        {"reason": "CADENCE_LIMIT_REACHED", "allowedAt": "2026-11-11T10:01:00Z"}""");
+                .hasStatusOk()
+                .bodyJson().extractingPath("$.action").isEqualTo("DELETION");
     }
 
     @Test
@@ -189,8 +189,9 @@ class ListingRelaunchApiControllerTest {
     @Test
     void unreadable_wardrobe_is_a_bad_gateway() {
         ListingBackup backup = aValidatedListing();
-        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(3605)).confirmed(NOW.minusSeconds(3600)));
-        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600)));
+        deletions.save(ListingDeletion.attempted(backup, NOW.minusSeconds(3605),
+                WriteOrigin.RUN).confirmed(NOW.minusSeconds(3600)));
+        republications.save(ListingRepublication.attempted(backup, NOW.minusSeconds(600), WriteOrigin.RUN));
         wardrobe.whereTheWardrobeIsUnreadable();
 
         assertThat(relaunch("REPUBLICATION_TO_CHECK"))

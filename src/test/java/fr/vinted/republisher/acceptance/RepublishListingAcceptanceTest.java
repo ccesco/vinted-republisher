@@ -19,6 +19,7 @@ import fr.vinted.republisher.domain.backup.VerificationFailure.PhotoMissing;
 import fr.vinted.republisher.domain.cadence.CadenceLimitReached;
 import fr.vinted.republisher.domain.cadence.VintedWrite;
 import fr.vinted.republisher.domain.cadence.WriteCadence;
+import fr.vinted.republisher.domain.cadence.WriteOrigin;
 import fr.vinted.republisher.domain.deletion.BackupNotValidated;
 import fr.vinted.republisher.domain.deletion.DeletionMode;
 import fr.vinted.republisher.domain.deletion.ListingDeletion;
@@ -62,7 +63,6 @@ import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -119,7 +119,8 @@ class RepublishListingAcceptanceTest {
         vinted.showingOncePublished(REPUBLISHED, anActiveListing(3));
         listings.saveAll(List.of(Listing.seen(anActiveListing(3), NOW)));
         // Quand le membre confirme « Republier maintenant »
-        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN);
         // Alors le formulaire est rempli avec tout le contenu et les photos dans l'ordre, puis publié
         assertThat(vinted.filledContent()).contains(ROBE_BLEUE);
         assertThat(vinted.sentPhotos()).containsExactly(aPhoto("front"), aPhoto("back"));
@@ -153,7 +154,7 @@ class RepublishListingAcceptanceTest {
         aValidatedListing();
         assertRefusedBeforeChrome(ListingNotDeleted.class);
         ListingDeletion unconfirmed = ListingDeletion.attempted(listingBackups.find(LISTING).orElseThrow(),
-                NOW.minus(Duration.ofHours(1)));
+                NOW.minus(Duration.ofHours(1)), WriteOrigin.RUN);
         deletions.save(unconfirmed);
         // Quand le membre demande leur republication
         // Alors chacune est refusée (NOT_DELETED) et Chrome n'est pas ouvert
@@ -162,7 +163,7 @@ class RepublishListingAcceptanceTest {
         assertRefusedBeforeChrome(ListingNotDeleted.class);
         // Une suppression confirmée d'une autre version de la sauvegarde ne compte pas
         deletions.save(ListingDeletion.attempted(ListingBackup.of(new ListingReading(ROBE_BLEUE, List.of(
-                aPhoto("old"))), SAVED_AT.minusSeconds(3600)), NOW.minus(Duration.ofMinutes(20)))
+                aPhoto("old"))), SAVED_AT.minusSeconds(3600)), NOW.minus(Duration.ofMinutes(20)), WriteOrigin.RUN)
                 .confirmed(NOW.minus(Duration.ofMinutes(20))));
         assertRefusedBeforeChrome(ListingNotDeleted.class);
     }
@@ -172,11 +173,31 @@ class RepublishListingAcceptanceTest {
         // Étant donné une suppression prouvée il y a 2 minutes
         aDeletedListing(Duration.ofMinutes(2));
         // Quand le membre demande la republication
-        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (TOO_EARLY) avec la date de republication, et Chrome n'est pas ouvert
         assertThat(refusal).isInstanceOfSatisfying(RepublicationTooEarly.class, tooEarly ->
                 assertThat(tooEarly.republishableAt()).isEqualTo(NOW.plus(Duration.ofMinutes(3))));
         assertNothingHappened();
+    }
+
+    @Test
+    void manual_republication_ignores_the_delay_and_the_cadence() {
+        // Étant donné une annonce supprimée il y a 2 minutes (délai de republication de 5 minutes non écoulé)
+        // (AT-49-02)
+        aDeletedListing(Duration.ofMinutes(2));
+        // Et une republication faite il y a 10 secondes
+        republications.save(ListingRepublication.attempted(aBackup(5, SAVED_AT), NOW.minusSeconds(10),
+                WriteOrigin.RUN));
+        vinted.showingOncePublished(REPUBLISHED, anActiveListing(3));
+        listings.saveAll(List.of(Listing.seen(anActiveListing(3), NOW)));
+        // Quand le membre la republie depuis sa fiche
+        RepublicationReport report = republishListing(RepublicationMode.REAL)
+                .republish(LISTING, SAVED_AT, WriteOrigin.MANUAL);
+        // Alors elle est republiée
+        assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
+                .contains(RepublicationOutcome.PUBLISHED);
+        assertThat(report.lastRepublication()).map(ListingRepublication::origin).contains(WriteOrigin.MANUAL);
     }
 
     @Test
@@ -186,7 +207,7 @@ class RepublishListingAcceptanceTest {
         // Quand le membre demande la republication
         // Alors elle est refusée (BACKUP_REPLACED ou NOT_VALIDATED) et Chrome n'est pas ouvert
         Throwable replaced = catchThrowable(() -> republishListing(RepublicationMode.REAL)
-                .republish(LISTING, SAVED_AT.minusSeconds(60)));
+                .republish(LISTING, SAVED_AT.minusSeconds(60), WriteOrigin.RUN));
         assertThat(replaced).isInstanceOf(BackupReplaced.class);
         validations.save(new BackupValidation(LISTING, SAVED_AT.minusSeconds(3600), VALIDATED_AT));
         assertRefusedBeforeChrome(BackupNotValidated.class);
@@ -198,13 +219,15 @@ class RepublishListingAcceptanceTest {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
         photos.lose(1, backup.photos().get(1));
         // Quand le membre demande la republication
-        Throwable missing = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable missing = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (PHOTOS_NOT_VERIFIED) avec la photo en cause, et Chrome n'est pas ouvert
         // Et l'absence de l'annonce dans le dressing n'est pas un motif de refus
         assertThat(missing).isInstanceOfSatisfying(BackupNotVerified.class, notVerified ->
                 assertThat(notVerified.verification().failures()).containsExactly(new PhotoMissing(1)));
         photos.overwrite(1, backup.photos().get(1), "retouchée".getBytes(StandardCharsets.UTF_8));
-        Throwable altered = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable altered = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         assertThat(altered).isInstanceOfSatisfying(BackupNotVerified.class, notVerified ->
                 assertThat(notVerified.verification().failures()).containsExactly(new PhotoAltered(1)));
         assertNothingHappened();
@@ -215,12 +238,12 @@ class RepublishListingAcceptanceTest {
         // Étant donné une annonce déjà republiée, une autre en erreur de republication
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(REPUBLISHED);
-        republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN);
         int formsOpened = vinted.formsOpened();
         // Quand le membre demande leur republication
         // Alors elles sont refusées (ALREADY_REPUBLISHED, REPUBLICATION_IN_ERROR) et Chrome n'est pas ouvert
         Throwable republished = catchThrowable(() ->
-                republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+                republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN));
         assertThat(republished).isInstanceOf(ListingAlreadyRepublished.class);
         assertThat(vinted.formsOpened()).isEqualTo(formsOpened);
     }
@@ -228,8 +251,10 @@ class RepublishListingAcceptanceTest {
     @Test
     void refusesRepublicationInError() {
         aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), NOW));
-        Throwable inError = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        republications.save(ListingRepublication.attempted(listingBackups.find(LISTING).orElseThrow(), NOW,
+                WriteOrigin.RUN));
+        Throwable inError = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         assertThat(inError).isInstanceOf(RepublicationInError.class);
         assertThat(vinted.formsOpened()).isZero();
     }
@@ -240,7 +265,8 @@ class RepublishListingAcceptanceTest {
         aDeletedListing(Duration.ofMinutes(6));
         vinted.whereSizeCannotBeFilled();
         // Quand le membre demande la republication
-        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (FIELD_NOT_FILLABLE, « Taille »), « Publier » n'est pas cliqué
         // Et aucune republication n'est enregistrée ; le membre peut relancer
         assertThat(refusal).isInstanceOfSatisfying(FieldNotFillable.class, notFillable -> {
@@ -280,7 +306,8 @@ class RepublishListingAcceptanceTest {
         aDeletedListing(Duration.ofMinutes(6));
         failure.accept(this);
         // Quand le membre demande la republication
-        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (<code>), rien n'est publié ni enregistré, et le verrou est libéré
         assertThat(refusal).isInstanceOf(problem);
         assertNoPublishingAndNoRepublication();
@@ -294,12 +321,13 @@ class RepublishListingAcceptanceTest {
         // Et l'aperçu affiche « erreur de republication, vérifier sur Vinted »
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(aListing(2, "Robe bleue", "15.00", ACTIVE));
-        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN));
 
         RepublishListingAcceptanceTest ambiguous = new RepublishListingAcceptanceTest();
         ambiguous.aDeletedListing(Duration.ofMinutes(6));
         ambiguous.vinted.showingOncePublished(REPUBLISHED, aListing(3, "Robe bleue", "12.00", ACTIVE));
-        ambiguous.assertLeftInError(ambiguous.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        ambiguous.assertLeftInError(ambiguous.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
     }
 
     @Test
@@ -313,7 +341,7 @@ class RepublishListingAcceptanceTest {
         vinted.showingOncePublished(aListing(3, "Pull gris", "8.00", ACTIVE), REPUBLISHED);
         wardrobe.showingOnOpening(1);
 
-        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN));
         assertThat(wardrobe.reads()).isZero();
         assertThat(wardrobe.opened()).containsExactly(new VintedListingId(3));
     }
@@ -324,7 +352,8 @@ class RepublishListingAcceptanceTest {
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(REPUBLISHED);
         // Quand l'outil clique sur « Publier »
-        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN);
         // Alors il attend 30 secondes avant de lire le dressing
         assertThat(waitedUntil).containsExactly(NOW.plusSeconds(30));
         // Et la republication est réussie si la nouvelle annonce y est alors seule avec le titre et le prix de la sauvegarde
@@ -341,12 +370,13 @@ class RepublishListingAcceptanceTest {
         // Alors la republication est « erreur de republication » en base, et bloque toute relance
         aDeletedListing(Duration.ofMinutes(6));
         wardrobe.during(wardrobe::whereVintedRefusesTheWardrobe);
-        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        assertLeftInError(republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN));
 
         RepublishListingAcceptanceTest crash = new RepublishListingAcceptanceTest();
         crash.aDeletedListing(Duration.ofMinutes(6));
         crash.vinted.whereBrowserStopsAfterPublishing();
-        crash.assertLeftInError(crash.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        crash.assertLeftInError(crash.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
     }
 
     @Test
@@ -355,7 +385,8 @@ class RepublishListingAcceptanceTest {
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(REPUBLISHED);
         // Quand le membre demande la republication d'une annonce qui passe tous les contrôles
-        RepublicationReport report = republishListing(RepublicationMode.DRY_RUN).republish(LISTING, SAVED_AT);
+        RepublicationReport report = republishListing(RepublicationMode.DRY_RUN).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN);
         // Alors le formulaire est entièrement rempli, « Publier » n'est pas cliqué, rien n'est enregistré
         // Et la réponse indique un dry-run réussi
         assertThat(vinted.filledContent()).contains(ROBE_BLEUE);
@@ -373,7 +404,8 @@ class RepublishListingAcceptanceTest {
         aDeletedListing(Duration.ofMinutes(6));
         session.start(BrowserAction.SCANNING);
         // Quand le membre demande une republication
-        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (BROWSER_BUSY)
         assertThat(refusal).isInstanceOf(BrowserBusy.class);
         assertThat(session.overview().currentAction()).contains(BrowserAction.SCANNING);
@@ -387,7 +419,7 @@ class RepublishListingAcceptanceTest {
         vinted.showingOncePublished(REPUBLISHED, anActiveListing(3));
         listings.saveAll(List.of(Listing.seen(anActiveListing(3), NOW)));
         // Quand sa republication réussit
-        republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN);
         // Alors le journal contient « Republication : réussie »
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.REPUBLICATION, ActionOutcome.SUCCEEDED, Optional.empty()));
@@ -395,7 +427,8 @@ class RepublishListingAcceptanceTest {
         // Et une republication trop tôt d'une autre annonce écrit « Republication : refusée », raison « trop tôt »
         RepublishListingAcceptanceTest tooEarly = new RepublishListingAcceptanceTest();
         tooEarly.aDeletedListing(Duration.ofMinutes(2));
-        catchThrowable(() -> tooEarly.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        catchThrowable(() -> tooEarly.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         assertThat(tooEarly.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.REPUBLICATION, ActionOutcome.REFUSED, Optional.of("TOO_EARLY")));
     }
@@ -406,7 +439,7 @@ class RepublishListingAcceptanceTest {
         ListingBackup backup = aDeletedListing(Duration.ofMinutes(6));
         photos.lose(1, backup.photos().get(1));
         // Quand le membre demande la republication
-        catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN));
         // Alors le journal contient « Republication : refusée » avec le code de la réponse de l'API
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.REPUBLICATION, ActionOutcome.REFUSED, Optional.of("PHOTOS_NOT_VERIFIED")));
@@ -416,14 +449,14 @@ class RepublishListingAcceptanceTest {
     void republication_dry_run_and_error_are_written() {
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(REPUBLISHED);
-        republishListing(RepublicationMode.DRY_RUN).republish(LISTING, SAVED_AT);
+        republishListing(RepublicationMode.DRY_RUN).republish(LISTING, SAVED_AT, WriteOrigin.RUN);
         assertThat(journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.REPUBLICATION, ActionOutcome.DRY_RUN, Optional.empty()));
 
         RepublishListingAcceptanceTest inError = new RepublishListingAcceptanceTest();
         inError.aDeletedListing(Duration.ofMinutes(6));
         inError.vinted.showingOncePublished(aListing(2, "Robe bleue", "15.00", ACTIVE));
-        inError.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        inError.republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT, WriteOrigin.RUN);
         assertThat(inError.journal.records()).extracting(ActionRecord::action, ActionRecord::outcome, ActionRecord::reason).containsExactly(
                 tuple(JournaledAction.REPUBLICATION, ActionOutcome.IN_DOUBT, Optional.empty()));
     }
@@ -434,9 +467,10 @@ class RepublishListingAcceptanceTest {
         aDeletedListing(Duration.ofMinutes(6));
         vinted.showingOncePublished(REPUBLISHED, anActiveListing(3));
         clock.set(NOW.plus(Duration.ofMinutes(1)));
-        deletions.save(ListingDeletion.attempted(aBackup(5, SAVED_AT), NOW));
+        deletions.save(ListingDeletion.attempted(aBackup(5, SAVED_AT), NOW, WriteOrigin.RUN));
         // Quand le membre lance la republication d'une autre annonce à 10:01
-        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT);
+        RepublicationReport report = republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN);
         // Alors elle a lieu : chaque type d'écriture n'attend que l'intervalle de son type (US-46)
         assertThat(vinted.publishClicks()).isEqualTo(1);
         assertThat(report.lastRepublication()).map(ListingRepublication::outcome)
@@ -448,11 +482,14 @@ class RepublishListingAcceptanceTest {
         // Étant donné deux republications tentées depuis moins de 24 heures, la dernière il y a plus de 2 minutes,
         // quelle que soit leur issue
         aDeletedListing(Duration.ofMinutes(6));
-        republications.save(ListingRepublication.attempted(aBackup(5, SAVED_AT), NOW.minus(Duration.ofHours(10))));
-        republications.save(ListingRepublication.attempted(aBackup(6, SAVED_AT), NOW.minus(Duration.ofHours(3)))
+        republications.save(ListingRepublication.attempted(aBackup(5, SAVED_AT), NOW.minus(Duration.ofHours(10)),
+                WriteOrigin.RUN));
+        republications.save(ListingRepublication.attempted(aBackup(6, SAVED_AT), NOW.minus(Duration.ofHours(3)),
+                WriteOrigin.RUN)
                 .notPublished(NOW.minus(Duration.ofHours(2))));
         // Quand le membre lance une republication
-        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT));
+        Throwable refusal = catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN));
         // Alors elle est refusée (CADENCE_LIMIT_REACHED, 24 heures après la plus ancienne)
         assertThat(refusal).isInstanceOfSatisfying(CadenceLimitReached.class,
                 limit -> assertThat(limit.allowedAt()).isEqualTo(NOW.plus(Duration.ofHours(14))));
@@ -472,13 +509,15 @@ class RepublishListingAcceptanceTest {
                 .contains(RepublicationOutcome.FAILED);
         assertThat(listings.find(NEW_LISTING)).isEmpty();
         assertThat(session.overview().currentAction()).isEmpty();
-        assertThat(catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT)))
+        assertThat(catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN)))
                 .isInstanceOf(RepublicationInError.class);
         assertThat(vinted.publishClicks()).isEqualTo(1);
     }
 
     private void assertRefusedBeforeChrome(Class<? extends RuntimeException> refusal) {
-        assertThat(catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT)))
+        assertThat(catchThrowable(() -> republishListing(RepublicationMode.REAL).republish(LISTING, SAVED_AT,
+                WriteOrigin.RUN)))
                 .isInstanceOf(refusal);
         assertNothingHappened();
     }
@@ -527,7 +566,8 @@ class RepublishListingAcceptanceTest {
     private ListingBackup aDeletedListing(Duration ago) {
         ListingBackup backup = aValidatedListing();
         Instant provenAt = NOW.minus(ago);
-        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5)).confirmed(provenAt));
+        deletions.save(ListingDeletion.attempted(backup, provenAt.minusSeconds(5),
+                WriteOrigin.RUN).confirmed(provenAt));
         return backup;
     }
 }
