@@ -1,5 +1,6 @@
 package fr.vinted.republisher.adapter.out.persistence;
 
+import fr.vinted.republisher.domain.wardrobe.ArticleId;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.PriceChange;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -14,6 +15,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.util.UUID;
 
 @Entity
 @Table(name = "listing_price_change")
@@ -25,6 +27,9 @@ class ListingPriceChangeJpaEntity {
 
     @Column(name = "listing_id", nullable = false)
     private long listingId;
+
+    @Column(name = "article_id", nullable = false)
+    private UUID articleId;
 
     @Column(name = "price_amount", nullable = false)
     private BigDecimal priceAmount;
@@ -39,11 +44,16 @@ class ListingPriceChangeJpaEntity {
     protected ListingPriceChangeJpaEntity() {
     }
 
-    ListingPriceChangeJpaEntity(PriceChange change) {
+    ListingPriceChangeJpaEntity(PriceChange change, ArticleId articleId) {
         listingId = change.listingId().value();
+        this.articleId = articleId.value();
         priceAmount = change.price().amount();
         priceCurrency = change.price().currency();
         changedAt = change.changedAt();
+    }
+
+    ArticleId articleId() {
+        return new ArticleId(articleId);
     }
 
     PriceChange toPriceChange() {

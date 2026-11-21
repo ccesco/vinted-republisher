@@ -55,13 +55,17 @@ class JpaListingRepositoryTest extends ApplicationWithDatabaseTest {
 
     @Test
     void updates_a_known_listing_without_duplicating_it() {
-        listings.saveAll(List.of(Listing.seen(aListing(1, "Ancien titre", "10.00", ACTIVE), SCANNED_AT)));
+        Listing first = Listing.seen(aListing(1, "Ancien titre", "10.00", ACTIVE), SCANNED_AT);
+        listings.saveAll(List.of(first));
         Listing updated = Listing.seen(aListing(1, "Nouveau titre", "8.00", ACTIVE), SCANNED_AT.plusSeconds(60));
 
         listings.saveAll(List.of(updated));
 
-        assertThat(listings.findAll()).containsExactly(
-                seenSince(aListing(1, "Nouveau titre", "8.00", ACTIVE), SCANNED_AT, SCANNED_AT.plusSeconds(60)));
+        // Read again, it keeps its first-seen date and its article (US-53), not the ones of the new reading
+        assertThat(listings.findAll()).usingRecursiveFieldByFieldElementComparatorIgnoringFields("articleId")
+                .containsExactly(seenSince(aListing(1, "Nouveau titre", "8.00", ACTIVE), SCANNED_AT,
+                        SCANNED_AT.plusSeconds(60)));
+        assertThat(listings.findAll()).extracting(Listing::articleId).containsExactly(first.articleId());
     }
 
     @Test
@@ -119,10 +123,11 @@ class JpaListingRepositoryTest extends ApplicationWithDatabaseTest {
 
     @Test
     void listing_without_price_history_starts_it_on_its_next_save() {
-        database.update("INSERT INTO listing (vinted_id, url, title, price_amount, price_currency, present,"
-                + " last_seen_at, first_seen_at)"
-                + " VALUES (1, 'https://vinted.test/items/1', 'Pull', 12.50, 'EUR', true, ?, ?)",
-                Timestamp.from(SCANNED_AT), Timestamp.from(SCANNED_AT));
+        database.update("WITH new_article AS (INSERT INTO article (id, created_at) VALUES (gen_random_uuid(), ?)"
+                + " RETURNING id) INSERT INTO listing (vinted_id, url, title, price_amount, price_currency, present,"
+                + " last_seen_at, first_seen_at, article_id)"
+                + " SELECT 1, 'https://vinted.test/items/1', 'Pull', 12.50, 'EUR', true, ?, ?, id FROM new_article",
+                Timestamp.from(SCANNED_AT), Timestamp.from(SCANNED_AT), Timestamp.from(SCANNED_AT));
         assertThat(listings.priceHistoryOf(new VintedListingId(1))).isEmpty();
 
         listings.saveAll(List.of(Listing.seen(aListing(1, "Pull", "12.50", ACTIVE), LATER)));

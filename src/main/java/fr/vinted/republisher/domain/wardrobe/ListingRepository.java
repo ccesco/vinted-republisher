@@ -16,6 +16,6 @@ public interface ListingRepository {
      */
     void saveAll(List<Listing> listings);
 
-    /** Every price the listing had, most recent first. */
+    /** Every price the listing's article had (US-53), on this listing or the ones before it, most recent first. */
     List<PriceChange> priceHistoryOf(VintedListingId listing);
 }

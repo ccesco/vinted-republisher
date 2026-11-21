@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.sale;
 
+import fr.vinted.republisher.domain.wardrobe.ArticleId;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -62,8 +63,8 @@ class SalesOverviewTest {
     }
 
     private static Listing listing(long id, String title, String amount, String currency) {
-        return new Listing(id(id), URI.create("https://vinted.test/items/" + id), title, price(amount, currency), false,
-                NOV_15, NOV_15);
+        return new Listing(id(id), ArticleId.newArticle(), URI.create("https://vinted.test/items/" + id), title,
+                price(amount, currency), false, NOV_15, NOV_15);
     }
 
     private static Price price(String amount, String currency) {

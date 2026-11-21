@@ -4,7 +4,10 @@ import fr.vinted.republisher.domain.wardrobe.VintedListingId;
 
 import java.util.List;
 
-/** The tags every listing bears. */
+/**
+ * The tags every listing bears: those of its article (US-53), so a tag added to or removed from a listing is for every
+ * listing of its article.
+ */
 public interface ListingTagRepository {
 
     List<ListingTag> findAll();

@@ -44,6 +44,29 @@ class ListingSaleTest {
     }
 
     @Test
+    void newly_noticed_skips_sold_articles() {
+        // AT-53-06. L'annonce 1 republiée en 4 : un seul article, déjà vendu par 4
+        Listing republished = Listing.seen(anActiveListing(1), EARLIER);
+        List<ListingSale> recorded = List.of(ListingSale.noted(id(4), EARLIER));
+
+        assertThat(ListingSale.newlyNoticed(List.of(id(1)), List.of(republished, sameArticle(republished, 4)),
+                recorded, NOW)).isEmpty();
+    }
+
+    @Test
+    void two_listings_of_one_article_shown_sold_are_one_sale() {
+        Listing republished = Listing.seen(anActiveListing(1), EARLIER);
+
+        assertThat(ListingSale.newlyNoticed(List.of(id(4), id(1)), List.of(republished, sameArticle(republished, 4)),
+                List.of(), NOW)).containsExactly(ListingSale.noticed(id(4), NOW));
+    }
+
+    private static Listing sameArticle(Listing listing, long id) {
+        return new Listing(id(id), listing.articleId(), listing.url(), listing.title(), listing.price(), true,
+                listing.firstSeenAt(), listing.lastSeenAt());
+    }
+
+    @Test
     void a_noted_sale_can_be_cancelled_a_noticed_one_cannot() {
         assertThat(ListingSale.noted(id(1), NOW).cancellable()).isTrue();
         assertThat(ListingSale.noticed(id(1), NOW).cancellable()).isFalse();

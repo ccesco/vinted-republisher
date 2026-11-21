@@ -40,3 +40,5 @@ databaseChangeLog:
       file: db/changelog/changes/019-listing-sale-origin.yaml
   - include:
       file: db/changelog/changes/020-write-origin.yaml
+  - include:
+      file: db/changelog/changes/021-create-article.yaml

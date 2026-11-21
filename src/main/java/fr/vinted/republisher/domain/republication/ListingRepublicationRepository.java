@@ -30,6 +30,9 @@ public interface ListingRepublicationRepository {
     /** The published republication whose new listing is this one, if any. */
     Optional<ListingRepublication> findPublishedAs(VintedListingId newListing);
 
-    /** Records a new attempt, or how it was settled. */
+    /**
+     * Records a new attempt, or how it was settled. Published, the new listing joins the article of the listing, its
+     * own article merged into it (US-53): tags of both, the oldest sale, the price history without repeated prices.
+     */
     void save(ListingRepublication republication);
 }

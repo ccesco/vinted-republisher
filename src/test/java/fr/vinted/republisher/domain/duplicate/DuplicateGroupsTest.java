@@ -1,5 +1,6 @@
 package fr.vinted.republisher.domain.duplicate;
 
+import fr.vinted.republisher.domain.wardrobe.ArticleId;
 import fr.vinted.republisher.domain.wardrobe.Listing;
 import fr.vinted.republisher.domain.wardrobe.Price;
 import fr.vinted.republisher.domain.wardrobe.VintedListingId;
@@ -37,7 +38,7 @@ class DuplicateGroupsTest {
     @Test
     void a_currency_makes_another_price() {
         Listing euro = present(1, "Robe bleue", "12.00", SEEN);
-        Listing pound = new Listing(new VintedListingId(2), euro.url(), "Robe bleue",
+        Listing pound = new Listing(new VintedListingId(2), ArticleId.newArticle(), euro.url(), "Robe bleue",
                 new Price(new BigDecimal("12.00"), "GBP"), true, SEEN, SEEN);
 
         assertThat(DuplicateGroups.among(List.of(euro, pound)).groups()).isEmpty();

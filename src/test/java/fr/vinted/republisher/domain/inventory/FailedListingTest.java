@@ -14,6 +14,7 @@ import java.util.Optional;
 
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.aListing;
+import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.seen;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class FailedListingTest {
@@ -74,7 +75,7 @@ class FailedListingTest {
     }
 
     private static Listing listing(long id) {
-        return Listing.seen(aListing(id, "Annonce " + id, "10", ACTIVE), AT);
+        return seen(aListing(id, "Annonce " + id, "10", ACTIVE), AT);
     }
 
     private static JournalEntry journalEntry(long entryId, long listingId, ActionOutcome outcome) {

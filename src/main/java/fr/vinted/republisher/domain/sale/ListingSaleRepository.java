@@ -11,10 +11,10 @@ public interface ListingSaleRepository {
 
     Optional<ListingSale> find(VintedListingId listing);
 
-    /** Inserts only, all or nothing: a sale already recorded for one of the listings fails the whole call. */
+    /** Inserts only, all or nothing: a sale already recorded for the article of a listing fails the whole call. */
     void addAll(List<ListingSale> sales);
 
-    /** Inserts only, atomically: {@link ListingAlreadySold} if the listing already has a sale, which is kept. */
+    /** Inserts only, atomically: {@link ListingAlreadySold} if its article (US-53) already has a sale, kept. */
     void add(ListingSale sale);
 
     /** Removes the listing's sale only if it was noted: a noticed sale is never removed. */

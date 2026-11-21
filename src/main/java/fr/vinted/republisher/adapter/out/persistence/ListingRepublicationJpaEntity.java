@@ -26,6 +26,9 @@ class ListingRepublicationJpaEntity {
     @Column(name = "listing_id", nullable = false)
     private Long listingId;
 
+    @Column(name = "article_id", nullable = false)
+    private UUID articleId;
+
     @Column(name = "backup_saved_at", nullable = false)
     private Instant backupSavedAt;
 
@@ -52,9 +55,11 @@ class ListingRepublicationJpaEntity {
     protected ListingRepublicationJpaEntity() {
     }
 
-    ListingRepublicationJpaEntity(ListingRepublication republication) {
+    /** {@code articleId}: the article of the listing, the new one's too once published. */
+    ListingRepublicationJpaEntity(ListingRepublication republication, UUID articleId) {
         id = republication.id().value();
         listingId = republication.listingId().value();
+        this.articleId = articleId;
         backupSavedAt = republication.backupSavedAt();
         attemptedAt = republication.attemptedAt();
         outcome = republication.outcome();

@@ -13,6 +13,7 @@ import fr.vinted.republisher.domain.journal.ActionJournal;
 import fr.vinted.republisher.domain.journal.ActionOutcome;
 import fr.vinted.republisher.domain.journal.ActionRecord;
 import fr.vinted.republisher.domain.journal.JournaledAction;
+import fr.vinted.republisher.domain.tag.ListingTag;
 import fr.vinted.republisher.domain.tag.ListingTagRepository;
 import fr.vinted.republisher.domain.tag.Tag;
 import fr.vinted.republisher.domain.wardrobe.Listing;
@@ -29,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.UUID;
 
 import static fr.vinted.republisher.domain.backup.BackupFixtures.aBackup;
 import static fr.vinted.republisher.domain.wardrobe.WardrobeFixtures.ACTIVE;
@@ -42,7 +44,7 @@ class JpaListingEraserTest extends ApplicationWithDatabaseTest {
     private static final VintedListingId KEPT = new VintedListingId(202);
     private static final Instant AT = Instant.parse("2026-11-18T10:00:00Z");
     private static final List<String> TABLES = List.of("listing", "listing_statistics_reading",
-            "listing_price_change", "listing_tag", "listing_content", "listing_photo", "backup_validation",
+            "listing_price_change", "listing_content", "listing_photo", "backup_validation",
             "backup_verification");
 
     @Autowired
@@ -83,6 +85,36 @@ class JpaListingEraserTest extends ApplicationWithDatabaseTest {
         assertThat(TABLES).allSatisfy(table -> assertThat(rows(table, ERASED)).as(table).isZero());
         assertThat(TABLES).allSatisfy(table -> assertThat(rows(table, KEPT)).as(table).isPositive());
         assertThat(journal.of(ERASED)).hasSize(1);
+    }
+
+    @Test
+    void erases_the_article_left_without_listing() {
+        // AT-53-09. Étant donné une annonce doublon taguée « été », seule de son article
+        everythingAbout(ERASED);
+        everythingAbout(KEPT);
+
+        // Quand elle est effacée
+        eraser.erase(ERASED);
+
+        // Alors son article et son tag n'existent plus
+        assertThat(tags.findAll()).containsExactly(new ListingTag(KEPT, new Tag("été")));
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM article", Long.class)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM article_tag", Long.class)).isEqualTo(1);
+    }
+
+    @Test
+    void keeps_the_article_another_listing_puts_on_sale() {
+        everythingAbout(ERASED);
+        UUID article = jdbc.queryForObject("SELECT article_id FROM listing WHERE vinted_id = ?", UUID.class,
+                ERASED.value());
+        jdbc.update("INSERT INTO listing SELECT 203, url, title, price_amount, price_currency, present,"
+                + " last_seen_at, first_seen_at, article_id FROM listing WHERE vinted_id = ?",
+                ERASED.value());
+
+        eraser.erase(ERASED);
+
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM article WHERE id = ?", Long.class, article)).isOne();
+        assertThat(tags.findAll()).containsExactly(new ListingTag(new VintedListingId(203), new Tag("été")));
     }
 
     @Test

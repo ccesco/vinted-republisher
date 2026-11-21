@@ -5,6 +5,7 @@ import java.net.URI;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Random;
+import java.util.UUID;
 
 /** Invented listings: never real data from a wardrobe. */
 public final class WardrobeFixtures {
@@ -42,7 +43,17 @@ public final class WardrobeFixtures {
 
     /** A listing read again at {@code lastSeenAt}, first seen by the tool at {@code firstSeenAt}. */
     public static Listing seenSince(ScannedListing scanned, Instant firstSeenAt, Instant lastSeenAt) {
-        return new Listing(scanned.id(), scanned.url(), scanned.title(), scanned.price(), true, firstSeenAt,
-                lastSeenAt);
+        return new Listing(scanned.id(), articleOf(scanned.id()), scanned.url(), scanned.title(), scanned.price(), true,
+                firstSeenAt, lastSeenAt);
+    }
+
+    /** As {@link Listing#seen}, with the same article for the same listing in every call, for comparisons. */
+    public static Listing seen(ScannedListing scanned, Instant seenAt) {
+        return seenSince(scanned, seenAt, seenAt);
+    }
+
+    /** One article per listing, the same in every call. */
+    public static ArticleId articleOf(VintedListingId listing) {
+        return new ArticleId(new UUID(0, listing.value()));
     }
 }

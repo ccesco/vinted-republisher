@@ -1,0 +1,92 @@
+databaseChangeLog:
+  # US-53 : l'article (le vêtement) a un identifiant stable ; ses annonces successives s'y rattachent. Les tags et la
+  # vente passent sur l'article, l'historique de prix se lit par article. Un article par chaîne de republications
+  # réussies existante. Des clés étrangères composites vers listing (vinted_id, article_id) garantissent qu'une
+  # republication, une vente ou un prix restent dans l'article de leur annonce ; ON UPDATE CASCADE les fait suivre
+  # quand une fusion déplace les annonces d'un article dans un autre.
+  - changeSet:
+      id: 021-create-article
+      author: vinted-republisher
+      changes:
+        - sql:
+            sql: >
+              CREATE TABLE article (
+                id uuid PRIMARY KEY,
+                created_at timestamptz NOT NULL
+              );
+
+              ALTER TABLE listing ADD COLUMN article_id uuid;
+              UPDATE listing SET article_id = gen_random_uuid();
+              WITH RECURSIVE walk (listing_id, root_id) AS (
+                SELECT l.vinted_id, l.vinted_id FROM listing l
+                WHERE NOT EXISTS (SELECT 1 FROM listing_republication r
+                                  WHERE r.outcome = 'PUBLISHED' AND r.new_listing_id = l.vinted_id)
+                UNION
+                SELECT r.new_listing_id, w.root_id FROM walk w
+                JOIN listing_republication r ON r.listing_id = w.listing_id AND r.outcome = 'PUBLISHED'
+              )
+              UPDATE listing l SET article_id = root.article_id
+              FROM walk w JOIN listing root ON root.vinted_id = w.root_id
+              WHERE l.vinted_id = w.listing_id AND w.listing_id <> w.root_id;
+              INSERT INTO article (id, created_at)
+                SELECT article_id, MIN(first_seen_at) FROM listing GROUP BY article_id;
+              ALTER TABLE listing ALTER COLUMN article_id SET NOT NULL;
+              ALTER TABLE listing ADD CONSTRAINT listing_article_fk FOREIGN KEY (article_id) REFERENCES article (id);
+              ALTER TABLE listing ADD CONSTRAINT listing_in_article UNIQUE (vinted_id, article_id);
+              CREATE INDEX listing_article ON listing (article_id);
+
+              ALTER TABLE listing_republication ADD COLUMN article_id uuid;
+              UPDATE listing_republication r SET article_id = l.article_id FROM listing l WHERE l.vinted_id = r.listing_id;
+              ALTER TABLE listing_republication ALTER COLUMN article_id SET NOT NULL;
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_listing_in_article
+                FOREIGN KEY (listing_id, article_id) REFERENCES listing (vinted_id, article_id) ON UPDATE CASCADE;
+              ALTER TABLE listing_republication ADD CONSTRAINT listing_republication_new_listing_in_article
+                FOREIGN KEY (new_listing_id, article_id) REFERENCES listing (vinted_id, article_id) ON UPDATE CASCADE;
+              CREATE INDEX listing_republication_listing ON listing_republication (listing_id, article_id);
+
+              ALTER TABLE listing_price_change ADD COLUMN article_id uuid;
+              UPDATE listing_price_change c SET article_id = l.article_id FROM listing l WHERE l.vinted_id = c.listing_id;
+              ALTER TABLE listing_price_change ALTER COLUMN article_id SET NOT NULL;
+              ALTER TABLE listing_price_change DROP CONSTRAINT listing_price_change_listing;
+              ALTER TABLE listing_price_change ADD CONSTRAINT listing_price_change_listing_in_article
+                FOREIGN KEY (listing_id, article_id) REFERENCES listing (vinted_id, article_id) ON UPDATE CASCADE;
+              DELETE FROM listing_price_change c USING (
+                SELECT id, price_amount, price_currency,
+                       LAG(price_amount) OVER article_history AS previous_amount,
+                       LAG(price_currency) OVER article_history AS previous_currency
+                FROM listing_price_change
+                WINDOW article_history AS (PARTITION BY article_id ORDER BY changed_at, id)
+              ) repeated
+              WHERE c.id = repeated.id AND repeated.previous_amount = repeated.price_amount
+                AND repeated.previous_currency = repeated.price_currency;
+              DROP INDEX listing_price_change_history;
+              CREATE INDEX listing_price_change_article_history
+                ON listing_price_change (article_id, changed_at DESC, id DESC);
+              CREATE INDEX listing_price_change_listing ON listing_price_change (listing_id, article_id);
+
+              CREATE TABLE article_tag (
+                article_id uuid NOT NULL REFERENCES article (id),
+                tag text NOT NULL CONSTRAINT article_tag_tag_check CHECK (char_length(tag) BETWEEN 1 AND 30),
+                CONSTRAINT article_tag_pk PRIMARY KEY (article_id, tag)
+              );
+              INSERT INTO article_tag (article_id, tag)
+                SELECT DISTINCT l.article_id, t.tag FROM listing_tag t JOIN listing l ON l.vinted_id = t.listing_id;
+              DROP TABLE listing_tag;
+
+              CREATE TABLE article_sale (
+                article_id uuid PRIMARY KEY REFERENCES article (id),
+                listing_id bigint NOT NULL CONSTRAINT article_sale_one_per_listing UNIQUE,
+                noticed_at timestamptz NOT NULL,
+                origin text NOT NULL CONSTRAINT article_sale_origin_check CHECK (origin IN ('NOTED', 'NOTICED')),
+                CONSTRAINT article_sale_listing_in_article FOREIGN KEY (listing_id, article_id)
+                  REFERENCES listing (vinted_id, article_id) ON UPDATE CASCADE
+              );
+              INSERT INTO article_sale (article_id, listing_id, noticed_at, origin)
+                SELECT DISTINCT ON (l.article_id) l.article_id, s.listing_id, s.noticed_at, s.origin
+                FROM listing_sale s JOIN listing l ON l.vinted_id = s.listing_id
+                ORDER BY l.article_id, s.noticed_at, s.listing_id;
+              DROP TABLE listing_sale;
+      # Pas de retour arrière : les tags et ventes d'une chaîne sont réunis sur son article.
+      rollback:
+        - sql:
+            sql: SELECT 'US-53 sans retour arrière'
